@@ -148,7 +148,6 @@ app.get('/api/info', (req, res) => {
     '--no-playlist',
     '--no-warnings',
     '--no-cache-dir',
-    '--no-interactive',
     '--dump-json',
     '--skip-download',
     videoUrl
@@ -545,7 +544,6 @@ io.on('connection', (socket) => {
       '--no-playlist',
       '--no-warnings',
       '--no-cache-dir',
-      '--no-interactive',
       '--newline',
       '--progress'
     ];
