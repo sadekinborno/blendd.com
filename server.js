@@ -142,11 +142,27 @@ app.get('/api/info', (req, res) => {
     return res.status(400).json({ error: 'URL query parameter is required' });
   }
 
-  // Execute yt-dlp to dump json metadata
-  const args = [...ytDlpArgsPrefix, '--dump-json', '--skip-download', videoUrl];
-  const ytDlp = spawn(pythonCommand, args);
+  const args = [
+    ...ytDlpArgsPrefix,
+    '--socket-timeout', '10',
+    '--no-playlist',
+    '--no-warnings',
+    '--no-cache-dir',
+    '--no-interactive',
+    '--dump-json',
+    '--skip-download',
+    videoUrl
+  ];
+  const ytDlp = spawn(pythonCommand, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+  // Kill the process if it hangs more than 15 seconds
+  const timeoutId = setTimeout(() => {
+    console.warn('yt-dlp info process timed out, killing...');
+    ytDlp.kill('SIGKILL');
+  }, 15000);
 
   ytDlp.on('error', (err) => {
+    clearTimeout(timeoutId);
     console.error('yt-dlp spawn error:', err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Downloader not configured correctly or not found on the server.' });
@@ -165,6 +181,7 @@ app.get('/api/info', (req, res) => {
   });
 
   ytDlp.on('close', (code) => {
+    clearTimeout(timeoutId);
     if (code !== 0) {
       console.error(`yt-dlp error: ${stderr}`);
       return res.status(400).json({ 
@@ -522,7 +539,16 @@ io.on('connection', (socket) => {
     const downloadToken = uuidv4();
     
     // Create folder mapping and standard output file path
-    const args = [...ytDlpArgsPrefix, '--newline', '--progress'];
+    const args = [
+      ...ytDlpArgsPrefix,
+      '--socket-timeout', '15',
+      '--no-playlist',
+      '--no-warnings',
+      '--no-cache-dir',
+      '--no-interactive',
+      '--newline',
+      '--progress'
+    ];
 
     // Quality mapping options
     if (format === 'mp3') {
@@ -545,9 +571,16 @@ io.on('connection', (socket) => {
 
     socket.emit('download-status', { status: 'starting', message: 'Spawning downloader...' });
 
-    const downloadProcess = spawn(pythonCommand, args);
+    const downloadProcess = spawn(pythonCommand, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+    const downloadTimeoutId = setTimeout(() => {
+      console.warn('Download process timed out, killing...');
+      downloadProcess.kill('SIGKILL');
+      socket.emit('download-status', { status: 'failed', message: 'Download timed out on the server.' });
+    }, 300000); // 5 minutes timeout
 
     downloadProcess.on('error', (err) => {
+      clearTimeout(downloadTimeoutId);
       console.error('Download spawn error:', err);
       socket.emit('download-status', { status: 'failed', message: 'Failed to start downloader on the server.' });
     });
@@ -590,6 +623,7 @@ io.on('connection', (socket) => {
     });
 
     downloadProcess.on('close', (code) => {
+      clearTimeout(downloadTimeoutId);
       if (code === 0 && fs.existsSync(filePath)) {
         // Success
         activeDownloads.set(downloadToken, {
