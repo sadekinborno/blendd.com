@@ -293,7 +293,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       localStorage.setItem('nexus_mode', 'guest');
+
+      // Kick user out of downloader view if they switch to guest mode
+      const activeView = document.querySelector('.content-view.active');
+      if (activeView && activeView.id === 'view-downloader') {
+        switchView('dashboard');
+      }
     }
+
+    // Dynamic lock indicators for downloader tool in Guest mode
+    const downloaderBtn = document.querySelector('.nav-item[data-view="downloader"]');
+    if (downloaderBtn) {
+      const existingLock = downloaderBtn.querySelector('.lock-indicator');
+      if (existingLock) existingLock.remove();
+
+      if (mode !== 'owner') {
+        const lockIcon = document.createElement('i');
+        lockIcon.setAttribute('data-lucide', 'lock');
+        lockIcon.classList.add('lock-indicator');
+        lockIcon.style.cssText = 'margin-left: auto; width: 14px; height: 14px; opacity: 0.6;';
+        downloaderBtn.appendChild(lockIcon);
+      }
+    }
+
+    const downloaderCard = document.querySelector('.dash-card[data-action="go-to-downloader"]');
+    if (downloaderCard) {
+      const actionText = downloaderCard.querySelector('.card-action-text');
+      if (actionText) {
+        if (mode !== 'owner') {
+          actionText.innerHTML = 'Locked <i data-lucide="lock" style="width: 14px; height: 14px; margin-left: 4px;"></i>';
+          downloaderCard.style.opacity = '0.75';
+        } else {
+          actionText.innerHTML = 'Launch Tool <i data-lucide="arrow-right"></i>';
+          downloaderCard.style.opacity = '1';
+        }
+      }
+    }
+
     lucide.createIcons();
   }
 
@@ -352,6 +388,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const views = document.querySelectorAll('.content-view');
 
   function switchView(viewId) {
+    if (viewId === 'downloader' && localStorage.getItem('nexus_mode') !== 'owner') {
+      showModalAlert('The Media Downloader is locked in Guest Mode. Please switch to Owner Mode (bottom left) to use this feature.', 'Feature Locked', 'warning');
+      return;
+    }
+
     views.forEach(view => {
       view.classList.remove('active');
     });
