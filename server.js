@@ -183,9 +183,18 @@ app.get('/api/info', (req, res) => {
     clearTimeout(timeoutId);
     if (code !== 0) {
       console.error(`yt-dlp error: ${stderr}`);
+      
+      let friendlyError = 'Failed to fetch video information. Ensure the URL is valid.';
+      let friendlyDetails = `Exit code: ${code}\nStdout: ${stdout}\nStderr: ${stderr}`;
+
+      if (stderr.includes("confirm you’re not a bot") || stderr.includes("confirm you're not a bot") || stderr.includes("Sign in")) {
+        friendlyError = "YouTube is blocking the hosted server's IP address.";
+        friendlyDetails = "YouTube actively blocks cloud hosting platforms (like Render, Heroku, AWS) to prevent automated scraping, triggering their 'Sign in to confirm you're not a bot' check.\n\nWhy it works on localhost:\nYour local machine runs on a residential home internet connection which YouTube trusts. The hosted version on Render runs on a commercial datacenter IP, which YouTube blocks.\n\nHow to fix:\n1. Run the portal locally (highly recommended for personal use).\n2. Configure residential proxies on the hosted server.";
+      }
+
       return res.status(400).json({ 
-        error: 'Failed to fetch video information. Ensure the URL is valid.',
-        details: `Exit code: ${code}\nStdout: ${stdout}\nStderr: ${stderr}`
+        error: friendlyError,
+        details: friendlyDetails
       });
     }
 
@@ -612,8 +621,10 @@ io.on('connection', (socket) => {
       }
     });
 
+    let downloadStderr = '';
     downloadProcess.stderr.on('data', (chunk) => {
       const errorMsg = chunk.toString();
+      downloadStderr += errorMsg;
       // Only log errors that are critical, ignore warnings
       if (errorMsg.includes('ERROR:')) {
         console.error(`Download Stderr: ${errorMsg}`);
@@ -636,9 +647,13 @@ io.on('connection', (socket) => {
           ext: ext
         });
       } else {
+        let msg = 'Download failed. Ensure the link is valid or try a different format.';
+        if (downloadStderr.includes("confirm you’re not a bot") || downloadStderr.includes("confirm you're not a bot") || downloadStderr.includes("Sign in")) {
+          msg = "YouTube blocked the server's IP (bot check protection). Try running the app locally.";
+        }
         socket.emit('download-status', {
           status: 'error',
-          message: 'Download failed. Ensure the link is valid or try a different format.'
+          message: msg
         });
         // Remove temp file if it exists
         if (fs.existsSync(filePath)) {
