@@ -167,7 +167,10 @@ app.get('/api/info', (req, res) => {
   ytDlp.on('close', (code) => {
     if (code !== 0) {
       console.error(`yt-dlp error: ${stderr}`);
-      return res.status(400).json({ error: 'Failed to fetch video information. Ensure the URL is valid.' });
+      return res.status(400).json({ 
+        error: 'Failed to fetch video information. Ensure the URL is valid.',
+        details: `Exit code: ${code}\nStdout: ${stdout}\nStderr: ${stderr}`
+      });
     }
 
     try {
