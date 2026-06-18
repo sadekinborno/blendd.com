@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>blend.com | Media Tool & Game Portal</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Styling -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  
+  <!-- Main Glassmorphic Wrapper -->
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-logo">
+          <div class="brand-orb"></div>
+        </div>
+        <span class="brand-name">blend.com</span>
+      </div>
+      
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" data-view="downloader">
+          <i data-lucide="download-cloud"></i>
+          <span>Media Downloader</span>
+        </button>
+        <button class="nav-item" data-view="linksaver">
+          <i data-lucide="folder-heart"></i>
+          <span>Link Saver</span>
+        </button>
+        <button class="nav-item" data-view="games">
+          <i data-lucide="gamepad-2"></i>
+          <span>Arcade Zone</span>
+        </button>
+      </nav>
+      
+      <div class="sidebar-footer" id="mode-switcher-footer" style="cursor: pointer;" title="Click to switch between Guest/Owner mode">
+        <div class="user-avatar">
+          <div class="avatar-ring" id="avatar-ring-mode"></div>
+          <span class="avatar-text" id="avatar-text-mode">G</span>
+        </div>
+        <div class="user-info">
+          <p class="user-name" id="user-name-mode">Friend Node</p>
+          <p class="user-role" id="user-role-mode">Guest Mode</p>
+        </div>
+        <button class="btn-lock-mode" id="btn-lock-mode" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 5px; margin-left: auto; transition: color 0.2s;">
+          <i data-lucide="lock" style="width: 16px; height: 16px;"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="content-area">
+      
+      <!-- HEADER -->
+      <header class="top-header">
+        <div class="header-search-placeholder">
+          <span class="pulse-dot"></span>
+          <span class="status-text">Server Status: Online</span>
+        </div>
+        <div class="header-actions">
+          <button id="theme-toggle" class="header-btn" title="Toggle glow effect">
+            <i data-lucide="sparkles"></i>
+          </button>
+          <div class="current-time" id="live-clock">12:00:00 PM</div>
+        </div>
+      </header>
+
+      <!-- VIEW: DASHBOARD -->
+      <section id="view-dashboard" class="content-view active">
+        <div class="welcome-banner">
+          <div class="banner-overlay"></div>
+          <div class="banner-content">
+            <h1>Welcome to blend.com</h1>
+            <p>Your local companion for media downloading, bookmark organization, and gaming. Ready to serve.</p>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <!-- Card: Downloader Quick Link -->
+          <div class="dash-card link-downloader" data-action="go-to-downloader">
+            <div class="dash-card-icon downloader-glow">
+              <i data-lucide="download-cloud"></i>
+            </div>
+            <h3>Media Downloader</h3>
+            <p>Grab video or audio from YouTube, Facebook, Instagram, and more in seconds.</p>
+            <span class="card-action-text">Launch Tool <i data-lucide="arrow-right"></i></span>
+          </div>
+
+          <!-- Card: Link Saver Stats -->
+          <div class="dash-card link-linksaver" data-action="go-to-linksaver">
+            <div class="dash-card-icon linksaver-glow">
+              <i data-lucide="folder-heart"></i>
+            </div>
+            <h3>Bookmark Saver</h3>
+            <p>Store, categorize, and browse important links. Persists across sessions.</p>
+            <div class="stat-badge">
+              <span id="stat-links-count">0</span> links saved
+            </div>
+            <span class="card-action-text">Browse Bookmarks <i data-lucide="arrow-right"></i></span>
+          </div>
+
+          <!-- Card: Game Quick Link -->
+          <div class="dash-card link-games" data-action="go-to-games">
+            <div class="dash-card-icon games-glow">
+              <i data-lucide="gamepad-2"></i>
+            </div>
+            <h3>Arcade Zone</h3>
+            <p>Relax and challenge yourself with neon retro mini games. No download required.</p>
+            <span class="card-action-text">Enter Arcade <i data-lucide="arrow-right"></i></span>
+          </div>
+        </div>
+
+        <!-- Section: Recent Bookmarks preview -->
+        <div class="dashboard-section">
+          <div class="section-title-row">
+            <h2>Recently Bookmarked</h2>
+            <button class="btn-text" data-action="go-to-linksaver">View All</button>
+          </div>
+          <div class="recent-links-list" id="dashboard-recent-links">
+            <div class="empty-state-simple">
+              <p>No bookmarks saved yet. Go to Link Saver to add one!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: DOWNLOADER -->
+      <section id="view-downloader" class="content-view">
+        <div class="view-header">
+          <h1>Universal Media Downloader</h1>
+          <p>Download video or extract high-quality audio from major streaming platforms.</p>
+        </div>
+
+        <div class="downloader-panel glass-panel">
+          <div class="downloader-input-row">
+            <div class="input-glow-wrapper">
+              <i data-lucide="link" class="input-icon"></i>
+              <input type="text" id="downloader-url" placeholder="Paste YouTube, Instagram, Facebook, or other video link here...">
+              <span class="input-focus-border"></span>
+            </div>
+            <button id="btn-fetch-info" class="btn-primary">
+              <span>Fetch Media</span>
+              <i data-lucide="arrow-right"></i>
+            </button>
+          </div>
+
+          <!-- Loader State -->
+          <div class="downloader-loader hidden" id="downloader-spinner">
+            <div class="orb-spinner">
+              <div class="double-bounce1"></div>
+              <div class="double-bounce2"></div>
+            </div>
+            <p>Analyzing link and fetching available formats...</p>
+          </div>
+
+          <!-- Media Meta Card (Shown after details fetched) -->
+          <div class="media-meta-card hidden" id="downloader-meta-card">
+            <div class="media-card-grid">
+              <div class="media-thumbnail-container">
+                <img id="media-thumb" src="" alt="Thumbnail">
+                <div class="media-duration" id="media-duration">0:00</div>
+              </div>
+              <div class="media-details">
+                <h2 id="media-title">Video Title Placeholder</h2>
+                <div class="media-uploader-row">
+                  <i data-lucide="user" class="small-icon"></i>
+                  <span id="media-uploader">Channel Name</span>
+                </div>
+                
+                <div class="downloader-options">
+                  <label for="media-format">Select Quality / Format</label>
+                  <div class="select-wrapper">
+                    <select id="media-format">
+                      <!-- Format options populated dynamically -->
+                    </select>
+                    <i data-lucide="chevron-down" class="select-chevron"></i>
+                  </div>
+                </div>
+
+                <div class="media-actions">
+                  <button id="btn-start-download" class="btn-glow">
+                    <i data-lucide="download"></i>
+                    <span>Download Media</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Download Progress Indicator (Shown during active download) -->
+          <div class="download-progress-card hidden" id="downloader-progress-card">
+            <div class="progress-header">
+              <div class="progress-status-indicator">
+                <span class="pulse-dot active"></span>
+                <span id="download-status-msg">Downloading files...</span>
+              </div>
+              <span id="download-percentage-text">0%</span>
+            </div>
+            
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" id="download-progress-bar"></div>
+            </div>
+
+            <div class="progress-stats">
+              <div class="stat-box">
+                <span class="stat-label">Speed</span>
+                <span class="stat-value" id="download-speed">0.0 MiB/s</span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label">File Size</span>
+                <span class="stat-value" id="download-size">0.00 MiB</span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label">Time Remaining</span>
+                <span class="stat-value" id="download-eta">--:--</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Download Ready Card (Success and download prompt) -->
+          <div class="download-ready-card hidden" id="downloader-ready-card">
+            <div class="ready-icon-ring">
+              <i data-lucide="check-circle-2"></i>
+            </div>
+            <h2>Download Complete!</h2>
+            <p id="downloader-ready-title">Your file is ready to download.</p>
+            <a id="btn-trigger-save" href="" class="btn-success">
+              <i data-lucide="save"></i>
+              <span>Save to Device</span>
+            </a>
+            <button id="btn-download-another" class="btn-text">Download Another Link</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: LINK SAVER -->
+      <section id="view-linksaver" class="content-view">
+        <div class="view-header">
+          <h1>Shared Bookmark Hub</h1>
+          <p>Organize, save, and share important links, streaming sites, or articles.</p>
+        </div>
+
+        <!-- Add Link Form -->
+        <div class="link-form-container glass-panel">
+          <div class="panel-header" id="toggle-link-form">
+            <h2><i data-lucide="plus-circle" class="panel-header-icon"></i> Save New Bookmark</h2>
+            <button class="btn-icon-toggle"><i data-lucide="chevron-down"></i></button>
+          </div>
+          
+          <form id="linksaver-form" class="link-form collapsible-content hidden">
+            <div class="form-grid">
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label for="link-url">URL Address</label>
+                <div class="input-glow-wrapper">
+                  <input type="url" id="link-url" placeholder="https://example.com/movie-link" required>
+                  <span class="input-focus-border"></span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="link-title-input">Bookmark Name (Optional)</label>
+                <div class="input-glow-wrapper">
+                  <input type="text" id="link-title-input" placeholder="Leave empty to auto-fetch title">
+                  <span class="input-focus-border"></span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="link-category">Category</label>
+                <div class="select-wrapper">
+                  <select id="link-category">
+                    <option value="Movies & Shows">Movies & Shows</option>
+                    <option value="Sports">Sports Streaming</option>
+                    <option value="Development">Coding & Tools</option>
+                    <option value="General" selected>General Bookmarks</option>
+                  </select>
+                  <i data-lucide="chevron-down" class="select-chevron"></i>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="link-icon-select">Display Icon</label>
+                <div class="select-wrapper">
+                  <select id="link-icon-select">
+                    <option value="auto" selected>🌐 Auto Favicon</option>
+                    <option value="letter">🔠 Letter Monogram</option>
+                    <option value="icon:film">🎬 Movie/Show Icon</option>
+                    <option value="icon:gamepad-2">🎮 Game Icon</option>
+                    <option value="icon:terminal">💻 Coding Icon</option>
+                    <option value="icon:book-open">📖 Article/Book Icon</option>
+                    <option value="icon:star">⭐ Star Favorite</option>
+                  </select>
+                  <i data-lucide="chevron-down" class="select-chevron"></i>
+                </div>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn-secondary hidden" id="btn-cancel-edit">
+                <span>Cancel</span>
+              </button>
+              <button type="submit" class="btn-primary" id="btn-save-bookmark">
+                <span>Save Bookmark</span>
+                <i data-lucide="check"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="filter-tabs-row">
+          <div class="filter-tabs">
+            <button class="tab-btn active" data-filter="all">All Links</button>
+            <button class="tab-btn" data-filter="Movies & Shows">Movies</button>
+            <button class="tab-btn" data-filter="Sports">Sports</button>
+            <button class="tab-btn" data-filter="Development">Tools</button>
+            <button class="tab-btn" data-filter="General">General</button>
+          </div>
+          <div class="search-box">
+            <i data-lucide="search"></i>
+            <input type="text" id="links-search" placeholder="Search saved links...">
+          </div>
+        </div>
+
+        <!-- Bookmarks Display Grid -->
+        <div class="bookmarks-grid" id="bookmarks-container">
+          <!-- Dynamic contents -->
+          <div class="loader-placeholder">
+            <div class="orb-spinner">
+              <div class="double-bounce1"></div>
+              <div class="double-bounce2"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: MINI GAMES -->
+      <section id="view-games" class="content-view">
+        <div class="view-header">
+          <h1>Arcade Zone</h1>
+          <p>Compete with friends or try to beat the CPU in retro browser mini games.</p>
+        </div>
+
+        <!-- Games Grid (Default view) -->
+        <div class="games-grid" id="games-list-view">
+          <!-- Game Card: Tic-Tac-Toe -->
+          <div class="game-card neon-card-cyan" data-game="tictactoe">
+            <div class="game-card-preview">
+              <div class="neon-xo-grid">
+                <span>X</span>
+                <span>O</span>
+                <span>O</span>
+                <span>X</span>
+              </div>
+            </div>
+            <div class="game-card-info">
+              <div class="game-meta">
+                <span class="game-tag tag-cyan">1-2 Players</span>
+                <span class="game-difficulty">Easy / Hard CPU</span>
+              </div>
+              <h3>Synthwave Tic-Tac-Toe</h3>
+              <p>Play traditional 3x3 match-three with beautiful glowing grids and a smart AI mode.</p>
+              <button class="btn-neon-cyan">Play Game</button>
+            </div>
+          </div>
+
+          <!-- Game Card: Chor Dakat Babu Police -->
+          <div class="game-card neon-card-purple" data-game="cdbp">
+            <div class="game-card-preview">
+              <div class="neon-xo-grid">
+                <span class="glow-pink">CHOR</span>
+                <span class="glow-cyan">POLICE</span>
+              </div>
+            </div>
+            <div class="game-card-info">
+              <div class="game-meta">
+                <span class="game-tag tag-purple">4-7 Players</span>
+                <span class="game-difficulty">Social Deduction</span>
+              </div>
+              <h3>Chor Dakat Babu Police</h3>
+              <p>Traditional South Asian social deduction game. Use bluffs, clues, and logic to solve the heist.</p>
+              <button class="btn-neon-purple">Play Game</button>
+            </div>
+          </div>
+
+          <!-- Game Card: Retro Snake -->
+          <div class="game-card neon-card-pink locked">
+            <div class="game-card-preview">
+              <i data-lucide="activity"></i>
+            </div>
+            <div class="game-card-info">
+              <div class="game-meta">
+                <span class="game-tag tag-pink">High Score</span>
+                <span class="game-difficulty">Classic Speed</span>
+              </div>
+              <h3>Cyber Snake</h3>
+              <p>Guide the light cycle grid line, eat neon cores, and set the high score. (Coming soon)</p>
+              <button class="btn-neon-pink" disabled>Coming Soon</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Game Play Area: Tic-Tac-Toe -->
+        <div class="game-play-container hidden" id="game-tictactoe-view">
+          <div class="game-play-header">
+            <button class="btn-back" id="btn-back-to-arcade">
+              <i data-lucide="arrow-left"></i>
+              <span>Back to Arcade</span>
+            </button>
+            <h2>Synthwave Tic-Tac-Toe</h2>
+          </div>
+
+          <div class="game-layout">
+            <div class="game-panel glass-panel">
+              <div class="game-controls">
+                <div class="mode-select">
+                  <span class="control-label">Game Mode:</span>
+                  <div class="btn-group">
+                    <button class="btn-mode active" data-mode="ai">Vs CPU</button>
+                    <button class="btn-mode" data-mode="friend">Vs Friend</button>
+                  </div>
+                </div>
+                <div class="difficulty-select" id="cpu-diff-row">
+                  <span class="control-label">CPU Difficulty:</span>
+                  <div class="btn-group">
+                    <button class="btn-diff active" data-diff="easy">Easy</button>
+                    <button class="btn-diff" data-diff="hard">Unbeatable</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tic Tac Toe Grid -->
+              <div class="ttt-board" id="ttt-board">
+                <div class="ttt-cell" data-index="0"></div>
+                <div class="ttt-cell" data-index="1"></div>
+                <div class="ttt-cell" data-index="2"></div>
+                <div class="ttt-cell" data-index="3"></div>
+                <div class="ttt-cell" data-index="4"></div>
+                <div class="ttt-cell" data-index="5"></div>
+                <div class="ttt-cell" data-index="6"></div>
+                <div class="ttt-cell" data-index="7"></div>
+                <div class="ttt-cell" data-index="8"></div>
+              </div>
+
+              <div class="game-status-row">
+                <div class="turn-box">
+                  Turn: <span id="ttt-turn" class="glow-cyan">X</span>
+                </div>
+                <button id="btn-reset-game" class="btn-secondary">Reset Match</button>
+              </div>
+            </div>
+
+            <!-- Score board -->
+            <div class="scoreboard-panel glass-panel">
+              <h3>Scoreboard</h3>
+              <div class="score-row">
+                <span class="score-label glow-cyan">Player (X)</span>
+                <span class="score-val" id="score-x">0</span>
+              </div>
+              <div class="score-row">
+                <span class="score-label glow-pink" id="score-o-label">CPU (O)</span>
+                <span class="score-val" id="score-o">0</span>
+              </div>
+              <div class="score-row">
+                <span class="score-label">Ties</span>
+                <span class="score-val" id="score-ties">0</span>
+              </div>
+              <button id="btn-clear-score" class="btn-text">Reset Scores</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Game Play Area: Chor Dakat Babu Police -->
+        <div class="game-play-container hidden" id="game-cdbp-view">
+          <div class="game-play-header">
+            <button class="btn-back" id="btn-cdbp-back-to-arcade">
+              <i data-lucide="arrow-left"></i>
+              <span>Back to Arcade</span>
+            </button>
+            <h2>Chor Dakat Babu Police</h2>
+          </div>
+
+          <!-- LOBBY SCREEN (Setup room / Join room) -->
+          <div class="cdbp-setup-panel glass-panel" id="cdbp-lobby-setup">
+            <div class="setup-grid">
+              <div class="setup-section create-section">
+                <h3>Create New Lobby</h3>
+                <p>Create a game room and invite your friends. Supports 4 to 7 players.</p>
+                <div class="form-group" style="margin-top: 16px;">
+                  <label for="cdbp-player-name-create">Your Name</label>
+                  <div class="input-glow-wrapper">
+                    <input type="text" id="cdbp-player-name-create" placeholder="Enter name...">
+                    <span class="input-focus-border"></span>
+                  </div>
+                </div>
+                <button class="btn-primary" id="btn-cdbp-create-room" style="margin-top: 20px; width: 100%;">
+                  <i data-lucide="plus"></i>
+                  <span>Create Lobby</span>
+                </button>
+              </div>
+
+              <div class="setup-divider">
+                <span>OR</span>
+              </div>
+
+              <div class="setup-section join-section">
+                <h3>Join Existing Lobby</h3>
+                <p>Enter a 4-letter room code shared by your friend to join their lobby.</p>
+                <div class="form-group" style="margin-top: 16px;">
+                  <label for="cdbp-player-name-join">Your Name</label>
+                  <div class="input-glow-wrapper">
+                    <input type="text" id="cdbp-player-name-join" placeholder="Enter name...">
+                    <span class="input-focus-border"></span>
+                  </div>
+                </div>
+                <div class="form-group" style="margin-top: 16px;">
+                  <label for="cdbp-room-code-input">Room Code</label>
+                  <div class="input-glow-wrapper">
+                    <input type="text" id="cdbp-room-code-input" placeholder="e.g. ABCD" maxlength="4" style="text-transform: uppercase;">
+                    <span class="input-focus-border"></span>
+                  </div>
+                </div>
+                <button class="btn-secondary" id="btn-cdbp-join-room" style="margin-top: 20px; width: 100%;">
+                  <i data-lucide="log-in"></i>
+                  <span>Join Lobby</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- LOBBY ROOM WAITING (In a room, not started) -->
+          <div class="cdbp-room-panel glass-panel hidden" id="cdbp-lobby-waiting">
+            <div class="room-header-row">
+              <div class="room-code-display">
+                Room Code: <span id="cdbp-display-code" class="glow-cyan">----</span>
+                <button class="btn-icon-copy" id="btn-cdbp-copy-code" title="Copy Room Code"><i data-lucide="copy" style="width: 14px; height: 14px;"></i></button>
+              </div>
+              <div class="room-host-display">
+                Host: <span id="cdbp-display-host">---</span>
+              </div>
+            </div>
+
+            <div class="room-lobby-grid">
+              <div class="lobby-players-list">
+                <h3>Connected Players (<span id="cdbp-player-count">0</span>/7)</h3>
+                <div class="player-chips-container" id="cdbp-lobby-players-container">
+                  <!-- Dynamic players list -->
+                </div>
+              </div>
+              
+              <div class="lobby-actions-panel">
+                <h3>Instructions</h3>
+                <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px;">
+                  Requires 4–7 players to start. When everyone is in the lobby, the host can start the game. Exactly 1 Babu, 1 Police, 1 Chor, and 1 Dakat will be assigned. Optional roles (Spy, Detective, Jadukar) fill additional slots.
+                </p>
+                <button class="btn-primary" id="btn-cdbp-start-match" disabled style="width: 100%;">
+                  <i data-lucide="play"></i>
+                  <span>Start Match</span>
+                </button>
+                <p id="cdbp-host-warning" style="font-size: 11px; color: var(--text-muted); margin-top: 8px; text-align: center;">Waiting for more players to join...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACTIVE GAMEPLAY HUD -->
+          <div class="cdbp-active-game-container hidden" id="cdbp-active-game">
+            <div class="game-hud-header">
+              <div class="hud-phase-info">
+                Phase: <span id="cdbp-hud-phase" class="glow-pink">DISCUSSION</span>
+              </div>
+              <div class="hud-timer-container">
+                <i data-lucide="clock"></i>
+                <span id="cdbp-hud-timer">00</span>s
+              </div>
+            </div>
+
+            <div class="game-layout">
+              <!-- Sidebar: Players list and My secret card -->
+              <div class="game-sidebar-panel">
+                <div class="sidebar-block glass-panel" style="margin-bottom: 16px; padding: 16px;">
+                  <h3>Players & Roles</h3>
+                  <div class="player-game-list" id="cdbp-game-players-list">
+                    <!-- Players status (Babu/Police revealed, others hidden) -->
+                  </div>
+                </div>
+
+                <div class="sidebar-block glass-panel" style="padding: 16px;">
+                  <h3>My Secret Role</h3>
+                  <div class="secret-role-card" id="cdbp-my-role-card">
+                    <!-- Secret role graphic -->
+                    <div class="role-icon-container" id="cdbp-my-role-icon-box">
+                      <i data-lucide="shield-alert"></i>
+                    </div>
+                    <h2 id="cdbp-my-role-name">Role Name</h2>
+                    <p id="cdbp-my-role-desc">Role description...</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Main Panel: Phase specifics -->
+              <div class="game-main-panel glass-panel">
+                
+                <!-- PHASE VIEW: ROLE ASSIGN -->
+                <div class="phase-container" id="phase-role-assign">
+                  <div class="phase-splash">
+                    <div class="orb-spinner" style="margin-bottom: 20px;">
+                      <div class="double-bounce1"></div>
+                      <div class="double-bounce2"></div>
+                    </div>
+                    <h2>Assigning Roles...</h2>
+                    <p>Roles are being distributed randomly by the server. Prepare yourself.</p>
+                  </div>
+                </div>
+
+                <!-- PHASE VIEW: JADUKAR SWAP -->
+                <div class="phase-container hidden" id="phase-jadukar-swap">
+                  <!-- For Jadukar -->
+                  <div class="jadukar-view hidden" id="cdbp-jadukar-panel">
+                    <div class="phase-splash-top">
+                      <i data-lucide="wand" class="neon-icon-purple"></i>
+                      <h2>Jadukar Swap Phase</h2>
+                      <p>You have the power to swap the roles of any two players secretly. This swap affects the final scoring!</p>
+                    </div>
+                    <div class="swap-selectors" style="margin-top: 24px;">
+                      <div class="form-group" style="margin-bottom: 16px;">
+                        <label for="cdbp-swap-p1">Swap Player 1</label>
+                        <div class="select-wrapper">
+                          <select id="cdbp-swap-p1"></select>
+                          <i data-lucide="chevron-down" class="select-chevron"></i>
+                        </div>
+                      </div>
+                      <div class="form-group" style="margin-bottom: 24px;">
+                        <label for="cdbp-swap-p2">Swap Player 2</label>
+                        <div class="select-wrapper">
+                          <select id="cdbp-swap-p2"></select>
+                          <i data-lucide="chevron-down" class="select-chevron"></i>
+                        </div>
+                      </div>
+                      <button class="btn-glow" id="btn-cdbp-execute-swap" style="width: 100%;">
+                        <i data-lucide="sparkles"></i>
+                        <span>Execute Secret Swap</span>
+                      </button>
+                    </div>
+                  </div>
+                  <!-- For Non-Jadukar -->
+                  <div class="non-jadukar-view" id="cdbp-non-jadukar-panel">
+                    <div class="phase-splash">
+                      <div class="pulsing-wand-icon">
+                        <i data-lucide="wand" class="pulse-icon"></i>
+                      </div>
+                      <h2>Jadukar is Performing a Swap</h2>
+                      <p>The Jadukar is currently selecting two players to secretly swap their roles. Waiting...</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- PHASE VIEW: INFO PHASE -->
+                <div class="phase-container hidden" id="phase-info-phase">
+                  <div class="phase-splash">
+                    <i data-lucide="book-open" class="neon-icon-cyan" style="width: 48px; height: 48px; margin-bottom: 20px;"></i>
+                    <h2>Information Gathering</h2>
+                    
+                    <!-- Detective info -->
+                    <div class="info-card hidden" id="cdbp-detective-clue-box">
+                      <span class="info-badge badge-detective">DETECTIVE CLUE</span>
+                      <p id="cdbp-detective-clue-text" class="clue-text">"Player is not a criminal."</p>
+                    </div>
+
+                    <!-- Spy info -->
+                    <div class="info-card hidden" id="cdbp-spy-info-box">
+                      <span class="info-badge badge-spy">SPY REVEAL</span>
+                      <p id="cdbp-spy-info-text" class="clue-text">"Player is the Dakat."</p>
+                    </div>
+
+                    <!-- Others info -->
+                    <div class="info-card" id="cdbp-generic-info-box">
+                      <span class="info-badge">NO CLUES</span>
+                      <p>You have received no special information. Formulate your bluffing strategy for the discussion phase!</p>
+                    </div>
+
+                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 30px;">This phase will automatically transition to discussion shortly.</p>
+                  </div>
+                </div>
+
+                <!-- PHASE VIEW: DISCUSSION -->
+                <div class="phase-container hidden" id="phase-discussion">
+                  <div class="discussion-panel">
+                    <div class="chat-logs-container" id="cdbp-chat-logs">
+                      <!-- Chat messages populated dynamically -->
+                    </div>
+                    <form class="chat-input-row" id="cdbp-chat-form">
+                      <input type="text" id="cdbp-chat-input" placeholder="Accuse, bluff, defend or discuss..." autocomplete="off">
+                      <button type="submit" class="btn-primary">
+                        <i data-lucide="send"></i>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+
+                <!-- PHASE VIEW: POLICE DECISION -->
+                <div class="phase-container hidden" id="phase-police-decision">
+                  <!-- For Police -->
+                  <div class="police-view hidden" id="cdbp-police-panel">
+                    <div class="phase-splash-top">
+                      <i data-lucide="shield-alert" class="neon-icon-blue"></i>
+                      <h2>Select the Suspects</h2>
+                      <p>You must identify BOTH the Chor and the Dakat to win. Examine the discussion evidence carefully.</p>
+                    </div>
+                    <div class="police-selectors" style="margin-top: 24px;">
+                      <div class="form-group" style="margin-bottom: 16px;">
+                        <label for="cdbp-guess-chor">Suspected CHOR (Thief)</label>
+                        <div class="select-wrapper">
+                          <select id="cdbp-guess-chor"></select>
+                          <i data-lucide="chevron-down" class="select-chevron"></i>
+                        </div>
+                      </div>
+                      <div class="form-group" style="margin-bottom: 24px;">
+                        <label for="cdbp-guess-dakat">Suspected DAKAT (Dacoit)</label>
+                        <div class="select-wrapper">
+                          <select id="cdbp-guess-dakat"></select>
+                          <i data-lucide="chevron-down" class="select-chevron"></i>
+                        </div>
+                      </div>
+                      <button class="btn-glow" id="btn-cdbp-submit-guess" style="width: 100%;">
+                        <i data-lucide="shield-check"></i>
+                        <span>Submit Final Guesses</span>
+                      </button>
+                    </div>
+                  </div>
+                  <!-- For Others -->
+                  <div class="non-police-view" id="cdbp-non-police-panel">
+                    <div class="phase-splash">
+                      <div class="pulsing-shield-icon">
+                        <i data-lucide="shield-alert" class="pulse-icon-blue"></i>
+                      </div>
+                      <h2>Police is Deliberating</h2>
+                      <p>The Police is currently selecting suspects for Chor and Dakat. Prepare for the final reveal!</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- PHASE VIEW: REVEAL & SCORING -->
+                <div class="phase-container hidden" id="phase-reveal">
+                  <div class="reveal-panel">
+                    <!-- Outcome Banner -->
+                    <div class="outcome-banner" id="cdbp-outcome-banner">
+                      <h2 id="cdbp-outcome-title">POLICE SUCCESS</h2>
+                      <p id="cdbp-outcome-desc">All criminals identified successfully!</p>
+                    </div>
+
+                    <div class="reveal-grids-row" style="margin-top: 24px;">
+                      <!-- Guesess and Swap logs -->
+                      <div class="reveal-logs-box">
+                        <h3>Round Activities</h3>
+                        <div class="reveal-log-item">
+                          <span>Police Guesses:</span>
+                          <p>Chor: <span id="cdbp-reveal-guess-chor" class="glow-cyan">Name</span> | Dakat: <span id="cdbp-reveal-guess-dakat" class="glow-pink">Name</span></p>
+                        </div>
+                        <div class="reveal-log-item" id="cdbp-reveal-swaps-box">
+                          <span>Jadukar Swaps:</span>
+                          <p id="cdbp-reveal-swaps-text">None</p>
+                        </div>
+                        
+                        <!-- Role chart -->
+                        <h4 style="margin-top: 16px; font-size: 13px; color: var(--text-muted); text-transform: uppercase;">Actual Roles Mapping</h4>
+                        <div class="reveal-roles-list" id="cdbp-reveal-roles-list">
+                          <!-- List of players and actual roles -->
+                        </div>
+                      </div>
+
+                      <!-- Scoreboard -->
+                      <div class="reveal-score-box">
+                        <h3>Scoreboard</h3>
+                        <div class="score-grid-list" id="cdbp-reveal-scoreboard">
+                          <!-- Total scores list -->
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="reveal-actions" style="margin-top: 32px; display: flex; justify-content: center; gap: 16px;">
+                      <button class="btn-primary" id="btn-cdbp-next-round" style="display:none;">
+                        <i data-lucide="play"></i>
+                        <span>Start Next Round</span>
+                      </button>
+                      <p id="cdbp-next-round-waiting-msg" style="font-size: 13px; color: var(--text-muted);">Waiting for the host to start the next round...</p>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Socket.io client JS -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Main Frontend App Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

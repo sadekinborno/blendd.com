@@ -1,0 +1,29 @@
+[
+  {
+    "id": "126faa44-cf2c-48e2-8ee2-387b8d777ed8",
+    "title": "CineBy",
+    "url": "https://cineby.cc",
+    "category": "Movies & Shows",
+    "favicon": "https://www.google.com/s2/favicons?sz=64&domain=cineby.cc",
+    "domain": "cineby.cc",
+    "addedAt": "2026-06-18T13:07:56.056Z"
+  },
+  {
+    "id": "dcfec448-7cde-4466-8a48-5d659d023cfe",
+    "title": "My Cool Gemini Repo",
+    "url": "https://github.com/google/gemini",
+    "category": "Development",
+    "favicon": "https://www.google.com/s2/favicons?sz=64&domain=github.com",
+    "domain": "github.com",
+    "addedAt": "2026-06-18T11:56:35.497Z"
+  },
+  {
+    "id": "34cf5110-0613-4242-85cd-99dd7b71f9fe",
+    "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub",
+    "url": "https://github.com",
+    "category": "Development",
+    "favicon": "https://www.google.com/s2/favicons?sz=64&domain=github.com",
+    "domain": "github.com",
+    "addedAt": "2026-06-18T11:46:29.122Z"
+  }
+]
