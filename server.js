@@ -40,6 +40,44 @@ if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify([], 
 // Memory map to track download sessions
 const activeDownloads = new Map();
 
+// Detect available yt-dlp executable/wrapper
+let pythonCommand = 'python';
+let ytDlpArgsPrefix = ['-m', 'yt_dlp'];
+
+function detectDownloader() {
+  const { execSync } = require('child_process');
+  
+  // Try direct yt-dlp first
+  try {
+    execSync('yt-dlp --version', { stdio: 'ignore' });
+    console.log('Downloader check: yt-dlp command is available directly');
+    pythonCommand = 'yt-dlp';
+    ytDlpArgsPrefix = [];
+    return;
+  } catch (e) {}
+
+  // Try python3 -m yt_dlp
+  try {
+    execSync('python3 -m yt_dlp --version', { stdio: 'ignore' });
+    console.log('Downloader check: python3 -m yt_dlp is available');
+    pythonCommand = 'python3';
+    ytDlpArgsPrefix = ['-m', 'yt_dlp'];
+    return;
+  } catch (e) {}
+
+  // Try python -m yt_dlp
+  try {
+    execSync('python -m yt_dlp --version', { stdio: 'ignore' });
+    console.log('Downloader check: python -m yt_dlp is available');
+    pythonCommand = 'python';
+    ytDlpArgsPrefix = ['-m', 'yt_dlp'];
+    return;
+  } catch (e) {}
+
+  console.warn('WARNING: yt-dlp was not found on the server path! Downloader functionality will fail.');
+}
+detectDownloader();
+
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -105,7 +143,15 @@ app.get('/api/info', (req, res) => {
   }
 
   // Execute yt-dlp to dump json metadata
-  const ytDlp = spawn('python', ['-m', 'yt_dlp', '--dump-json', '--skip-download', videoUrl]);
+  const args = [...ytDlpArgsPrefix, '--dump-json', '--skip-download', videoUrl];
+  const ytDlp = spawn(pythonCommand, args);
+
+  ytDlp.on('error', (err) => {
+    console.error('yt-dlp spawn error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Downloader not configured correctly or not found on the server.' });
+    }
+  });
 
   let stdout = '';
   let stderr = '';
@@ -473,7 +519,7 @@ io.on('connection', (socket) => {
     const downloadToken = uuidv4();
     
     // Create folder mapping and standard output file path
-    const args = ['-m', 'yt_dlp', '--newline', '--progress'];
+    const args = [...ytDlpArgsPrefix, '--newline', '--progress'];
 
     // Quality mapping options
     if (format === 'mp3') {
@@ -496,7 +542,12 @@ io.on('connection', (socket) => {
 
     socket.emit('download-status', { status: 'starting', message: 'Spawning downloader...' });
 
-    const downloadProcess = spawn('python', args);
+    const downloadProcess = spawn(pythonCommand, args);
+
+    downloadProcess.on('error', (err) => {
+      console.error('Download spawn error:', err);
+      socket.emit('download-status', { status: 'failed', message: 'Failed to start downloader on the server.' });
+    });
 
     // Regex to parse progress from stdout
     // yt-dlp format: [download]  12.5% of 45.21MiB at  3.51MiB/s ETA 00:10
