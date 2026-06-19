@@ -69,6 +69,7 @@ module.exports = function initCDbpGame(io) {
         detectiveClue: '',
         spyInfo: '',
         history: [],
+        selectedExtraRoles: [],
         lastActivity: Date.now()
       };
 
@@ -155,9 +156,30 @@ module.exports = function initCDbpGame(io) {
         return callback({ error: 'Requires between 4 and 7 players to play.' });
       }
 
-      logRoom(room.roomId, `Game started with ${count} players.`);
+      // Validate extra roles count
+      const neededExtraCount = count - 4;
+      const selectedCount = room.selectedExtraRoles?.length || 0;
+      if (selectedCount !== neededExtraCount) {
+        return callback({ error: `You must select exactly ${neededExtraCount} extra role(s) for a ${count}-player game.` });
+      }
+
+      logRoom(room.roomId, `Game started with ${count} players. Extra roles: ${(room.selectedExtraRoles || []).join(', ')}`);
       transitionToPhase(room, 'ROLE_ASSIGN');
       callback({ success: true });
+    });
+
+    // UPDATE EXTRA ROLES (By Host)
+    socket.on('cdbp-update-extra-roles', ({ selectedExtraRoles }, callback) => {
+      const room = findRoomBySocketId(socket.id);
+      if (!room) return callback?.({ error: 'Room not found' });
+      if (room.hostId !== socket.id) return callback?.({ error: 'Only the host can update roles' });
+      if (room.status !== 'LOBBY') return callback?.({ error: 'Game is already in progress' });
+
+      room.selectedExtraRoles = selectedExtraRoles || [];
+      
+      // Broadcast updated room state to sync choices
+      io.to(room.roomId).emit('cdbp-room-updated', getClientRoomState(room));
+      if (callback) callback({ success: true });
     });
 
     // 4. JADUKAR SWAP ACTION
@@ -267,26 +289,48 @@ module.exports = function initCDbpGame(io) {
           logRoom(roomId, `Player disconnected: ${player.name}`);
 
           if (room.status === 'LOBBY') {
-            // Remove player if still in lobby
-            room.players = room.players.filter(p => p.id !== socket.id);
-            // Reassign host if needed
-            if (room.hostId === socket.id && room.players.length > 0) {
-              room.players[0].isHost = true;
-              room.hostId = room.players[0].id;
-              logRoom(roomId, `Host reassigned to ${room.players[0].name}`);
+            // Reconnect grace period: Wait 4 seconds before removing player
+            setTimeout(() => {
+              const pCheck = room.players.find(p => p.name === player.name);
+              if (pCheck && !pCheck.connected) {
+                logRoom(roomId, `Reconnection window expired. Removing player: ${player.name}`);
+                room.players = room.players.filter(p => p.name !== player.name);
+                
+                // Reassign host if needed
+                if (room.hostId === player.id && room.players.length > 0) {
+                  const newHost = room.players.find(p => p.connected) || room.players[0];
+                  if (newHost) {
+                    newHost.isHost = true;
+                    room.hostId = newHost.id;
+                    logRoom(roomId, `Host reassigned to ${newHost.name} after disconnect timeout.`);
+                  }
+                }
+
+                // If room is empty, delete it
+                const activePlayers = room.players.filter(p => p.connected);
+                if (activePlayers.length === 0) {
+                  logRoom(roomId, 'Room empty. Deleting.');
+                  if (room.timerId) clearInterval(room.timerId);
+                  rooms.delete(roomId);
+                  return;
+                }
+
+                // Notify room
+                global.ioInstance?.to(roomId).emit('cdbp-room-updated', getClientRoomState(room));
+              }
+            }, 4000);
+          } else {
+            // Active game: immediately check if room is empty
+            const activePlayers = room.players.filter(p => p.connected);
+            if (activePlayers.length === 0) {
+              logRoom(roomId, 'Room empty. Deleting.');
+              if (room.timerId) clearInterval(room.timerId);
+              rooms.delete(roomId);
+              return;
             }
           }
 
-          // If room is empty, delete it
-          const activePlayers = room.players.filter(p => p.connected);
-          if (activePlayers.length === 0) {
-            logRoom(roomId, 'Room empty. Deleting.');
-            if (room.timerId) clearInterval(room.timerId);
-            rooms.delete(roomId);
-            return;
-          }
-
-          // Notify room
+          // Notify room of offline connection status immediately
           io.to(roomId).emit('cdbp-room-updated', getClientRoomState(room));
           break;
         }
@@ -330,7 +374,8 @@ function getClientRoomState(room, requestSocketId = null) {
     hostName: room.players.find(p => p.isHost)?.name || 'Unknown',
     timer: room.timer,
     guesses: room.guesses,
-    swapLogs: (room.status === 'REVEAL' || room.status === 'SCORING') ? room.swapLogs : []
+    swapLogs: (room.status === 'REVEAL' || room.status === 'SCORING') ? room.swapLogs : [],
+    selectedExtraRoles: room.selectedExtraRoles || []
   };
 }
 
@@ -367,11 +412,9 @@ function sendPhaseChangedUpdate(room, socketId) {
 
 // Utility: emit to single socket ID directly
 function ioToSocket(socketId, eventName, data) {
-  // We grab the global io instance or client socket indirectly
-  // The easiest way is to use express/socket setup. Since we are inside the sockets connection, we can just use io.to(socketId).emit()
-  // io is passed or we can emit using standard express sockets emitter
-  // Since we don't have io globally in this function, we require it or reference it from outer namespace
-  // To avoid issues, we can just call it via socket references. In server.js, we initialize this and bind io.
+  if (global.ioInstance) {
+    global.ioInstance.to(socketId).emit(eventName, data);
+  }
 }
 
 // Transition state and handle logic
@@ -431,33 +474,30 @@ function transitionToPhase(room, newStatus) {
   // Broadcast phase state changes to each player individually to maintain secrets
   room.players.forEach(p => {
     if (p.connected) {
-      const socket = global.ioInstance.sockets.sockets.get(p.id);
-      if (socket) {
-        // Send specific info
-        const safeState = getClientRoomState(room, p.id);
-        socket.emit('cdbp-room-updated', safeState);
-        
-        const phaseData = {
-          status: room.status,
-          timer: room.timer,
-          myRole: p.role
-        };
-        
-        if (room.status === 'INFO_PHASE' || room.status === 'DISCUSSION' || room.status === 'POLICE_DECISION') {
-          if (p.role === 'Spy') phaseData.spyInfo = room.spyInfo;
-          if (p.role === 'Detective') phaseData.detectiveClue = room.detectiveClue;
-        }
-
-        if (room.status === 'REVEAL' || room.status === 'SCORING') {
-          phaseData.reveal = {
-            guesses: room.guesses,
-            swapLogs: room.swapLogs,
-            actualRoles: room.players.map(pl => ({ name: pl.name, role: pl.role, initialRole: pl.initialRole }))
-          };
-        }
-
-        socket.emit('cdbp-phase-changed', phaseData);
+      // Send specific info
+      const safeState = getClientRoomState(room, p.id);
+      global.ioInstance.to(p.id).emit('cdbp-room-updated', safeState);
+      
+      const phaseData = {
+        status: room.status,
+        timer: room.timer,
+        myRole: p.role
+      };
+      
+      if (room.status === 'INFO_PHASE' || room.status === 'DISCUSSION' || room.status === 'POLICE_DECISION') {
+        if (p.role === 'Spy') phaseData.spyInfo = room.spyInfo;
+        if (p.role === 'Detective') phaseData.detectiveClue = room.detectiveClue;
       }
+
+      if (room.status === 'REVEAL' || room.status === 'SCORING') {
+        phaseData.reveal = {
+          guesses: room.guesses,
+          swapLogs: room.swapLogs,
+          actualRoles: room.players.map(pl => ({ name: pl.name, role: pl.role, initialRole: pl.initialRole }))
+        };
+      }
+
+      global.ioInstance.to(p.id).emit('cdbp-phase-changed', phaseData);
     }
   });
 
@@ -475,16 +515,15 @@ function transitionToPhase(room, newStatus) {
   }
 }
 
-// Randomly assign roles based on count
+// Randomly assign roles based on count & host choice
 function assignRoles(room) {
-  const count = room.players.length;
   // Core roles: Babu, Police, Chor, Dakat
   const roles = ['Babu', 'Police', 'Chor', 'Dakat'];
   
-  // Conditional roles
-  if (count >= 5) roles.push('Spy');
-  if (count >= 6) roles.push('Detective');
-  if (count >= 7) roles.push('Jadukar');
+  // Add host selected extra roles
+  if (room.selectedExtraRoles && room.selectedExtraRoles.length > 0) {
+    roles.push(...room.selectedExtraRoles);
+  }
 
   // Shuffle roles array
   for (let i = roles.length - 1; i > 0; i--) {

@@ -333,7 +333,7 @@
         </div>
 
         <!-- Bookmarks Display Grid -->
-        <div class="bookmarks-grid" id="bookmarks-container">
+        <div class="bookmarks-display-area" id="bookmarks-container">
           <!-- Dynamic contents -->
           <div class="loader-placeholder">
             <div class="orb-spinner">
@@ -563,6 +563,26 @@
                 <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px;">
                   Requires 4–7 players to start. When everyone is in the lobby, the host can start the game. Exactly 1 Babu, 1 Police, 1 Chor, and 1 Dakat will be assigned. Optional roles (Spy, Detective, Jadukar) fill additional slots.
                 </p>
+
+                <!-- Extra Roles Selection for Host -->
+                <div id="cdbp-extra-roles-panel" class="extra-roles-panel hidden" style="margin-bottom: 20px;">
+                  <h4>Extra Roles <span id="cdbp-extra-roles-needed-count" class="glow-cyan">(Select 0)</span> <button type="button" class="btn-info-circle" id="btn-cdbp-roles-info" title="Role Guide" style="background: none; border: none; padding: 0; margin-left: 6px; cursor: pointer; color: var(--text-muted); display: inline-flex; align-items: center; vertical-align: middle;"><i data-lucide="help-circle" style="width: 14px; height: 14px;"></i></button></h4>
+                  <div class="extra-roles-list">
+                    <label class="role-checkbox-label" id="cdbp-label-spy">
+                      <input type="checkbox" id="cdbp-role-spy" value="Spy">
+                      <span>🕵️ Spy (Knows who Dakat is)</span>
+                    </label>
+                    <label class="role-checkbox-label" id="cdbp-label-detective">
+                      <input type="checkbox" id="cdbp-role-detective" value="Detective">
+                      <span>🔍 Detective (Gets innocence clues)</span>
+                    </label>
+                    <label class="role-checkbox-label" id="cdbp-label-jadukar">
+                      <input type="checkbox" id="cdbp-role-jadukar" value="Jadukar">
+                      <span>🧙 Jadukar (Can swap player roles)</span>
+                    </label>
+                  </div>
+                </div>
+
                 <button class="btn-primary" id="btn-cdbp-start-match" disabled style="width: 100%;">
                   <i data-lucide="play"></i>
                   <span>Start Match</span>

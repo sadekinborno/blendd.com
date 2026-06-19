@@ -267,16 +267,19 @@ app.get('/api/links', async (req, res) => {
       return res.status(500).json({ error: 'Could not read links' });
     }
 
-    // Map database fields to frontend keys (specifically added_at -> addedAt)
-    const formatted = data.map(item => ({
-      id: item.id,
-      title: item.title,
-      url: item.url,
-      category: item.category,
-      favicon: item.favicon,
-      domain: item.domain,
-      addedAt: item.added_at
-    }));
+    // Map database fields to frontend keys (specifically added_at -> addedAt) and filter out soft-deleted ones
+    const formatted = data
+      .filter(item => item.is_deleted !== true && item.deleted !== true)
+      .map(item => ({
+        id: item.id,
+        title: item.title,
+        url: item.url,
+        category: item.category,
+        favicon: item.favicon,
+        domain: item.domain,
+        addedAt: item.added_at,
+        addedBy: item.added_by || item.addedby || 'Owner'
+      }));
 
     res.json(formatted);
   } catch (err) {
@@ -287,7 +290,7 @@ app.get('/api/links', async (req, res) => {
 
 // Create Link metadata auto-fetch and Save
 app.post('/api/links', async (req, res) => {
-  const { linkUrl, category, customTitle, favicon: inputFavicon } = req.body;
+  const { linkUrl, category, customTitle, favicon: inputFavicon, addedBy } = req.body;
   if (!linkUrl) {
     return res.status(400).json({ error: 'URL is required' });
   }
@@ -307,17 +310,31 @@ app.post('/api/links', async (req, res) => {
       title = meta.title;
     }
 
-    // Insert into Supabase
-    const { data, error } = await supabase
+    // Insert into Supabase (defensively check for added_by column)
+    const insertObj = {
+      title,
+      url: linkUrl,
+      category: category || 'General',
+      favicon,
+      domain,
+      added_by: addedBy || 'Owner'
+    };
+
+    let { data, error } = await supabase
       .from('bookmarks')
-      .insert([{
-        title,
-        url: linkUrl,
-        category: category || 'General',
-        favicon,
-        domain
-      }])
+      .insert([insertObj])
       .select();
+
+    if (error && error.message && error.message.includes('column "added_by"')) {
+      console.warn('[Supabase] "added_by" column does not exist yet. Retrying without it.');
+      delete insertObj.added_by;
+      const fallback = await supabase
+        .from('bookmarks')
+        .insert([insertObj])
+        .select();
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) {
       console.error('Insert bookmark error:', error.message);
@@ -332,7 +349,8 @@ app.post('/api/links', async (req, res) => {
       category: inserted.category,
       favicon: inserted.favicon,
       domain: inserted.domain,
-      addedAt: inserted.added_at
+      addedAt: inserted.added_at,
+      addedBy: inserted.added_by || inserted.addedby || 'Owner'
     };
 
     res.status(201).json(formatted);
@@ -344,16 +362,48 @@ app.post('/api/links', async (req, res) => {
 
 app.delete('/api/links/:id', async (req, res) => {
   const id = req.params.id;
+  const reqUser = req.headers['x-user-name'] || 'Guest';
 
   try {
-    const { error } = await supabase
+    // 1. Fetch bookmark to check ownership
+    const { data: bookmark, error: fetchError } = await supabase
       .from('bookmarks')
-      .delete()
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('Fetch bookmark for delete error:', fetchError.message);
+      return res.status(500).json({ error: 'Could not fetch bookmark details' });
+    }
+
+    if (!bookmark) {
+      return res.status(404).json({ error: 'Bookmark not found' });
+    }
+
+    const owner = bookmark.added_by || bookmark.addedby || 'Owner';
+    if (owner.toLowerCase() !== reqUser.toLowerCase()) {
+      return res.status(403).json({ error: 'You can only delete your own bookmarks' });
+    }
+
+    // 2. Soft-delete the bookmark if column exists, else hard-delete
+    let { error } = await supabase
+      .from('bookmarks')
+      .update({ is_deleted: true })
       .eq('id', id);
+
+    if (error && error.message && error.message.includes('is_deleted')) {
+      console.warn('[Supabase] "is_deleted" column does not exist. Falling back to hard delete.');
+      const hardDeleteResult = await supabase
+        .from('bookmarks')
+        .delete()
+        .eq('id', id);
+      error = hardDeleteResult.error;
+    }
 
     if (error) {
       console.error('Delete bookmark error:', error.message);
-      return res.status(500).json({ error: 'Could not update links' });
+      return res.status(500).json({ error: 'Could not delete bookmark' });
     }
 
     res.json({ message: 'Link deleted successfully' });
@@ -365,13 +415,35 @@ app.delete('/api/links/:id', async (req, res) => {
 
 app.put('/api/links/:id', async (req, res) => {
   const id = req.params.id;
-  const { linkUrl, category, customTitle, favicon: inputFavicon } = req.body;
+  const reqUser = req.headers['x-user-name'] || 'Guest';
+  const { linkUrl, category, customTitle, favicon: inputFavicon, addedBy } = req.body;
 
   if (!linkUrl) {
     return res.status(400).json({ error: 'URL is required' });
   }
 
   try {
+    // 1. Fetch existing bookmark to verify ownership
+    const { data: bookmark, error: fetchError } = await supabase
+      .from('bookmarks')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('Fetch bookmark for update error:', fetchError.message);
+      return res.status(500).json({ error: 'Could not fetch bookmark details' });
+    }
+
+    if (!bookmark) {
+      return res.status(404).json({ error: 'Bookmark not found' });
+    }
+
+    const owner = bookmark.added_by || bookmark.addedby || 'Owner';
+    if (owner.toLowerCase() !== reqUser.toLowerCase()) {
+      return res.status(403).json({ error: 'You can only edit your own bookmarks' });
+    }
+
     let title = customTitle ? customTitle.trim() : '';
     const domain = getDomainName(linkUrl);
     
@@ -385,17 +457,32 @@ app.put('/api/links/:id', async (req, res) => {
       title = meta.title;
     }
 
+    const updateObj = {
+      title,
+      url: linkUrl,
+      category: category || 'General',
+      favicon,
+      domain,
+      added_by: owner // Keep the original owner
+    };
+
     let { data, error } = await supabase
       .from('bookmarks')
-      .update({
-        title,
-        url: linkUrl,
-        category: category || 'General',
-        favicon,
-        domain
-      })
+      .update(updateObj)
       .eq('id', id)
       .select();
+
+    if (error && error.message && error.message.includes('column "added_by"')) {
+      console.warn('[Supabase] "added_by" column does not exist yet. Retrying update without it.');
+      delete updateObj.added_by;
+      const fallbackResult = await supabase
+        .from('bookmarks')
+        .update(updateObj)
+        .eq('id', id)
+        .select();
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
 
     if (!error && (!data || data.length === 0)) {
       console.log('[Supabase] Update returned 0 rows. Attempting delete-and-insert fallback...');
@@ -410,18 +497,33 @@ app.put('/api/links/:id', async (req, res) => {
         error = deleteError;
       } else if (deletedData && deletedData.length > 0) {
         const oldRow = deletedData[0];
-        const { data: insertData, error: insertError } = await supabase
+        
+        const insertObj = {
+          id,
+          title,
+          url: linkUrl,
+          category: category || 'General',
+          favicon,
+          domain,
+          added_at: oldRow.added_at,
+          added_by: owner
+        };
+
+        let { data: insertData, error: insertError } = await supabase
           .from('bookmarks')
-          .insert([{
-            id,
-            title,
-            url: linkUrl,
-            category: category || 'General',
-            favicon,
-            domain,
-            added_at: oldRow.added_at
-          }])
+          .insert([insertObj])
           .select();
+
+        if (insertError && insertError.message && insertError.message.includes('column "added_by"')) {
+          console.warn('[Supabase] "added_by" column does not exist yet. Retrying fallback insert without it.');
+          delete insertObj.added_by;
+          const fallbackInsert = await supabase
+            .from('bookmarks')
+            .insert([insertObj])
+            .select();
+          insertData = fallbackInsert.data;
+          insertError = fallbackInsert.error;
+        }
 
         if (insertError) {
           error = insertError;
@@ -448,7 +550,8 @@ app.put('/api/links/:id', async (req, res) => {
       category: updated.category,
       favicon: updated.favicon,
       domain: updated.domain,
-      addedAt: updated.added_at
+      addedAt: updated.added_at,
+      addedBy: updated.added_by || updated.addedby || 'Owner'
     };
 
     res.json(formatted);

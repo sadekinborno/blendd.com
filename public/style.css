@@ -1145,6 +1145,105 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
 }
 
 /* Bookmarks Display Grid */
+.bookmarks-display-area {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  width: 100%;
+}
+
+.genre-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.genre-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+
+.genre-section-header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 40px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-purple), transparent);
+}
+
+.genre-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.genre-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.genre-icon i {
+  width: 16px;
+  height: 16px;
+}
+
+.genre-icon-movies {
+  background: rgba(236, 72, 153, 0.12);
+  color: var(--accent-pink);
+  border: 1px solid rgba(236, 72, 153, 0.2);
+  box-shadow: 0 0 12px rgba(236, 72, 153, 0.08);
+}
+
+.genre-icon-sports {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--accent-green);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.08);
+}
+
+.genre-icon-development {
+  background: rgba(6, 182, 212, 0.12);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.08);
+}
+
+.genre-icon-general {
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--accent-purple);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.08);
+}
+
+.genre-title-wrapper h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.genre-count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 2px 8px;
+  border-radius: 20px;
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
 .bookmarks-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1159,6 +1258,7 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
   display: flex;
   flex-direction: column;
   transition: var(--transition-smooth);
+  position: relative;
 }
 
 .bookmark-card-top {
@@ -1166,6 +1266,7 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
   gap: 12px;
   align-items: flex-start;
   margin-bottom: 12px;
+  padding-right: 55px;
 }
 
 .bookmark-favicon {
@@ -1211,6 +1312,21 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
 .bookmark-domain {
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.bookmark-added-by {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .bookmark-mid {
@@ -1862,6 +1978,101 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
 }
 
 /* Waiting Room Panel */
+.extra-roles-panel {
+  background: rgba(13, 18, 28, 0.4);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.extra-roles-panel h4 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+#btn-cdbp-roles-info {
+  transition: var(--transition-fast);
+}
+
+#btn-cdbp-roles-info:hover {
+  color: var(--text-primary) !important;
+}
+
+.extra-roles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.role-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: var(--transition-fast);
+  padding: 8px 12px;
+  border-radius: var(--border-radius-sm);
+  background: rgba(5, 7, 12, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.role-checkbox-label:hover:not(.disabled) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.role-checkbox-label.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.role-checkbox-label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 4px;
+  outline: none;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-content: center;
+  transition: var(--transition-fast);
+}
+
+.role-checkbox-label input[type="checkbox"]::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  transform: scale(0);
+  transition: var(--transition-fast) transform;
+  box-shadow: inset 1em 1em var(--accent-cyan);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+.role-checkbox-label input[type="checkbox"]:checked {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan-glow);
+}
+
+.role-checkbox-label input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+
+.role-checkbox-label.disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
 .cdbp-room-panel {
   max-width: 800px;
   margin: 0 auto;

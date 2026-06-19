@@ -331,6 +331,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     lucide.createIcons();
+    if (typeof renderBookmarks === 'function') {
+      renderBookmarks();
+    }
   }
 
   // Initialize Mode on page load
@@ -782,7 +785,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Render bookmarks
+  // Render bookmarks grouped by category/genre
   function renderBookmarks() {
     let filtered = savedLinks;
 
@@ -806,48 +809,126 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (filtered.length === 0) {
       bookmarksContainer.innerHTML = `
-        <div class="empty-state-simple" style="grid-column: 1/-1;">
+        <div class="empty-state-simple">
           <p>No bookmarks found for this selection.</p>
         </div>
       `;
       return;
     }
 
+    // Group bookmarks by category
+    const grouped = {};
     filtered.forEach(item => {
-      const card = document.createElement('div');
-      card.className = 'bookmark-card';
-      
-      const categoryClass = getCategoryColorClass(item.category);
-      const faviconHtml = getFaviconHtml(item.favicon, item.title);
-      
-      card.innerHTML = `
-        <div class="bookmark-card-top">
-          ${faviconHtml}
-          <div class="bookmark-info">
-            <h4 class="bookmark-title" title="${item.title}">${item.title}</h4>
-            <span class="bookmark-domain">${item.domain || 'External Link'}</span>
+      if (!grouped[item.category]) {
+        grouped[item.category] = [];
+      }
+      grouped[item.category].push(item);
+    });
+
+    // Default category order to keep the rendering order consistent
+    const categoryOrder = ['Movies & Shows', 'Sports', 'Development', 'General'];
+    
+    // Add any dynamically created category that's not in the default list
+    const finalCategories = [...categoryOrder];
+    Object.keys(grouped).forEach(cat => {
+      if (!finalCategories.includes(cat)) {
+        finalCategories.push(cat);
+      }
+    });
+
+    // Render each category section
+    finalCategories.forEach(cat => {
+      const items = grouped[cat];
+      if (!items || items.length === 0) return;
+
+      const section = document.createElement('div');
+      section.className = 'genre-section';
+
+      // Define header icons and titles based on the category (genre)
+      let iconName = 'bookmark';
+      let iconClass = 'genre-icon-general';
+      let displayTitle = cat;
+
+      if (cat === 'Movies & Shows') {
+        iconName = 'film';
+        iconClass = 'genre-icon-movies';
+        displayTitle = 'Movies & Shows';
+      } else if (cat === 'Sports') {
+        iconName = 'tv';
+        iconClass = 'genre-icon-sports';
+        displayTitle = 'Sports Streaming';
+      } else if (cat === 'Development') {
+        iconName = 'terminal';
+        iconClass = 'genre-icon-development';
+        displayTitle = 'Coding & Tools';
+      } else if (cat === 'General') {
+        iconName = 'bookmark';
+        iconClass = 'genre-icon-general';
+        displayTitle = 'General Bookmarks';
+      } else {
+        iconName = 'link-2';
+        iconClass = 'genre-icon-general';
+      }
+
+      section.innerHTML = `
+        <div class="genre-section-header">
+          <div class="genre-title-wrapper">
+            <div class="genre-icon ${iconClass}">
+              <i data-lucide="${iconName}"></i>
+            </div>
+            <h3>${displayTitle}</h3>
+            <span class="genre-count-badge">${items.length}</span>
           </div>
         </div>
-        <div class="bookmark-mid">
-          <span class="category-tag ${categoryClass}">${item.category}</span>
-          <div class="bookmark-actions">
-            <button class="btn-bookmark-action btn-copy" data-url="${item.url}" title="Copy Link">
-              <i data-lucide="copy"></i>
-            </button>
-            <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="btn-bookmark-action" title="Open Link">
-              <i data-lucide="external-link"></i>
-            </a>
-            <button class="btn-bookmark-action edit-btn" data-id="${item.id}" title="Edit Bookmark">
-              <i data-lucide="edit-2"></i>
-            </button>
-            <button class="btn-bookmark-action delete" data-id="${item.id}" title="Delete Bookmark">
-              <i data-lucide="trash-2"></i>
-            </button>
-          </div>
-        </div>
+        <div class="bookmarks-grid"></div>
       `;
-      
-      bookmarksContainer.appendChild(card);
+
+      const grid = section.querySelector('.bookmarks-grid');
+
+      items.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'bookmark-card';
+        
+        const categoryClass = getCategoryColorClass(item.category);
+        const faviconHtml = getFaviconHtml(item.favicon, item.title);
+        
+        const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+        const canModify = (item.addedBy || 'Owner').toLowerCase() === currentUser.toLowerCase();
+        
+        card.innerHTML = `
+          <div class="bookmark-card-top">
+            ${faviconHtml}
+            <div class="bookmark-info">
+              <h4 class="bookmark-title" title="${item.title}">${item.title}</h4>
+              <span class="bookmark-domain">${item.domain || 'External Link'}</span>
+              <span class="bookmark-added-by">${item.addedBy || 'Owner'}</span>
+            </div>
+          </div>
+          <div class="bookmark-mid">
+            <span class="category-tag ${categoryClass}">${item.category}</span>
+            <div class="bookmark-actions">
+              <button class="btn-bookmark-action btn-copy" data-url="${item.url}" title="Copy Link">
+                <i data-lucide="copy"></i>
+              </button>
+              <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="btn-bookmark-action" title="Open Link">
+                <i data-lucide="external-link"></i>
+              </a>
+              ${canModify ? `
+              <button class="btn-bookmark-action edit-btn" data-id="${item.id}" title="Edit Bookmark">
+                <i data-lucide="edit-2"></i>
+              </button>
+              <button class="btn-bookmark-action delete" data-id="${item.id}" title="Delete Bookmark">
+                <i data-lucide="trash-2"></i>
+              </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+        
+        grid.appendChild(card);
+      });
+
+      bookmarksContainer.appendChild(section);
     });
 
     // Attach clipboard and delete event listeners
@@ -972,18 +1053,23 @@ document.addEventListener('DOMContentLoaded', () => {
     saveBtn.querySelector('span').textContent = editingLinkId ? 'Updating...' : 'Fetching Details...';
 
     try {
+      const addedBy = isOwner ? 'Owner' : (guestUser || 'Guest');
+
       let response;
       if (editingLinkId) {
         response = await fetch(`/api/links/${editingLinkId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ linkUrl: urlVal, category: catVal, customTitle: titleVal, favicon: iconVal })
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-user-name': addedBy
+          },
+          body: JSON.stringify({ linkUrl: urlVal, category: catVal, customTitle: titleVal, favicon: iconVal, addedBy })
         });
       } else {
         response = await fetch('/api/links', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ linkUrl: urlVal, category: catVal, customTitle: titleVal, favicon: iconVal })
+          body: JSON.stringify({ linkUrl: urlVal, category: catVal, customTitle: titleVal, favicon: iconVal, addedBy })
         });
       }
 
@@ -1049,7 +1135,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!confirmed) return;
 
     try {
-      const response = await fetch(`/api/links/${id}`, { method: 'DELETE' });
+      const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+      const response = await fetch(`/api/links/${id}`, { 
+        method: 'DELETE',
+        headers: {
+          'x-user-name': currentUser
+        }
+      });
       const res = await response.json();
       
       if (res.message) {
@@ -1057,6 +1149,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('stat-links-count').textContent = savedLinks.length;
         renderBookmarks();
         renderRecentBookmarks();
+      } else if (res.error) {
+        await showModalAlert(res.error, 'Delete Error', 'error');
       }
     } catch (e) {
       await showModalAlert('Failed to delete bookmark.', 'Delete Error', 'error');
@@ -1395,6 +1489,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCdbpCopyCode = document.getElementById('btn-cdbp-copy-code');
   const btnCdbpStartMatch = document.getElementById('btn-cdbp-start-match');
   const cdbpHostWarning = document.getElementById('cdbp-host-warning');
+  
+  // Extra Roles elements
+  const cdbpExtraRolesPanel = document.getElementById('cdbp-extra-roles-panel');
+  const cdbpExtraRolesNeededCount = document.getElementById('cdbp-extra-roles-needed-count');
+  const cdbpRoleSpy = document.getElementById('cdbp-role-spy');
+  const cdbpRoleDetective = document.getElementById('cdbp-role-detective');
+  const cdbpRoleJadukar = document.getElementById('cdbp-role-jadukar');
+  const cdbpLabelSpy = document.getElementById('cdbp-label-spy');
+  const cdbpLabelDetective = document.getElementById('cdbp-label-detective');
+  const cdbpLabelJadukar = document.getElementById('cdbp-label-jadukar');
 
   // Active HUD elements
   const cdbpHudPhase = document.getElementById('cdbp-hud-phase');
@@ -1479,6 +1583,9 @@ document.addEventListener('DOMContentLoaded', () => {
   btnCdbpBackToArcade.addEventListener('click', () => {
     cdbpGameView.classList.add('hidden');
     gamesListView.classList.remove('hidden');
+    sessionStorage.removeItem('cdbp_room_id');
+    sessionStorage.removeItem('cdbp_player_name');
+    sessionStorage.removeItem('cdbp_active');
   });
 
   // Action: Create Room
@@ -1497,6 +1604,9 @@ document.addEventListener('DOMContentLoaded', () => {
       cdbpMyName = name;
       cdbpRoomId = response.roomId;
       cdbpIsHost = true;
+      sessionStorage.setItem('cdbp_room_id', response.roomId);
+      sessionStorage.setItem('cdbp_player_name', name);
+      sessionStorage.setItem('cdbp_active', 'true');
       transitionToLobby(response.roomState);
     });
   });
@@ -1523,6 +1633,9 @@ document.addEventListener('DOMContentLoaded', () => {
       cdbpMyName = name;
       cdbpRoomId = response.roomId;
       cdbpIsHost = response.roomState.players.find(p => p.name === name)?.isHost || false;
+      sessionStorage.setItem('cdbp_room_id', response.roomId);
+      sessionStorage.setItem('cdbp_player_name', name);
+      sessionStorage.setItem('cdbp_active', 'true');
       transitionToLobby(response.roomState);
     });
   });
@@ -1534,7 +1647,7 @@ document.addEventListener('DOMContentLoaded', () => {
     cdbpActiveGame.classList.add('hidden');
     
     cdbpDisplayCode.textContent = roomState.roomId;
-    updateLobbyPlayersList(roomState.players);
+    updateLobbyPlayersList(roomState.players, roomState.selectedExtraRoles || [], roomState);
   }
 
   // Copy Room Code
@@ -1561,6 +1674,41 @@ document.addEventListener('DOMContentLoaded', () => {
         await showModalAlert(response.error, 'Game Error', 'error');
       }
     });
+  });
+
+  // Emit extra roles selection to server
+  function emitExtraRolesUpdate() {
+    if (!cdbpIsHost) return;
+    const selectedExtraRoles = [];
+    if (cdbpRoleSpy.checked) selectedExtraRoles.push('Spy');
+    if (cdbpRoleDetective.checked) selectedExtraRoles.push('Detective');
+    if (cdbpRoleJadukar.checked) selectedExtraRoles.push('Jadukar');
+
+    socket.emit('cdbp-update-extra-roles', { selectedExtraRoles });
+  }
+
+  cdbpRoleSpy.addEventListener('change', emitExtraRolesUpdate);
+  cdbpRoleDetective.addEventListener('change', emitExtraRolesUpdate);
+  cdbpRoleJadukar.addEventListener('change', emitExtraRolesUpdate);
+
+  btnCdbpRolesInfo.addEventListener('click', async () => {
+    const infoText = `
+      <div style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+        <div style="border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">
+          <strong style="color: var(--accent-pink); font-size: 14px;">🕵️ Spy</strong>
+          <p style="margin-top: 4px; font-size: 12px; color: var(--text-secondary); line-height: 1.4;">Knows who the Dakat (Robber) is right from the start. Must guide the Police without revealing their own identity, as they want the criminals to win to get points.</p>
+        </div>
+        <div style="border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">
+          <strong style="color: var(--accent-cyan); font-size: 14px;">🔍 Detective</strong>
+          <p style="margin-top: 4px; font-size: 12px; color: var(--text-secondary); line-height: 1.4;">Receives clues showing which players are innocent (NOT Chor/Dakat). Gets points if the Police makes the correct guess.</p>
+        </div>
+        <div>
+          <strong style="color: var(--accent-purple); font-size: 14px;">🧙 Jadukar (Wizard)</strong>
+          <p style="margin-top: 4px; font-size: 12px; color: var(--text-secondary); line-height: 1.4;">Can swap the roles of any two players at the start of the round, creating chaos! Receives points automatically.</p>
+        </div>
+      </div>
+    `;
+    await showModalAlert(infoText, 'Optional Roles Guide', 'info');
   });
 
   // Action: Execute Jadukar Swap
@@ -1619,7 +1767,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Render Lobby Players Chips list
-  function updateLobbyPlayersList(players) {
+  function updateLobbyPlayersList(players, selectedExtraRoles = [], roomState = null) {
     cdbpPlayersList = players;
     cdbpDisplayHost.textContent = players.find(p => p.isHost)?.name || 'Unknown';
     cdbpPlayerCount.textContent = players.length;
@@ -1644,21 +1792,84 @@ document.addEventListener('DOMContentLoaded', () => {
       cdbpLobbyPlayersContainer.appendChild(chip);
     });
 
+    // Update Extra Roles choices UI
+    const count = players.length;
+    const needed = count - 4;
+
+    if (count >= 4) {
+      cdbpExtraRolesPanel.classList.remove('hidden');
+      cdbpExtraRolesNeededCount.textContent = `(Select ${needed > 0 ? needed : 0})`;
+
+      // Auto-correct role counts on the host client to avoid invalid start states
+      if (cdbpIsHost) {
+        let desiredExtraRoles = [...selectedExtraRoles];
+        if (needed <= 0) {
+          if (desiredExtraRoles.length > 0) {
+            desiredExtraRoles = [];
+            socket.emit('cdbp-update-extra-roles', { selectedExtraRoles: desiredExtraRoles });
+          }
+        } else if (needed === 3) {
+          if (desiredExtraRoles.length !== 3) {
+            desiredExtraRoles = ['Spy', 'Detective', 'Jadukar'];
+            socket.emit('cdbp-update-extra-roles', { selectedExtraRoles: desiredExtraRoles });
+          }
+        } else {
+          // needed is 1 or 2
+          if (desiredExtraRoles.length !== needed) {
+            desiredExtraRoles = ['Spy', 'Detective', 'Jadukar'].slice(0, needed);
+            socket.emit('cdbp-update-extra-roles', { selectedExtraRoles: desiredExtraRoles });
+          }
+        }
+      }
+
+      // Check/uncheck role checkboxes based on server state
+      cdbpRoleSpy.checked = selectedExtraRoles.includes('Spy');
+      cdbpRoleDetective.checked = selectedExtraRoles.includes('Detective');
+      cdbpRoleJadukar.checked = selectedExtraRoles.includes('Jadukar');
+
+      // Enable/disable checkboxes based on host permissions and fixed configurations
+      const forceDisable = !cdbpIsHost || needed <= 0 || needed === 3;
+      if (forceDisable) {
+        cdbpRoleSpy.setAttribute('disabled', 'true');
+        cdbpRoleDetective.setAttribute('disabled', 'true');
+        cdbpRoleJadukar.setAttribute('disabled', 'true');
+        cdbpLabelSpy.classList.add('disabled');
+        cdbpLabelDetective.classList.add('disabled');
+        cdbpLabelJadukar.classList.add('disabled');
+      } else {
+        cdbpRoleSpy.removeAttribute('disabled');
+        cdbpRoleDetective.removeAttribute('disabled');
+        cdbpRoleJadukar.removeAttribute('disabled');
+        cdbpLabelSpy.classList.remove('disabled');
+        cdbpLabelDetective.classList.remove('disabled');
+        cdbpLabelJadukar.classList.remove('disabled');
+      }
+    } else {
+      cdbpExtraRolesPanel.classList.add('hidden');
+    }
+
     // Handle Start Match button permissions
     if (cdbpIsHost) {
       btnCdbpStartMatch.classList.remove('hidden');
-      if (players.length >= 4 && players.length <= 7) {
+      const hasCorrectExtraRoles = (selectedExtraRoles.length === needed);
+      
+      if (players.length >= 4 && players.length <= 7 && hasCorrectExtraRoles) {
         btnCdbpStartMatch.removeAttribute('disabled');
         cdbpHostWarning.textContent = 'All set! Start the match when ready.';
         cdbpHostWarning.style.color = 'var(--accent-green)';
       } else {
         btnCdbpStartMatch.setAttribute('disabled', 'true');
-        cdbpHostWarning.textContent = 'Lobby needs between 4 and 7 players to start.';
+        if (players.length < 4 || players.length > 7) {
+          cdbpHostWarning.textContent = 'Lobby needs between 4 and 7 players to start.';
+        } else {
+          cdbpHostWarning.textContent = `Select exactly ${needed} extra role(s) to start.`;
+        }
         cdbpHostWarning.style.color = 'var(--text-muted)';
       }
     } else {
       btnCdbpStartMatch.classList.add('hidden');
-      cdbpHostWarning.textContent = 'Waiting for the host to start the game...';
+      const rolesText = selectedExtraRoles.length > 0 ? `Active: ${selectedExtraRoles.join(', ')}` : 'No active extra roles.';
+      cdbpHostWarning.textContent = `Waiting for the host... [${rolesText}]`;
       cdbpHostWarning.style.color = 'var(--text-muted)';
     }
 
@@ -1982,6 +2193,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     lucide.createIcons();
+  }
+
+  // Auto-reconnect session storage recovery on page load
+  const savedRoomId = sessionStorage.getItem('cdbp_room_id');
+  const savedPlayerName = sessionStorage.getItem('cdbp_player_name');
+  const cdbpActive = sessionStorage.getItem('cdbp_active');
+
+  if (savedRoomId && savedPlayerName && cdbpActive === 'true') {
+    socket.emit('cdbp-join', { roomId: savedRoomId, playerName: savedPlayerName }, (response) => {
+      if (response.success) {
+        cdbpMyName = savedPlayerName;
+        cdbpRoomId = response.roomId;
+        cdbpIsHost = response.roomState.players.find(p => p.name === savedPlayerName)?.isHost || false;
+        
+        // Restore view to games tab and cdbp screen
+        switchView('games');
+        gamesListView.classList.add('hidden');
+        cdbpGameView.classList.remove('hidden');
+        
+        transitionToLobby(response.roomState);
+      } else {
+        sessionStorage.removeItem('cdbp_room_id');
+        sessionStorage.removeItem('cdbp_player_name');
+        sessionStorage.removeItem('cdbp_active');
+      }
+    });
   }
 
 });
