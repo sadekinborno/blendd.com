@@ -1887,6 +1887,14 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
     flex-direction: row;
     gap: 8px;
     flex-grow: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    max-width: 100%;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .sidebar-nav::-webkit-scrollbar {
+    display: none;
   }
   .nav-item span, .sidebar-footer {
     display: none;
@@ -1903,6 +1911,30 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
   .game-layout {
     grid-template-columns: 1fr;
   }
+  .setup-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .setup-divider {
+    height: auto;
+    padding: 10px 0;
+  }
+  .setup-divider::before {
+    width: 100%;
+    height: 1px;
+    top: 50%;
+    bottom: auto;
+    left: 0;
+    right: 0;
+  }
+  .setup-divider span {
+    padding: 6px;
+    font-size: 10px;
+  }
+  .room-lobby-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1918,6 +1950,28 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
   }
   .search-box {
     width: 100%;
+  }
+  .downloader-input-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .welcome-banner {
+    padding: 24px 16px !important;
+  }
+  .welcome-banner h1 {
+    font-size: 24px !important;
+  }
+  .welcome-banner p {
+    font-size: 13px !important;
+  }
+  .top-header {
+    padding: 0 16px !important;
+  }
+  .top-header .current-time {
+    display: none;
+  }
+  .content-view {
+    padding: 16px !important;
   }
 }
 
