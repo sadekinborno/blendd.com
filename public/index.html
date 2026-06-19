@@ -393,7 +393,26 @@
             </div>
           </div>
 
-          <!-- Game Card: Retro Snake -->
+          <!-- Game Card: Who's the Worst? -->
+          <div class="game-card neon-card-orange" data-game="wtw">
+            <div class="game-card-preview">
+              <div class="neon-wtw-preview">
+                <span class="wtw-preview-q">?</span>
+                <span class="wtw-preview-label">WHO'S THE WORST</span>
+              </div>
+            </div>
+            <div class="game-card-info">
+              <div class="game-meta">
+                <span class="game-tag tag-orange">3-12 Players</span>
+                <span class="game-difficulty">Social Voting</span>
+              </div>
+              <h3>Who's the Worst?</h3>
+              <p>Everyone submits spicy questions. Everyone votes anonymously. Find out who among your friends is truly the worst.</p>
+              <button class="btn-neon-orange">PLAY GAME</button>
+            </div>
+          </div>
+
+          <!-- Game Card: Retro Snake (Coming Soon) -->
           <div class="game-card neon-card-pink locked">
             <div class="game-card-preview">
               <i data-lucide="activity"></i>
@@ -479,6 +498,220 @@
             </div>
           </div>
         </div>
+
+        <!-- Game Play Area: Who's the Worst? -->
+        <div class="game-play-container hidden" id="game-wtw-view">
+          <div class="game-play-header">
+            <button class="btn-back" id="btn-wtw-back-to-arcade">
+              <i data-lucide="arrow-left"></i>
+              <span>Back to Arcade</span>
+            </button>
+            <h2 style="color: var(--wtw-orange);">Who's the Worst?</h2>
+          </div>
+
+          <!-- ── SCREEN 1: LOBBY SETUP ── -->
+          <div id="wtw-lobby-setup">
+            <div class="wtw-lobby-grid">
+              <!-- Create -->
+              <div class="glass-panel wtw-lobby-card">
+                <div class="wtw-lobby-card-icon"><i data-lucide="plus-circle"></i></div>
+                <h3>Create Room</h3>
+                <p>Start a new game and invite friends with a room code.</p>
+                <input type="text" id="wtw-name-create" class="input-field" placeholder="Your name..." maxlength="20" autocomplete="off" />
+                <button class="btn-primary wtw-btn-orange" id="btn-wtw-create-room">
+                  <i data-lucide="rocket"></i>
+                  <span>Create Room</span>
+                </button>
+              </div>
+              <!-- Join -->
+              <div class="glass-panel wtw-lobby-card">
+                <div class="wtw-lobby-card-icon"><i data-lucide="log-in"></i></div>
+                <h3>Join Room</h3>
+                <p>Enter a 4-letter room code to join your friends.</p>
+                <input type="text" id="wtw-name-join" class="input-field" placeholder="Your name..." maxlength="20" autocomplete="off" />
+                <input type="text" id="wtw-room-code-input" class="input-field" placeholder="Room code (e.g. ABCD)" maxlength="4" autocomplete="off" style="text-transform:uppercase;" />
+                <button class="btn-secondary" id="btn-wtw-join-room">
+                  <i data-lucide="arrow-right"></i>
+                  <span>Join Room</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── SCREEN 2: WAITING ROOM ── -->
+          <div id="wtw-lobby-waiting" class="hidden">
+            <div class="wtw-waiting-layout">
+              <!-- Left: Room info + players -->
+              <div class="glass-panel">
+                <div class="wtw-room-header">
+                  <div>
+                    <span class="wtw-label">Room Code</span>
+                    <div class="wtw-room-code-display">
+                      <span id="wtw-display-code">----</span>
+                      <button class="btn-icon" id="btn-wtw-copy-code" title="Copy Code"><i data-lucide="copy"></i></button>
+                    </div>
+                  </div>
+                  <div>
+                    <span class="wtw-label">Players</span>
+                    <span id="wtw-player-count" class="wtw-player-count">0 / 12</span>
+                  </div>
+                </div>
+
+                <div id="wtw-lobby-players-list" class="wtw-players-lobby-list"></div>
+
+                <p id="wtw-host-warning" class="wtw-warning hidden">Need at least 3 players to start.</p>
+              </div>
+
+              <!-- Right: Settings (host only) -->
+              <div class="glass-panel" id="wtw-settings-panel">
+                <h3 class="wtw-settings-title"><i data-lucide="settings-2"></i> Game Settings</h3>
+
+                <div class="wtw-setting-row" id="wtw-settings-controls">
+                  <label class="wtw-label">Question Time</label>
+                  <div class="btn-group">
+                    <button class="btn-setting active" data-setting="questionTime" data-value="30">30s</button>
+                    <button class="btn-setting" data-setting="questionTime" data-value="60">60s</button>
+                    <button class="btn-setting" data-setting="questionTime" data-value="90">90s</button>
+                    <button class="btn-setting" data-setting="questionTime" data-value="120">2m</button>
+                  </div>
+
+                  <label class="wtw-label">Vote Time per Question</label>
+                  <div class="btn-group">
+                    <button class="btn-setting" data-setting="voteTime" data-value="10">10s</button>
+                    <button class="btn-setting active" data-setting="voteTime" data-value="15">15s</button>
+                    <button class="btn-setting" data-setting="voteTime" data-value="20">20s</button>
+                    <button class="btn-setting" data-setting="voteTime" data-value="30">30s</button>
+                  </div>
+
+                  <label class="wtw-label">Questions per Player</label>
+                  <div class="btn-group">
+                    <button class="btn-setting active" data-setting="questionsPerPlayer" data-value="1">1</button>
+                    <button class="btn-setting" data-setting="questionsPerPlayer" data-value="2">2</button>
+                    <button class="btn-setting" data-setting="questionsPerPlayer" data-value="3">3</button>
+                  </div>
+
+                  <label class="wtw-label">Show Results</label>
+                  <div class="btn-group">
+                    <button class="btn-setting active" data-setting="showRealTimeResults" data-value="true">Live</button>
+                    <button class="btn-setting" data-setting="showRealTimeResults" data-value="false">End Only</button>
+                  </div>
+                </div>
+
+                <div id="wtw-settings-readonly" class="hidden wtw-settings-readonly-text">
+                  <p>Only the host can change settings.</p>
+                </div>
+
+                <div style="margin-top: 24px;">
+                  <button class="btn-primary wtw-btn-orange" id="btn-wtw-start-game" style="width: 100%; display: none;">
+                    <i data-lucide="play"></i>
+                    <span>Start Game</span>
+                  </button>
+                  <p id="wtw-waiting-for-host-msg" class="wtw-muted-msg" style="display:none;">Waiting for host to start...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── SCREEN 3: QUESTION PHASE ── -->
+          <div id="wtw-question-phase" class="hidden">
+            <div class="wtw-phase-header">
+              <div class="wtw-phase-badge orange">📝 Question Phase</div>
+              <div class="wtw-timer-display" id="wtw-q-timer">60</div>
+            </div>
+            <div class="wtw-timer-track"><div id="wtw-q-timer-bar" class="wtw-timer-bar"></div></div>
+            <div class="wtw-phase-body glass-panel">
+              <h3 class="wtw-phase-title">Submit your questions!</h3>
+              <p class="wtw-phase-subtitle">Write anything about the group — "Who is most likely to…?" or "Who would survive a zombie apocalypse last?"</p>
+
+              <div id="wtw-question-inputs-container"></div>
+
+              <div class="wtw-submit-q-footer">
+                <span id="wtw-q-submitted-count" class="wtw-muted-msg"></span>
+                <button class="btn-primary wtw-btn-orange" id="btn-wtw-submit-questions">
+                  <i data-lucide="send"></i>
+                  <span>Submit</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="glass-panel wtw-players-status-panel">
+              <h4>Submitted</h4>
+              <div id="wtw-q-players-status" class="wtw-players-status-grid"></div>
+            </div>
+          </div>
+
+          <!-- ── SCREEN 4: VOTING PHASE ── -->
+          <div id="wtw-voting-phase" class="hidden">
+            <div class="wtw-phase-header">
+              <div class="wtw-phase-badge orange">🗳️ Vote</div>
+              <div class="wtw-q-progress" id="wtw-vote-q-progress">Question 1 of 5</div>
+              <div class="wtw-timer-display" id="wtw-v-timer">15</div>
+            </div>
+            <div class="wtw-timer-track"><div id="wtw-v-timer-bar" class="wtw-timer-bar"></div></div>
+
+            <div class="glass-panel wtw-question-card">
+              <div class="wtw-question-number" id="wtw-question-number">Q1</div>
+              <div class="wtw-question-text" id="wtw-question-text">Loading question...</div>
+            </div>
+
+            <p class="wtw-vote-instruction">Who does this describe the most? (Anonymous vote · No self-vote)</p>
+
+            <div id="wtw-vote-buttons" class="wtw-vote-grid"></div>
+
+            <!-- Live results bar (hidden if showRealTimeResults=false) -->
+            <div id="wtw-live-results" class="glass-panel hidden" style="margin-top: 16px;">
+              <h4 class="wtw-live-label"><i data-lucide="bar-chart-2"></i> Live Votes</h4>
+              <div id="wtw-live-bars"></div>
+            </div>
+
+            <!-- Host skip button -->
+            <div style="text-align:center; margin-top: 16px;" id="wtw-skip-vote-row">
+              <button class="btn-secondary" id="btn-wtw-skip-voting" style="display:none; font-size:12px;">
+                <i data-lucide="fast-forward"></i> Skip (Host)
+              </button>
+            </div>
+          </div>
+
+          <!-- ── SCREEN 5: QUESTION RESULTS ── -->
+          <div id="wtw-question-results" class="hidden">
+            <div class="wtw-phase-header">
+              <div class="wtw-phase-badge orange">📊 Results</div>
+              <div class="wtw-timer-display" id="wtw-r-timer">8</div>
+            </div>
+            <div class="wtw-timer-track"><div id="wtw-r-timer-bar" class="wtw-timer-bar"></div></div>
+
+            <div class="glass-panel wtw-question-card" style="margin-bottom: 20px;">
+              <div class="wtw-question-text" id="wtw-result-question-text"></div>
+            </div>
+
+            <div class="glass-panel">
+              <h4 style="margin-bottom: 16px;">Vote Breakdown</h4>
+              <div id="wtw-result-bars"></div>
+            </div>
+          </div>
+
+          <!-- ── SCREEN 6: FINAL SCORES ── -->
+          <div id="wtw-final-scores" class="hidden">
+            <div class="wtw-phase-header" style="margin-bottom: 32px;">
+              <div class="wtw-phase-badge orange">🏆 Final Scores</div>
+            </div>
+
+            <div class="glass-panel wtw-leaderboard">
+              <h3 class="wtw-leaderboard-title">The Verdict</h3>
+              <p class="wtw-leaderboard-sub">Worst voted answers per question</p>
+              <div id="wtw-final-leaderboard" style="display:flex; flex-direction:column; gap:12px; margin-top:20px;"></div>
+            </div>
+
+            <div style="text-align:center; margin-top: 28px; display: flex; gap: 12px; justify-content: center;">
+              <button class="btn-primary wtw-btn-orange" id="btn-wtw-play-again" style="display:none;">
+                <i data-lucide="refresh-cw"></i>
+                <span>Play Again</span>
+              </button>
+              <p id="wtw-play-again-wait" class="wtw-muted-msg" style="display:none;">Waiting for host to start a new round...</p>
+            </div>
+          </div>
+
+        </div><!-- /#game-wtw-view -->
 
         <!-- Game Play Area: Chor Dakat Babu Police -->
         <div class="game-play-container hidden" id="game-cdbp-view">

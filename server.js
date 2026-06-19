@@ -24,6 +24,11 @@ const initCDbpGame = require('./game_manager');
 initCDbpGame(io);
 initCDbpGame.bindIO(io);
 
+// Initialize Who's the Worst Social Voting Game
+const initWtwGame = require('./wtw_manager');
+initWtwGame(io);
+initWtwGame.bindIO(io);
+
 const PORT = process.env.PORT || 3000;
 
 // Setup directories

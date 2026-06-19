@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-
+  // (app mode initialized later in DOMContentLoaded to prevent TDZ error)
 
   // Toggle Mode Click Listener
   if (modeSwitcherFooter) {
@@ -407,6 +407,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    // Save active view in localStorage
+    localStorage.setItem('active_view', viewId);
+
     // Refresh icons just in case
     lucide.createIcons();
   }
@@ -418,10 +421,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Dashboard card quick links
-  document.querySelectorAll('.dash-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const action = card.getAttribute('data-action');
+  // Dashboard quick links (cards & buttons)
+  document.querySelectorAll('[data-action]').forEach(el => {
+    el.addEventListener('click', () => {
+      const action = el.getAttribute('data-action');
       if (action === 'go-to-downloader') switchView('downloader');
       if (action === 'go-to-linksaver') switchView('linksaver');
       if (action === 'go-to-games') switchView('games');
@@ -1130,6 +1133,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Delete bookmark
   async function deleteBookmark(id) {
+    const isOwner = document.body.classList.contains('mode-owner');
     const confirmed = await showModalConfirm('Are you sure you want to remove this bookmark?', 'Delete Bookmark');
     if (!confirmed) return;
 
@@ -1170,8 +1174,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Live search inputs
   linksSearch.addEventListener('input', renderBookmarks);
 
-  // Initial load
-  fetchBookmarks();
+
 
 
   // --- Game Zone Logic: Tic-Tac-Toe ---
@@ -1212,12 +1215,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('[data-game="tictactoe"]').addEventListener('click', () => {
     gamesListView.classList.add('hidden');
     gameTictactoeView.classList.remove('hidden');
+    localStorage.setItem('active_game', 'tictactoe');
     resetGame();
   });
 
   btnBackToArcade.addEventListener('click', () => {
     gameTictactoeView.classList.add('hidden');
     gamesListView.classList.remove('hidden');
+    localStorage.removeItem('active_game');
   });
 
   // Switch Game Mode
@@ -1500,6 +1505,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const cdbpLabelSpy = document.getElementById('cdbp-label-spy');
   const cdbpLabelDetective = document.getElementById('cdbp-label-detective');
   const cdbpLabelJadukar = document.getElementById('cdbp-label-jadukar');
+  const btnCdbpRolesInfo = document.getElementById('btn-cdbp-roles-info');
 
   // Active HUD elements
   const cdbpHudPhase = document.getElementById('cdbp-hud-phase');
@@ -1578,12 +1584,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('[data-game="cdbp"]').addEventListener('click', () => {
     gamesListView.classList.add('hidden');
     cdbpGameView.classList.remove('hidden');
+    localStorage.setItem('active_game', 'cdbp');
     resetCdbpUI();
   });
 
   btnCdbpBackToArcade.addEventListener('click', () => {
     cdbpGameView.classList.add('hidden');
     gamesListView.classList.remove('hidden');
+    localStorage.removeItem('active_game');
     sessionStorage.removeItem('cdbp_room_id');
     sessionStorage.removeItem('cdbp_player_name');
     sessionStorage.removeItem('cdbp_active');
@@ -2196,28 +2204,752 @@ document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
   }
 
-  // Auto-reconnect session storage recovery on page load
+
+
+
+  // ==========================================================================
+  // Game Zone Logic: Who's the Worst? (WTW)
+  // ==========================================================================
+
+  const wtwGameView       = document.getElementById('game-wtw-view');
+  const btnWtwBack        = document.getElementById('btn-wtw-back-to-arcade');
+
+  // Screens
+  const wtwLobbySetup     = document.getElementById('wtw-lobby-setup');
+  const wtwLobbyWaiting   = document.getElementById('wtw-lobby-waiting');
+  const wtwQuestionPhase  = document.getElementById('wtw-question-phase');
+  const wtwVotingPhase    = document.getElementById('wtw-voting-phase');
+  const wtwQuestionResults= document.getElementById('wtw-question-results');
+  const wtwFinalScores    = document.getElementById('wtw-final-scores');
+  const wtwAllScreens     = [wtwLobbySetup, wtwLobbyWaiting, wtwQuestionPhase, wtwVotingPhase, wtwQuestionResults, wtwFinalScores];
+
+  // Lobby setup inputs
+  const wtwNameCreate     = document.getElementById('wtw-name-create');
+  const wtwNameJoin       = document.getElementById('wtw-name-join');
+  const wtwRoomCodeInput  = document.getElementById('wtw-room-code-input');
+  const btnWtwCreateRoom  = document.getElementById('btn-wtw-create-room');
+  const btnWtwJoinRoom    = document.getElementById('btn-wtw-join-room');
+
+  // Waiting room
+  const wtwDisplayCode      = document.getElementById('wtw-display-code');
+  const wtwPlayerCount      = document.getElementById('wtw-player-count');
+  const wtwLobbyPlayersList = document.getElementById('wtw-lobby-players-list');
+  const btnWtwCopyCode      = document.getElementById('btn-wtw-copy-code');
+  const wtwHostWarning      = document.getElementById('wtw-host-warning');
+  const wtwSettingsControls = document.getElementById('wtw-settings-controls');
+  const wtwSettingsReadonly = document.getElementById('wtw-settings-readonly');
+  const btnWtwStartGame     = document.getElementById('btn-wtw-start-game');
+  const wtwWaitingForHost   = document.getElementById('wtw-waiting-for-host-msg');
+
+  // Question phase
+  const wtwQTimer           = document.getElementById('wtw-q-timer');
+  const wtwQInputsContainer = document.getElementById('wtw-question-inputs-container');
+  const wtwQSubmittedCount  = document.getElementById('wtw-q-submitted-count');
+  const btnWtwSubmitQs      = document.getElementById('btn-wtw-submit-questions');
+  const wtwQPlayersStatus   = document.getElementById('wtw-q-players-status');
+
+  // Voting phase
+  const wtwVTimer           = document.getElementById('wtw-v-timer');
+  const wtwVoteQProgress    = document.getElementById('wtw-vote-q-progress');
+  const wtwQuestionNumber   = document.getElementById('wtw-question-number');
+  const wtwQuestionText     = document.getElementById('wtw-question-text');
+  const wtwVoteButtons      = document.getElementById('wtw-vote-buttons');
+  const wtwLiveResults      = document.getElementById('wtw-live-results');
+  const wtwLiveBars         = document.getElementById('wtw-live-bars');
+  const btnWtwSkipVoting    = document.getElementById('btn-wtw-skip-voting');
+
+  // Question results
+  const wtwRTimer           = document.getElementById('wtw-r-timer');
+  const wtwResultQuestionText = document.getElementById('wtw-result-question-text');
+  const wtwResultBars       = document.getElementById('wtw-result-bars');
+
+  // Final scores
+  const wtwFinalLeaderboard = document.getElementById('wtw-final-leaderboard');
+  const btnWtwPlayAgain     = document.getElementById('btn-wtw-play-again');
+  const wtwPlayAgainWait    = document.getElementById('wtw-play-again-wait');
+
+  // ── WTW Client State ────────────────────────────────────────────────────────
+  let wtwRoomId       = null;
+  let wtwMyName       = '';
+  let wtwMyId         = socket.id;
+  let wtwIsHost       = false;
+  let wtwRoomState    = null;
+  let wtwHasVoted     = false;
+  let wtwVotedForId   = null;
+  let wtwSubmittedQs  = 0; // how many questions this client has submitted this round
+
+  // ── Helper: deterministic avatar gradient generator ─────────────────────
+  function wtwGetAvatarStyle(name) {
+    const gradients = [
+      'linear-gradient(135deg, #f97316, #ea580c)', // orange
+      'linear-gradient(135deg, #3b82f6, #1d4ed8)', // blue
+      'linear-gradient(135deg, #10b981, #047857)', // green
+      'linear-gradient(135deg, #8b5cf6, #6d28d9)', // purple
+      'linear-gradient(135deg, #ec4899, #be185d)', // pink
+      'linear-gradient(135deg, #06b6d4, #0891b2)', // cyan
+      'linear-gradient(135deg, #f59e0b, #b45309)', // amber
+      'linear-gradient(135deg, #f43f5e, #be123c)', // rose
+      'linear-gradient(135deg, #14b8a6, #0f766e)'  // teal
+    ];
+    let sum = 0;
+    for (let i = 0; i < name.length; i++) {
+      sum += name.charCodeAt(i);
+    }
+    const gradient = gradients[sum % gradients.length];
+    return `background: ${gradient}; border: 1px solid rgba(255,255,255,0.15); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2);`;
+  }
+
+  // ── Helper: show one screen ──────────────────────────────────────────────
+  function wtwShowScreen(screen) {
+    wtwAllScreens.forEach(s => s.classList.add('hidden'));
+    screen.classList.remove('hidden');
+  }
+
+  // ── Helper: render vote percentage bars ─────────────────────────────────
+  function wtwRenderBars(container, players, voteCounts) {
+    if (!voteCounts) { container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No votes yet.</p>'; return; }
+    const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
+    container.innerHTML = '';
+    
+    // Sort by count desc
+    const sorted = [...players].sort((a, b) => (voteCounts[b.id] || 0) - (voteCounts[a.id] || 0));
+    
+    // Determine the max votes to highlight the "worst"
+    const maxVotes = sorted.length > 0 ? (voteCounts[sorted[0].id] || 0) : 0;
+
+    sorted.forEach(p => {
+      const count = voteCounts[p.id] || 0;
+      const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+      const isMax = count > 0 && count === maxVotes;
+      const row = document.createElement('div');
+      row.className = 'wtw-bar-row' + (isMax ? ' worst-highlight' : '');
+      row.innerHTML = `
+        <span class="wtw-bar-name" title="${p.name}">${p.name}</span>
+        <div class="wtw-bar-track"><div class="wtw-bar-fill" style="width:0%"></div></div>
+        <span class="wtw-bar-pct">${pct}%<span class="wtw-bar-count">(${count})</span></span>
+      `;
+      container.appendChild(row);
+      // Animate after paint
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const fill = row.querySelector('.wtw-bar-fill');
+          if (fill) fill.style.width = pct + '%';
+        });
+      });
+    });
+  }
+
+  // ── Helper: render waiting lobby player list ─────────────────────────────
+  function wtwRenderLobbyPlayers(players) {
+    wtwLobbyPlayersList.innerHTML = '';
+    players.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'wtw-player-lobby-row' + (p.connected ? '' : ' disconnected');
+      row.innerHTML = `
+        <div class="wtw-avatar" style="${wtwGetAvatarStyle(p.name)}">${p.name.substring(0, 2).toUpperCase()}</div>
+        <span>${p.name}</span>
+        ${p.isHost ? '<span class="wtw-host-badge">HOST</span>' : ''}
+      `;
+      wtwLobbyPlayersList.appendChild(row);
+    });
+  }
+
+  // ── Helper: render question phase submission chips ───────────────────────
+  function wtwRenderQPlayerStatus(players) {
+    wtwQPlayersStatus.innerHTML = '';
+    players.forEach(p => {
+      const chip = document.createElement('div');
+      chip.className = 'wtw-status-chip' + (p.hasSubmittedQuestion ? ' done' : '');
+      chip.innerHTML = `
+        <i data-lucide="${p.hasSubmittedQuestion ? 'check' : 'clock'}"></i>
+        <span>${p.name}</span>
+      `;
+      wtwQPlayersStatus.appendChild(chip);
+    });
+    lucide.createIcons();
+  }
+
+  // ── Helper: render vote buttons ─────────────────────────────────────────
+  function wtwRenderVoteButtons(players) {
+    wtwVoteButtons.innerHTML = '';
+    players.forEach(p => {
+      if (p.id === socket.id) return; // no self-voting
+      const btn = document.createElement('button');
+      btn.className = 'wtw-vote-btn' + (wtwVotedForId === p.id ? ' voted' : '');
+      btn.dataset.pid = p.id;
+      btn.disabled = wtwHasVoted;
+      btn.innerHTML = `
+        <div class="wtw-vote-btn-avatar" style="${wtwGetAvatarStyle(p.name)}">${p.name.substring(0, 2).toUpperCase()}</div>
+        <span>${p.name}</span>
+      `;
+      btn.addEventListener('click', () => {
+        if (wtwHasVoted) return;
+        socket.emit('wtw-submit-vote', { voteeId: p.id }, (res) => {
+          if (res && res.error) {
+            showModalAlert(res.error, 'Vote Error', 'error');
+          } else {
+            wtwHasVoted = true;
+            wtwVotedForId = p.id;
+            wtwRenderVoteButtons(wtwRoomState ? wtwRoomState.players : []);
+          }
+        });
+      });
+      wtwVoteButtons.appendChild(btn);
+    });
+  }
+
+  // ── Helper: render final verdict (question cards) ───────────────────────
+  function wtwRenderLeaderboard(players) {
+    wtwFinalLeaderboard.innerHTML = '';
+    
+    if (!wtwRoomState || !wtwRoomState.questions || wtwRoomState.questions.length === 0) {
+      wtwFinalLeaderboard.innerHTML = '<p style="color:var(--text-muted);text-align:center;">No questions played.</p>';
+      return;
+    }
+    
+    wtwRoomState.questions.forEach((q, qIdx) => {
+      const card = document.createElement('div');
+      card.className = 'wtw-verdict-card';
+      
+      // Find the most voted player(s) for this question
+      let worstPlayers = [];
+      let maxVotes = 0;
+      
+      if (q.voteCounts) {
+        Object.entries(q.voteCounts).forEach(([pid, count]) => {
+          if (count > maxVotes) {
+            maxVotes = count;
+            const player = players.find(p => p.id === pid);
+            if (player) {
+              worstPlayers = [player];
+            }
+          } else if (count === maxVotes && count > 0) {
+            const player = players.find(p => p.id === pid);
+            if (player) worstPlayers.push(player);
+          }
+        });
+      }
+      
+      let answerHtml = '';
+      if (maxVotes === 0 || worstPlayers.length === 0) {
+        answerHtml = `
+          <div class="wtw-verdict-answer-row no-votes">
+            <span class="wtw-verdict-worst-label no-votes">No Votes</span>
+            <span class="wtw-verdict-worst-name" style="margin-left: 8px; color: var(--text-muted); font-size:13px;">Nobody voted in this round.</span>
+          </div>
+        `;
+      } else {
+        const worstNames = worstPlayers.map(p => p.name).join(' & ');
+        const firstPlayer = worstPlayers[0];
+        
+        answerHtml = `
+          <div class="wtw-verdict-answer-row">
+            <span class="wtw-verdict-worst-label">Worst</span>
+            <div class="wtw-avatar" style="width:24px; height:24px; font-size:9px; margin-left: 8px; margin-right: 6px; ${wtwGetAvatarStyle(firstPlayer.name)}">${firstPlayer.name.substring(0, 2).toUpperCase()}</div>
+            <span class="wtw-verdict-worst-name">${worstNames}</span>
+            <span class="wtw-verdict-worst-votes">${maxVotes} vote${maxVotes !== 1 ? 's' : ''}</span>
+          </div>
+        `;
+      }
+      
+      card.innerHTML = `
+        <div class="wtw-verdict-q-num">Question ${qIdx + 1}</div>
+        <div class="wtw-verdict-q-text">${q.text}</div>
+        ${answerHtml}
+      `;
+      
+      wtwFinalLeaderboard.appendChild(card);
+    });
+  }
+
+  // ── Helper: update settings button active states ─────────────────────────
+  function wtwSyncSettingsUI(settings) {
+    document.querySelectorAll('#wtw-settings-controls .btn-setting').forEach(btn => {
+      const key = btn.dataset.setting;
+      const val = btn.dataset.value;
+      const cur = settings[key];
+      const matches = String(cur) === String(val);
+      btn.classList.toggle('active', matches);
+    });
+  }
+
+  // ── Phase transition handler ─────────────────────────────────────────────
+  function wtwHandlePhaseChange(data) {
+    const status = data.status;
+
+    if (status === 'QUESTION_PHASE') {
+      // Build question inputs dynamically
+      wtwSubmittedQs = 0;
+      wtwQInputsContainer.innerHTML = '';
+      const qpp = wtwRoomState ? wtwRoomState.settings.questionsPerPlayer : 1;
+      for (let i = 0; i < qpp; i++) {
+        const wrap = document.createElement('div');
+        wrap.className = 'wtw-q-input-wrap';
+        wrap.innerHTML = `
+          <span class="wtw-q-input-label">Question ${qpp > 1 ? i + 1 : ''}</span>
+          <input type="text" class="wtw-q-input" data-qi="${i}" placeholder="e.g. Who is most likely to forget someone's birthday?" maxlength="200" autocomplete="off" />
+        `;
+        wtwQInputsContainer.appendChild(wrap);
+      }
+      btnWtwSubmitQs.disabled = false;
+      btnWtwSubmitQs.querySelector('span').textContent = 'Submit';
+      wtwQSubmittedCount.textContent = '';
+      wtwShowScreen(wtwQuestionPhase);
+    }
+
+    else if (status === 'VOTING_PHASE') {
+      wtwHasVoted = false;
+      wtwVotedForId = null;
+      wtwShowScreen(wtwVotingPhase);
+
+      const qIdx = data.currentQuestionIndex || 0;
+      const total = wtwRoomState ? wtwRoomState.questions.length : 1;
+      wtwVoteQProgress.textContent = `Question ${qIdx + 1} of ${total}`;
+      wtwQuestionNumber.textContent = `Q${qIdx + 1}`;
+
+      if (data.currentQuestion) {
+        wtwQuestionText.textContent = data.currentQuestion.text;
+      } else if (wtwRoomState && wtwRoomState.questions[qIdx]) {
+        wtwQuestionText.textContent = wtwRoomState.questions[qIdx].text;
+      }
+
+      // Live results bar
+      const showLive = wtwRoomState && wtwRoomState.settings.showRealTimeResults;
+      if (showLive) {
+        wtwLiveResults.classList.remove('hidden');
+        wtwLiveBars.innerHTML = '';
+      } else {
+        wtwLiveResults.classList.add('hidden');
+      }
+
+      // Vote buttons
+      if (wtwRoomState) wtwRenderVoteButtons(wtwRoomState.players);
+
+      // Host skip button
+      btnWtwSkipVoting.style.display = wtwIsHost ? 'inline-flex' : 'none';
+    }
+
+    else if (status === 'QUESTION_RESULTS') {
+      wtwShowScreen(wtwQuestionResults);
+      const qIdx = data.currentQuestionIndex != null ? data.currentQuestionIndex : (wtwRoomState ? wtwRoomState.currentQuestionIndex : 0);
+      if (wtwRoomState && wtwRoomState.questions[qIdx]) {
+        wtwResultQuestionText.textContent = wtwRoomState.questions[qIdx].text;
+        wtwRenderBars(wtwResultBars, wtwRoomState.players, wtwRoomState.questions[qIdx].voteCounts);
+      }
+    }
+
+    else if (status === 'FINAL_SCORES') {
+      wtwShowScreen(wtwFinalScores);
+      if (wtwRoomState) wtwRenderLeaderboard(wtwRoomState.players);
+      if (wtwIsHost) {
+        btnWtwPlayAgain.style.display = 'inline-flex';
+        wtwPlayAgainWait.style.display = 'none';
+      } else {
+        btnWtwPlayAgain.style.display = 'none';
+        wtwPlayAgainWait.style.display = 'block';
+      }
+    }
+  }
+
+  // ── Timer helper ─────────────────────────────────────────────────────────
+  function wtwSetTimer(el, val) {
+    el.textContent = val;
+    el.classList.toggle('urgent', val <= 5 && val > 0);
+  }
+
+  // ── Reset to lobby setup ─────────────────────────────────────────────────
+  function wtwResetUI() {
+    wtwRoomId     = null;
+    wtwMyName     = '';
+    wtwIsHost     = false;
+    wtwRoomState  = null;
+    wtwHasVoted   = false;
+    wtwVotedForId = null;
+    wtwSubmittedQs= 0;
+    sessionStorage.removeItem('wtw_room_id');
+    sessionStorage.removeItem('wtw_player_name');
+    sessionStorage.removeItem('wtw_active');
+    wtwShowScreen(wtwLobbySetup);
+  }
+
+  // ── Open game ────────────────────────────────────────────────────────────
+  document.querySelector('[data-game="wtw"]').addEventListener('click', () => {
+    gamesListView.classList.add('hidden');
+    wtwGameView.classList.remove('hidden');
+    localStorage.setItem('active_game', 'wtw');
+    wtwResetUI();
+    lucide.createIcons();
+  });
+
+  btnWtwBack.addEventListener('click', () => {
+    wtwGameView.classList.add('hidden');
+    gamesListView.classList.remove('hidden');
+    localStorage.removeItem('active_game');
+    wtwResetUI();
+  });
+
+  // ── Create Room ──────────────────────────────────────────────────────────
+  btnWtwCreateRoom.addEventListener('click', async () => {
+    const name = wtwNameCreate.value.trim();
+    if (!name) { await showModalAlert('Please enter your name.', 'Name Required', 'warning'); return; }
+
+    btnWtwCreateRoom.disabled = true;
+    btnWtwCreateRoom.querySelector('span').textContent = 'Creating...';
+
+    socket.emit('wtw-create', { playerName: name }, (res) => {
+      btnWtwCreateRoom.disabled = false;
+      btnWtwCreateRoom.querySelector('span').textContent = 'Create Room';
+
+      if (res.error) { showModalAlert(res.error, 'Error', 'error'); return; }
+
+      wtwRoomId  = res.roomId;
+      wtwMyName  = name;
+      wtwIsHost  = true;
+      wtwMyId    = socket.id;
+      wtwRoomState = res.roomState;
+
+      // Save to sessionStorage
+      sessionStorage.setItem('wtw_room_id', res.roomId);
+      sessionStorage.setItem('wtw_player_name', name);
+      sessionStorage.setItem('wtw_active', 'true');
+
+      wtwRouteState(res.roomState);
+    });
+  });
+
+  // ── Join Room ────────────────────────────────────────────────────────────
+  btnWtwJoinRoom.addEventListener('click', async () => {
+    const name = wtwNameJoin.value.trim();
+    const code = wtwRoomCodeInput.value.trim().toUpperCase();
+    if (!name) { await showModalAlert('Please enter your name.', 'Name Required', 'warning'); return; }
+    if (!code || code.length !== 4) { await showModalAlert('Please enter a valid 4-letter room code.', 'Code Required', 'warning'); return; }
+
+    btnWtwJoinRoom.disabled = true;
+    btnWtwJoinRoom.querySelector('span').textContent = 'Joining...';
+
+    socket.emit('wtw-join', { roomId: code, playerName: name }, (res) => {
+      btnWtwJoinRoom.disabled = false;
+      btnWtwJoinRoom.querySelector('span').textContent = 'Join Room';
+
+      if (res.error) { showModalAlert(res.error, 'Error', 'error'); return; }
+
+      wtwRoomId  = code;
+      wtwMyName  = name;
+      wtwIsHost  = false;
+      wtwMyId    = socket.id;
+      wtwRoomState = res.roomState;
+
+      // Save to sessionStorage
+      sessionStorage.setItem('wtw_room_id', code);
+      sessionStorage.setItem('wtw_player_name', name);
+      sessionStorage.setItem('wtw_active', 'true');
+
+      wtwRouteState(res.roomState);
+    });
+  });
+
+  // ── Copy room code ───────────────────────────────────────────────────────
+  btnWtwCopyCode.addEventListener('click', () => {
+    navigator.clipboard.writeText(wtwRoomId || '').then(() => {
+      btnWtwCopyCode.innerHTML = '<i data-lucide="check"></i>';
+      lucide.createIcons();
+      setTimeout(() => {
+        btnWtwCopyCode.innerHTML = '<i data-lucide="copy"></i>';
+        lucide.createIcons();
+      }, 1500);
+    });
+  });
+
+  // ── Settings buttons (host only) ─────────────────────────────────────────
+  document.querySelectorAll('#wtw-settings-controls .btn-setting').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!wtwIsHost) return;
+      const setting = btn.dataset.setting;
+      let val = btn.dataset.value;
+      if (val === 'true') val = true;
+      else if (val === 'false') val = false;
+      else val = Number(val);
+
+      socket.emit('wtw-update-settings', { [setting]: val }, () => {});
+    });
+  });
+
+  // ── Start Game (host) ────────────────────────────────────────────────────
+  btnWtwStartGame.addEventListener('click', () => {
+    socket.emit('wtw-start-game', null, (res) => {
+      if (res && res.error) showModalAlert(res.error, 'Cannot Start', 'error');
+    });
+  });
+
+  // ── Submit Questions ─────────────────────────────────────────────────────
+  btnWtwSubmitQs.addEventListener('click', async () => {
+    const inputs = wtwQInputsContainer.querySelectorAll('.wtw-q-input:not(.submitted)');
+    const questions = [...inputs].map(i => i.value.trim()).filter(q => q.length > 0);
+
+    if (questions.length === 0) {
+      await showModalAlert('Please write at least one question before submitting.', 'Empty Question', 'warning');
+      return;
+    }
+
+    btnWtwSubmitQs.disabled = true;
+    btnWtwSubmitQs.querySelector('span').textContent = 'Submitting...';
+
+    // Submit questions one by one
+    let allOk = true;
+    for (const q of questions) {
+      await new Promise((resolve) => {
+        socket.emit('wtw-submit-question', { questionText: q }, (res) => {
+          if (res && res.error) { showModalAlert(res.error, 'Submit Error', 'error'); allOk = false; }
+          resolve();
+        });
+      });
+      if (!allOk) break;
+    }
+
+    if (allOk) {
+      // Mark inputs as submitted
+      inputs.forEach(input => { input.classList.add('submitted'); });
+      btnWtwSubmitQs.querySelector('span').textContent = 'Submitted ✓';
+      wtwQSubmittedCount.textContent = `Your questions submitted!`;
+    } else {
+      btnWtwSubmitQs.disabled = false;
+      btnWtwSubmitQs.querySelector('span').textContent = 'Submit';
+    }
+  });
+
+  // ── Skip Voting (host) ───────────────────────────────────────────────────
+  btnWtwSkipVoting.addEventListener('click', () => {
+    socket.emit('wtw-skip-voting', null, (res) => {
+      if (res && res.error) showModalAlert(res.error, 'Cannot Skip', 'error');
+    });
+  });
+
+  // ── Play Again (host) ────────────────────────────────────────────────────
+  btnWtwPlayAgain.addEventListener('click', () => {
+    socket.emit('wtw-next-round', null, (res) => {
+      if (res && res.error) showModalAlert(res.error, 'Cannot restart', 'error');
+    });
+  });
+
+  // ── Transition to Waiting Room ───────────────────────────────────────────
+  function wtwTransitionToWaiting(state) {
+    wtwRoomState = state;
+    wtwDisplayCode.textContent = state.roomId;
+    wtwShowScreen(wtwLobbyWaiting);
+    wtwUpdateWaitingUI(state);
+    lucide.createIcons();
+  }
+
+  function wtwRouteState(state) {
+    wtwRoomState = state;
+    wtwDisplayCode.textContent = state.roomId;
+
+    if (state.status === 'LOBBY') {
+      wtwShowScreen(wtwLobbyWaiting);
+      wtwUpdateWaitingUI(state);
+    } else {
+      wtwHandlePhaseChange(state);
+
+      if (state.status === 'QUESTION_PHASE') {
+        wtwRenderQPlayerStatus(state.players);
+        wtwQSubmittedCount.textContent = `${state.submittedQuestionsCount} / ${state.players.filter(p=>p.connected).length} submitted`;
+      } else if (state.status === 'VOTING_PHASE') {
+        if (state.settings.showRealTimeResults) {
+          const q = state.questions[state.currentQuestionIndex];
+          if (q && q.voteCounts) wtwRenderBars(wtwLiveBars, state.players, q.voteCounts);
+        }
+        wtwRenderVoteButtons(state.players);
+      } else if (state.status === 'QUESTION_RESULTS') {
+        const q = state.questions[state.currentQuestionIndex];
+        if (q && q.voteCounts) wtwRenderBars(wtwResultBars, state.players, q.voteCounts);
+      } else if (state.status === 'FINAL_SCORES') {
+        wtwRenderLeaderboard(state.players);
+      }
+    }
+    lucide.createIcons();
+  }
+
+  function wtwUpdateWaitingUI(state) {
+    const connected = state.players.filter(p => p.connected);
+    wtwPlayerCount.textContent = `${connected.length} / 12`;
+    wtwRenderLobbyPlayers(state.players);
+
+    // Host vs guest UI
+    if (wtwIsHost) {
+      wtwSettingsControls.classList.remove('hidden');
+      wtwSettingsReadonly.classList.add('hidden');
+      btnWtwStartGame.style.display = 'block';
+      wtwWaitingForHost.style.display = 'none';
+      const canStart = connected.length >= 3;
+      btnWtwStartGame.disabled = !canStart;
+      wtwHostWarning.classList.toggle('hidden', canStart);
+    } else {
+      wtwSettingsControls.classList.add('hidden');
+      wtwSettingsReadonly.classList.remove('hidden');
+      btnWtwStartGame.style.display = 'none';
+      wtwWaitingForHost.style.display = 'block';
+    }
+
+    wtwSyncSettingsUI(state.settings);
+  }
+
+  // ── Socket: Room Updated ─────────────────────────────────────────────────
+  socket.on('wtw-room-updated', (state) => {
+    wtwRoomState = state;
+    // Sync host status (in case of host transfer)
+    wtwIsHost = (state.hostId === socket.id);
+
+    if (state.status === 'LOBBY') {
+      wtwUpdateWaitingUI(state);
+    } else if (state.status === 'QUESTION_PHASE') {
+      // Update submission chips
+      wtwRenderQPlayerStatus(state.players);
+      wtwQSubmittedCount.textContent = `${state.submittedQuestionsCount} / ${state.players.filter(p=>p.connected).length} submitted`;
+    } else if (state.status === 'VOTING_PHASE') {
+      // Update live bars if visible
+      if (wtwRoomState && wtwRoomState.settings.showRealTimeResults) {
+        const q = state.questions[state.currentQuestionIndex];
+        if (q && q.voteCounts) wtwRenderBars(wtwLiveBars, state.players, q.voteCounts);
+      }
+      // Re-render vote buttons to reflect any changes (e.g. reconnect)
+      wtwRenderVoteButtons(state.players);
+    } else if (state.status === 'QUESTION_RESULTS') {
+      // Bars might be updated here
+      const q = state.questions[state.currentQuestionIndex];
+      if (q && q.voteCounts) wtwRenderBars(wtwResultBars, state.players, q.voteCounts);
+    } else if (state.status === 'FINAL_SCORES') {
+      wtwRenderLeaderboard(state.players);
+    }
+    lucide.createIcons();
+  });
+
+  // ── Socket: Phase Changed ────────────────────────────────────────────────
+  socket.on('wtw-phase-changed', (data) => {
+    wtwHandlePhaseChange(data);
+    lucide.createIcons();
+  });
+
+  // ── Socket: Timer Update ─────────────────────────────────────────────────
+  socket.on('wtw-timer-update', (timeLeft) => {
+    const status = wtwRoomState ? wtwRoomState.status : '';
+    let total = 60;
+    let bar = null;
+
+    if (status === 'QUESTION_PHASE') {
+      wtwSetTimer(wtwQTimer, timeLeft);
+      total = wtwRoomState ? wtwRoomState.settings.questionTime : 60;
+      bar = document.getElementById('wtw-q-timer-bar');
+    } else if (status === 'VOTING_PHASE') {
+      wtwSetTimer(wtwVTimer, timeLeft);
+      total = wtwRoomState ? wtwRoomState.settings.voteTime : 15;
+      bar = document.getElementById('wtw-v-timer-bar');
+    } else if (status === 'QUESTION_RESULTS') {
+      wtwSetTimer(wtwRTimer, timeLeft);
+      total = 8;
+      bar = document.getElementById('wtw-r-timer-bar');
+    }
+
+    if (bar) {
+      const pct = (timeLeft / total) * 100;
+      bar.style.width = `${pct}%`;
+      bar.classList.toggle('urgent', timeLeft <= 5);
+    }
+  });
+
+  // ── Socket: Live Vote Update ─────────────────────────────────────────────
+  socket.on('wtw-vote-update', (data) => {
+    if (!wtwRoomState) return;
+    if (wtwRoomState.settings.showRealTimeResults) {
+      wtwRenderBars(wtwLiveBars, wtwRoomState.players, data.voteCounts);
+    }
+  });
+
+  // ==========================================================================
+  // VIEW & SESSION RESTORATION ON PAGE LOAD
+  // ==========================================================================
+
+  // 1. Restore Mode on page load
+  const initialMode = localStorage.getItem('nexus_mode') || 'guest';
+  setAppMode(initialMode);
+
+  // 2. Initial load of bookmarks
+  fetchBookmarks();
+
+  // 3. Restore active view
+  const savedView = localStorage.getItem('active_view') || 'dashboard';
+  // Avoid switching to downloader if guest is active
+  if (savedView === 'downloader' && initialMode !== 'owner') {
+    switchView('dashboard');
+  } else {
+    switchView(savedView);
+  }
+
+  // 4. Restore active game sub-view inside Games list if active view is games
+  if (savedView === 'games') {
+    const savedGame = localStorage.getItem('active_game');
+    if (savedGame === 'tictactoe') {
+      gamesListView.classList.add('hidden');
+      gameTictactoeView.classList.remove('hidden');
+    } else if (savedGame === 'cdbp') {
+      gamesListView.classList.add('hidden');
+      cdbpGameView.classList.remove('hidden');
+    } else if (savedGame === 'wtw') {
+      gamesListView.classList.add('hidden');
+      wtwGameView.classList.remove('hidden');
+    }
+  }
+
+  // 5. Auto-reconnect session recovery on page load (Chor Police)
   const savedRoomId = sessionStorage.getItem('cdbp_room_id');
   const savedPlayerName = sessionStorage.getItem('cdbp_player_name');
   const cdbpActive = sessionStorage.getItem('cdbp_active');
 
   if (savedRoomId && savedPlayerName && cdbpActive === 'true') {
     socket.emit('cdbp-join', { roomId: savedRoomId, playerName: savedPlayerName }, (response) => {
-      if (response.success) {
+      if (response && response.success) {
         cdbpMyName = savedPlayerName;
         cdbpRoomId = response.roomId;
         cdbpIsHost = response.roomState.players.find(p => p.name === savedPlayerName)?.isHost || false;
-        
+
         // Restore view to games tab and cdbp screen
         switchView('games');
+        localStorage.setItem('active_game', 'cdbp');
         gamesListView.classList.add('hidden');
         cdbpGameView.classList.remove('hidden');
-        
+
         transitionToLobby(response.roomState);
       } else {
         sessionStorage.removeItem('cdbp_room_id');
         sessionStorage.removeItem('cdbp_player_name');
         sessionStorage.removeItem('cdbp_active');
+      }
+    });
+  }
+
+  // 6. Auto-reconnect session recovery on page load (Who's the Worst)
+  const savedWtwRoomId = sessionStorage.getItem('wtw_room_id');
+  const savedWtwPlayerName = sessionStorage.getItem('wtw_player_name');
+  const wtwActive = sessionStorage.getItem('wtw_active');
+
+  if (savedWtwRoomId && savedWtwPlayerName && wtwActive === 'true') {
+    socket.emit('wtw-join', { roomId: savedWtwRoomId, playerName: savedWtwPlayerName }, (res) => {
+      if (res && !res.error) {
+        wtwMyName = savedWtwPlayerName;
+        wtwRoomId = savedWtwRoomId;
+        wtwIsHost = (res.roomState.hostId === socket.id);
+        wtwMyId = socket.id;
+
+        // Restore view to games tab and wtw screen
+        switchView('games');
+        localStorage.setItem('active_game', 'wtw');
+        gamesListView.classList.add('hidden');
+        wtwGameView.classList.remove('hidden');
+
+        wtwRouteState(res.roomState);
+      } else {
+        sessionStorage.removeItem('wtw_room_id');
+        sessionStorage.removeItem('wtw_player_name');
+        sessionStorage.removeItem('wtw_active');
       }
     });
   }
