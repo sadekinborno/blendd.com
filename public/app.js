@@ -2418,24 +2418,67 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ── Helper: render final leaderboard ────────────────────────────────────
+  // ── Helper: render final verdict (question cards) ───────────────────────
   function wtwRenderLeaderboard(players) {
     wtwFinalLeaderboard.innerHTML = '';
-    const ranked = [...players].sort((a, b) => b.score - a.score);
-    const medals = ['🥇', '🥈', '🥉'];
-    ranked.forEach((p, i) => {
-      const row = document.createElement('div');
-      row.className = 'wtw-leaderboard-row' + (i === 0 ? ' first-place' : '');
-      row.innerHTML = `
-        ${i === 0 ? '<span class="wtw-rank-crown">👑</span>' : `<span class="wtw-rank">${medals[i] || `#${i + 1}`}</span>`}
-        <div class="wtw-lb-avatar" style="${wtwGetAvatarStyle(p.name)}">${p.name.substring(0, 2).toUpperCase()}</div>
-        <span class="wtw-lb-name">${p.name}</span>
-        <div>
-          <span class="wtw-lb-score">${p.score}</span>
-          <span class="wtw-lb-score-label">votes</span>
-        </div>
+    
+    if (!wtwRoomState || !wtwRoomState.questions || wtwRoomState.questions.length === 0) {
+      wtwFinalLeaderboard.innerHTML = '<p style="color:var(--text-muted);text-align:center;">No questions played.</p>';
+      return;
+    }
+    
+    wtwRoomState.questions.forEach((q, qIdx) => {
+      const card = document.createElement('div');
+      card.className = 'wtw-verdict-card';
+      
+      // Find the most voted player(s) for this question
+      let worstPlayers = [];
+      let maxVotes = 0;
+      
+      if (q.voteCounts) {
+        Object.entries(q.voteCounts).forEach(([pid, count]) => {
+          if (count > maxVotes) {
+            maxVotes = count;
+            const player = players.find(p => p.id === pid);
+            if (player) {
+              worstPlayers = [player];
+            }
+          } else if (count === maxVotes && count > 0) {
+            const player = players.find(p => p.id === pid);
+            if (player) worstPlayers.push(player);
+          }
+        });
+      }
+      
+      let answerHtml = '';
+      if (maxVotes === 0 || worstPlayers.length === 0) {
+        answerHtml = `
+          <div class="wtw-verdict-answer-row no-votes">
+            <span class="wtw-verdict-worst-label no-votes">No Votes</span>
+            <span class="wtw-verdict-worst-name" style="margin-left: 8px; color: var(--text-muted); font-size:13px;">Nobody voted in this round.</span>
+          </div>
+        `;
+      } else {
+        const worstNames = worstPlayers.map(p => p.name).join(' & ');
+        const firstPlayer = worstPlayers[0];
+        
+        answerHtml = `
+          <div class="wtw-verdict-answer-row">
+            <span class="wtw-verdict-worst-label">Worst</span>
+            <div class="wtw-avatar" style="width:24px; height:24px; font-size:9px; margin-left: 8px; margin-right: 6px; ${wtwGetAvatarStyle(firstPlayer.name)}">${firstPlayer.name.substring(0, 2).toUpperCase()}</div>
+            <span class="wtw-verdict-worst-name">${worstNames}</span>
+            <span class="wtw-verdict-worst-votes">${maxVotes} vote${maxVotes !== 1 ? 's' : ''}</span>
+          </div>
+        `;
+      }
+      
+      card.innerHTML = `
+        <div class="wtw-verdict-q-num">Question ${qIdx + 1}</div>
+        <div class="wtw-verdict-q-text">${q.text}</div>
+        ${answerHtml}
       `;
-      wtwFinalLeaderboard.appendChild(row);
+      
+      wtwFinalLeaderboard.appendChild(card);
     });
   }
 

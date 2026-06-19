@@ -3769,4 +3769,84 @@ body.mode-guest-auth #btn-lock-mode {
   opacity: 0.6;
 }
 
+/* ── WTW Verdict Question Cards ── */
+.wtw-verdict-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--border-radius-lg);
+  padding: 20px;
+  margin-bottom: 12px;
+  text-align: left;
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.wtw-verdict-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(239, 68, 68, 0.35); /* red fire glow */
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.1);
+}
+
+.wtw-verdict-q-num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--wtw-orange);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.wtw-verdict-q-text {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.wtw-verdict-answer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: var(--border-radius-md);
+}
+
+.wtw-verdict-answer-row.no-votes {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--panel-border);
+}
+
+.wtw-verdict-worst-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #ef4444; /* red worst tag */
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wtw-verdict-worst-label.no-votes {
+  color: var(--text-muted);
+}
+
+.wtw-verdict-worst-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+}
+
+.wtw-verdict-worst-votes {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ef4444;
+  margin-left: auto;
+}
+
 
