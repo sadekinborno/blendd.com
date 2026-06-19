@@ -407,6 +407,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    // Save active view in localStorage
+    localStorage.setItem('active_view', viewId);
+
     // Refresh icons just in case
     lucide.createIcons();
   }
@@ -1170,12 +1173,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Live search inputs
   linksSearch.addEventListener('input', renderBookmarks);
 
-  // Initialize Mode on page load
-  const initialMode = localStorage.getItem('nexus_mode') || 'guest';
-  setAppMode(initialMode);
 
-  // Initial load
-  fetchBookmarks();
 
 
   // --- Game Zone Logic: Tic-Tac-Toe ---
@@ -1216,12 +1214,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('[data-game="tictactoe"]').addEventListener('click', () => {
     gamesListView.classList.add('hidden');
     gameTictactoeView.classList.remove('hidden');
+    localStorage.setItem('active_game', 'tictactoe');
     resetGame();
   });
 
   btnBackToArcade.addEventListener('click', () => {
     gameTictactoeView.classList.add('hidden');
     gamesListView.classList.remove('hidden');
+    localStorage.removeItem('active_game');
   });
 
   // Switch Game Mode
@@ -1582,12 +1582,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('[data-game="cdbp"]').addEventListener('click', () => {
     gamesListView.classList.add('hidden');
     cdbpGameView.classList.remove('hidden');
+    localStorage.setItem('active_game', 'cdbp');
     resetCdbpUI();
   });
 
   btnCdbpBackToArcade.addEventListener('click', () => {
     cdbpGameView.classList.add('hidden');
     gamesListView.classList.remove('hidden');
+    localStorage.removeItem('active_game');
     sessionStorage.removeItem('cdbp_room_id');
     sessionStorage.removeItem('cdbp_player_name');
     sessionStorage.removeItem('cdbp_active');
@@ -2200,31 +2202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
   }
 
-  // Auto-reconnect session storage recovery on page load
-  const savedRoomId = sessionStorage.getItem('cdbp_room_id');
-  const savedPlayerName = sessionStorage.getItem('cdbp_player_name');
-  const cdbpActive = sessionStorage.getItem('cdbp_active');
 
-  if (savedRoomId && savedPlayerName && cdbpActive === 'true') {
-    socket.emit('cdbp-join', { roomId: savedRoomId, playerName: savedPlayerName }, (response) => {
-      if (response.success) {
-        cdbpMyName = savedPlayerName;
-        cdbpRoomId = response.roomId;
-        cdbpIsHost = response.roomState.players.find(p => p.name === savedPlayerName)?.isHost || false;
-        
-        // Restore view to games tab and cdbp screen
-        switchView('games');
-        gamesListView.classList.add('hidden');
-        cdbpGameView.classList.remove('hidden');
-        
-        transitionToLobby(response.roomState);
-      } else {
-        sessionStorage.removeItem('cdbp_room_id');
-        sessionStorage.removeItem('cdbp_player_name');
-        sessionStorage.removeItem('cdbp_active');
-      }
-    });
-  }
 
 
   // ==========================================================================
@@ -2586,6 +2564,9 @@ document.addEventListener('DOMContentLoaded', () => {
     wtwHasVoted   = false;
     wtwVotedForId = null;
     wtwSubmittedQs= 0;
+    sessionStorage.removeItem('wtw_room_id');
+    sessionStorage.removeItem('wtw_player_name');
+    sessionStorage.removeItem('wtw_active');
     wtwShowScreen(wtwLobbySetup);
   }
 
@@ -2593,6 +2574,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('[data-game="wtw"]').addEventListener('click', () => {
     gamesListView.classList.add('hidden');
     wtwGameView.classList.remove('hidden');
+    localStorage.setItem('active_game', 'wtw');
     wtwResetUI();
     lucide.createIcons();
   });
@@ -2600,6 +2582,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnWtwBack.addEventListener('click', () => {
     wtwGameView.classList.add('hidden');
     gamesListView.classList.remove('hidden');
+    localStorage.removeItem('active_game');
     wtwResetUI();
   });
 
@@ -2623,7 +2606,12 @@ document.addEventListener('DOMContentLoaded', () => {
       wtwMyId    = socket.id;
       wtwRoomState = res.roomState;
 
-      wtwTransitionToWaiting(res.roomState);
+      // Save to sessionStorage
+      sessionStorage.setItem('wtw_room_id', res.roomId);
+      sessionStorage.setItem('wtw_player_name', name);
+      sessionStorage.setItem('wtw_active', 'true');
+
+      wtwRouteState(res.roomState);
     });
   });
 
@@ -2649,7 +2637,12 @@ document.addEventListener('DOMContentLoaded', () => {
       wtwMyId    = socket.id;
       wtwRoomState = res.roomState;
 
-      wtwTransitionToWaiting(res.roomState);
+      // Save to sessionStorage
+      sessionStorage.setItem('wtw_room_id', code);
+      sessionStorage.setItem('wtw_player_name', name);
+      sessionStorage.setItem('wtw_active', 'true');
+
+      wtwRouteState(res.roomState);
     });
   });
 
@@ -2742,6 +2735,35 @@ document.addEventListener('DOMContentLoaded', () => {
     wtwDisplayCode.textContent = state.roomId;
     wtwShowScreen(wtwLobbyWaiting);
     wtwUpdateWaitingUI(state);
+    lucide.createIcons();
+  }
+
+  function wtwRouteState(state) {
+    wtwRoomState = state;
+    wtwDisplayCode.textContent = state.roomId;
+
+    if (state.status === 'LOBBY') {
+      wtwShowScreen(wtwLobbyWaiting);
+      wtwUpdateWaitingUI(state);
+    } else {
+      wtwHandlePhaseChange(state);
+
+      if (state.status === 'QUESTION_PHASE') {
+        wtwRenderQPlayerStatus(state.players);
+        wtwQSubmittedCount.textContent = `${state.submittedQuestionsCount} / ${state.players.filter(p=>p.connected).length} submitted`;
+      } else if (state.status === 'VOTING_PHASE') {
+        if (state.settings.showRealTimeResults) {
+          const q = state.questions[state.currentQuestionIndex];
+          if (q && q.voteCounts) wtwRenderBars(wtwLiveBars, state.players, q.voteCounts);
+        }
+        wtwRenderVoteButtons(state.players);
+      } else if (state.status === 'QUESTION_RESULTS') {
+        const q = state.questions[state.currentQuestionIndex];
+        if (q && q.voteCounts) wtwRenderBars(wtwResultBars, state.players, q.voteCounts);
+      } else if (state.status === 'FINAL_SCORES') {
+        wtwRenderLeaderboard(state.players);
+      }
+    }
     lucide.createIcons();
   }
 
@@ -2839,6 +2861,96 @@ document.addEventListener('DOMContentLoaded', () => {
       wtwRenderBars(wtwLiveBars, wtwRoomState.players, data.voteCounts);
     }
   });
+
+  // ==========================================================================
+  // VIEW & SESSION RESTORATION ON PAGE LOAD
+  // ==========================================================================
+
+  // 1. Restore Mode on page load
+  const initialMode = localStorage.getItem('nexus_mode') || 'guest';
+  setAppMode(initialMode);
+
+  // 2. Initial load of bookmarks
+  fetchBookmarks();
+
+  // 3. Restore active view
+  const savedView = localStorage.getItem('active_view') || 'dashboard';
+  // Avoid switching to downloader if guest is active
+  if (savedView === 'downloader' && initialMode !== 'owner') {
+    switchView('dashboard');
+  } else {
+    switchView(savedView);
+  }
+
+  // 4. Restore active game sub-view inside Games list if active view is games
+  if (savedView === 'games') {
+    const savedGame = localStorage.getItem('active_game');
+    if (savedGame === 'tictactoe') {
+      gamesListView.classList.add('hidden');
+      gameTictactoeView.classList.remove('hidden');
+    } else if (savedGame === 'cdbp') {
+      gamesListView.classList.add('hidden');
+      cdbpGameView.classList.remove('hidden');
+    } else if (savedGame === 'wtw') {
+      gamesListView.classList.add('hidden');
+      wtwGameView.classList.remove('hidden');
+    }
+  }
+
+  // 5. Auto-reconnect session recovery on page load (Chor Police)
+  const savedRoomId = sessionStorage.getItem('cdbp_room_id');
+  const savedPlayerName = sessionStorage.getItem('cdbp_player_name');
+  const cdbpActive = sessionStorage.getItem('cdbp_active');
+
+  if (savedRoomId && savedPlayerName && cdbpActive === 'true') {
+    socket.emit('cdbp-join', { roomId: savedRoomId, playerName: savedPlayerName }, (response) => {
+      if (response && response.success) {
+        cdbpMyName = savedPlayerName;
+        cdbpRoomId = response.roomId;
+        cdbpIsHost = response.roomState.players.find(p => p.name === savedPlayerName)?.isHost || false;
+
+        // Restore view to games tab and cdbp screen
+        switchView('games');
+        localStorage.setItem('active_game', 'cdbp');
+        gamesListView.classList.add('hidden');
+        cdbpGameView.classList.remove('hidden');
+
+        transitionToLobby(response.roomState);
+      } else {
+        sessionStorage.removeItem('cdbp_room_id');
+        sessionStorage.removeItem('cdbp_player_name');
+        sessionStorage.removeItem('cdbp_active');
+      }
+    });
+  }
+
+  // 6. Auto-reconnect session recovery on page load (Who's the Worst)
+  const savedWtwRoomId = sessionStorage.getItem('wtw_room_id');
+  const savedWtwPlayerName = sessionStorage.getItem('wtw_player_name');
+  const wtwActive = sessionStorage.getItem('wtw_active');
+
+  if (savedWtwRoomId && savedWtwPlayerName && wtwActive === 'true') {
+    socket.emit('wtw-join', { roomId: savedWtwRoomId, playerName: savedWtwPlayerName }, (res) => {
+      if (res && !res.error) {
+        wtwMyName = savedWtwPlayerName;
+        wtwRoomId = savedWtwRoomId;
+        wtwIsHost = (res.roomState.hostId === socket.id);
+        wtwMyId = socket.id;
+
+        // Restore view to games tab and wtw screen
+        switchView('games');
+        localStorage.setItem('active_game', 'wtw');
+        gamesListView.classList.add('hidden');
+        wtwGameView.classList.remove('hidden');
+
+        wtwRouteState(res.roomState);
+      } else {
+        sessionStorage.removeItem('wtw_room_id');
+        sessionStorage.removeItem('wtw_player_name');
+        sessionStorage.removeItem('wtw_active');
+      }
+    });
+  }
 
 });
 
