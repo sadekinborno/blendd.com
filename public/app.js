@@ -2298,6 +2298,27 @@ document.addEventListener('DOMContentLoaded', () => {
   let wtwVotedForId   = null;
   let wtwSubmittedQs  = 0; // how many questions this client has submitted this round
 
+  // ── Helper: deterministic avatar gradient generator ─────────────────────
+  function wtwGetAvatarStyle(name) {
+    const gradients = [
+      'linear-gradient(135deg, #f97316, #ea580c)', // orange
+      'linear-gradient(135deg, #3b82f6, #1d4ed8)', // blue
+      'linear-gradient(135deg, #10b981, #047857)', // green
+      'linear-gradient(135deg, #8b5cf6, #6d28d9)', // purple
+      'linear-gradient(135deg, #ec4899, #be185d)', // pink
+      'linear-gradient(135deg, #06b6d4, #0891b2)', // cyan
+      'linear-gradient(135deg, #f59e0b, #b45309)', // amber
+      'linear-gradient(135deg, #f43f5e, #be123c)', // rose
+      'linear-gradient(135deg, #14b8a6, #0f766e)'  // teal
+    ];
+    let sum = 0;
+    for (let i = 0; i < name.length; i++) {
+      sum += name.charCodeAt(i);
+    }
+    const gradient = gradients[sum % gradients.length];
+    return `background: ${gradient}; border: 1px solid rgba(255,255,255,0.15); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2);`;
+  }
+
   // ── Helper: show one screen ──────────────────────────────────────────────
   function wtwShowScreen(screen) {
     wtwAllScreens.forEach(s => s.classList.add('hidden'));
@@ -2309,17 +2330,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!voteCounts) { container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No votes yet.</p>'; return; }
     const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
     container.innerHTML = '';
+    
     // Sort by count desc
     const sorted = [...players].sort((a, b) => (voteCounts[b.id] || 0) - (voteCounts[a.id] || 0));
+    
+    // Determine the max votes to highlight the "worst"
+    const maxVotes = sorted.length > 0 ? (voteCounts[sorted[0].id] || 0) : 0;
+
     sorted.forEach(p => {
       const count = voteCounts[p.id] || 0;
       const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+      const isMax = count > 0 && count === maxVotes;
       const row = document.createElement('div');
-      row.className = 'wtw-bar-row';
+      row.className = 'wtw-bar-row' + (isMax ? ' worst-highlight' : '');
       row.innerHTML = `
         <span class="wtw-bar-name" title="${p.name}">${p.name}</span>
         <div class="wtw-bar-track"><div class="wtw-bar-fill" style="width:0%"></div></div>
-        <span class="wtw-bar-pct">${pct}%</span>
+        <span class="wtw-bar-pct">${pct}%<span class="wtw-bar-count">(${count})</span></span>
       `;
       container.appendChild(row);
       // Animate after paint
@@ -2339,7 +2366,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const row = document.createElement('div');
       row.className = 'wtw-player-lobby-row' + (p.connected ? '' : ' disconnected');
       row.innerHTML = `
-        <div class="wtw-avatar">${p.name.substring(0, 2).toUpperCase()}</div>
+        <div class="wtw-avatar" style="${wtwGetAvatarStyle(p.name)}">${p.name.substring(0, 2).toUpperCase()}</div>
         <span>${p.name}</span>
         ${p.isHost ? '<span class="wtw-host-badge">HOST</span>' : ''}
       `;
@@ -2372,7 +2399,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.dataset.pid = p.id;
       btn.disabled = wtwHasVoted;
       btn.innerHTML = `
-        <div class="wtw-vote-btn-avatar">${p.name.substring(0, 2).toUpperCase()}</div>
+        <div class="wtw-vote-btn-avatar" style="${wtwGetAvatarStyle(p.name)}">${p.name.substring(0, 2).toUpperCase()}</div>
         <span>${p.name}</span>
       `;
       btn.addEventListener('click', () => {
@@ -2398,10 +2425,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const medals = ['🥇', '🥈', '🥉'];
     ranked.forEach((p, i) => {
       const row = document.createElement('div');
-      row.className = 'wtw-leaderboard-row';
+      row.className = 'wtw-leaderboard-row' + (i === 0 ? ' first-place' : '');
       row.innerHTML = `
-        <span class="wtw-rank">${medals[i] || `#${i + 1}`}</span>
-        <div class="wtw-lb-avatar">${p.name.substring(0, 2).toUpperCase()}</div>
+        ${i === 0 ? '<span class="wtw-rank-crown">👑</span>' : `<span class="wtw-rank">${medals[i] || `#${i + 1}`}</span>`}
+        <div class="wtw-lb-avatar" style="${wtwGetAvatarStyle(p.name)}">${p.name.substring(0, 2).toUpperCase()}</div>
         <span class="wtw-lb-name">${p.name}</span>
         <div>
           <span class="wtw-lb-score">${p.score}</span>
@@ -2738,9 +2765,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Socket: Timer Update ─────────────────────────────────────────────────
   socket.on('wtw-timer-update', (timeLeft) => {
     const status = wtwRoomState ? wtwRoomState.status : '';
-    if (status === 'QUESTION_PHASE') wtwSetTimer(wtwQTimer, timeLeft);
-    else if (status === 'VOTING_PHASE') wtwSetTimer(wtwVTimer, timeLeft);
-    else if (status === 'QUESTION_RESULTS') wtwSetTimer(wtwRTimer, timeLeft);
+    let total = 60;
+    let bar = null;
+
+    if (status === 'QUESTION_PHASE') {
+      wtwSetTimer(wtwQTimer, timeLeft);
+      total = wtwRoomState ? wtwRoomState.settings.questionTime : 60;
+      bar = document.getElementById('wtw-q-timer-bar');
+    } else if (status === 'VOTING_PHASE') {
+      wtwSetTimer(wtwVTimer, timeLeft);
+      total = wtwRoomState ? wtwRoomState.settings.voteTime : 15;
+      bar = document.getElementById('wtw-v-timer-bar');
+    } else if (status === 'QUESTION_RESULTS') {
+      wtwSetTimer(wtwRTimer, timeLeft);
+      total = 8;
+      bar = document.getElementById('wtw-r-timer-bar');
+    }
+
+    if (bar) {
+      const pct = (timeLeft / total) * 100;
+      bar.style.width = `${pct}%`;
+      bar.classList.toggle('urgent', timeLeft <= 5);
+    }
   });
 
   // ── Socket: Live Vote Update ─────────────────────────────────────────────
