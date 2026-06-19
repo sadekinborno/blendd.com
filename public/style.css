@@ -1899,6 +1899,12 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
   .nav-item span, .sidebar-footer {
     display: none;
   }
+  .nav-item[data-view="downloader"] {
+    display: none !important;
+  }
+  .nav-item[data-view="games"] {
+    display: flex !important;
+  }
   .content-area {
     height: calc(100vh - 65px);
   }
