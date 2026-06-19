@@ -336,9 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Initialize Mode on page load
-  const initialMode = localStorage.getItem('nexus_mode') || 'guest';
-  setAppMode(initialMode);
+  // (app mode initialized later in DOMContentLoaded to prevent TDZ error)
 
   // Toggle Mode Click Listener
   if (modeSwitcherFooter) {
@@ -787,6 +785,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Render bookmarks grouped by category/genre
   function renderBookmarks() {
+    const isOwner = document.body.classList.contains('mode-owner');
     let filtered = savedLinks;
 
     // Filter by tab category
@@ -1131,6 +1130,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Delete bookmark
   async function deleteBookmark(id) {
+    const isOwner = document.body.classList.contains('mode-owner');
     const confirmed = await showModalConfirm('Are you sure you want to remove this bookmark?', 'Delete Bookmark');
     if (!confirmed) return;
 
@@ -1169,6 +1169,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Live search inputs
   linksSearch.addEventListener('input', renderBookmarks);
+
+  // Initialize Mode on page load
+  const initialMode = localStorage.getItem('nexus_mode') || 'guest';
+  setAppMode(initialMode);
 
   // Initial load
   fetchBookmarks();
@@ -1499,6 +1503,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const cdbpLabelSpy = document.getElementById('cdbp-label-spy');
   const cdbpLabelDetective = document.getElementById('cdbp-label-detective');
   const cdbpLabelJadukar = document.getElementById('cdbp-label-jadukar');
+  const btnCdbpRolesInfo = document.getElementById('btn-cdbp-roles-info');
 
   // Active HUD elements
   const cdbpHudPhase = document.getElementById('cdbp-hud-phase');
