@@ -418,10 +418,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Dashboard card quick links
-  document.querySelectorAll('.dash-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const action = card.getAttribute('data-action');
+  // Dashboard quick links (cards & buttons)
+  document.querySelectorAll('[data-action]').forEach(el => {
+    el.addEventListener('click', () => {
+      const action = el.getAttribute('data-action');
       if (action === 'go-to-downloader') switchView('downloader');
       if (action === 'go-to-linksaver') switchView('linksaver');
       if (action === 'go-to-games') switchView('games');
