@@ -11,6 +11,7 @@
 'use strict';
 
 const { v4: uuidv4 } = require('uuid');
+const supabase = require('./db');
 
 // ── In-memory state ──────────────────────────────────────────────────────────
 const rooms = new Map(); // roomId → room object
@@ -43,6 +44,103 @@ function generateRoomCode() {
 function log(roomId, msg) {
   console.log(`[WTW:${roomId}] ${msg}`);
 }
+
+async function saveGameToDatabase(room) {
+  try {
+    log(room.roomId, 'Saving game record to Supabase database...');
+    if (!room.players || room.players.length === 0) {
+      log(room.roomId, 'No players in the room, skipping database save.');
+      return;
+    }
+
+    // 1. Insert into wtw_games
+    const { data: gameData, error: gameError } = await supabase
+      .from('wtw_games')
+      .insert([{ room_code: room.roomId }])
+      .select();
+
+    if (gameError) {
+      console.error('[Supabase] Error inserting wtw_games:', gameError.message);
+      return;
+    }
+    
+    if (!gameData || gameData.length === 0) {
+      console.error('[Supabase] No game data returned from insert.');
+      return;
+    }
+
+    const gameId = gameData[0].id;
+
+    // 2. Insert into wtw_players
+    const playersToInsert = room.players.map(p => ({
+      game_id: gameId,
+      name: p.name,
+      score: p.score
+    }));
+
+    const { error: playersError } = await supabase
+      .from('wtw_players')
+      .insert(playersToInsert);
+
+    if (playersError) {
+      console.error('[Supabase] Error inserting wtw_players:', playersError.message);
+    }
+
+    // 3. Insert questions and votes
+    for (const q of room.questions) {
+      const author = room.players.find(p => p.id === q.authorId);
+      const authorName = author ? author.name : null;
+
+      const { data: questionData, error: questionError } = await supabase
+        .from('wtw_questions')
+        .insert([{
+          game_id: gameId,
+          text: q.text,
+          author_name: authorName
+        }])
+        .select();
+
+      if (questionError) {
+        console.error('[Supabase] Error inserting wtw_questions:', questionError.message);
+        continue;
+      }
+
+      const questionId = questionData[0].id;
+
+      // Extract votes for this question
+      // q.votes: { [voterId]: voteeId }
+      const votesToInsert = [];
+      for (const [voterId, voteeId] of Object.entries(q.votes)) {
+        const voter = room.players.find(p => p.id === voterId);
+        const votee = room.players.find(p => p.id === voteeId);
+
+        if (voter && votee) {
+          votesToInsert.push({
+            game_id: gameId,
+            question_id: questionId,
+            voter_name: voter.name,
+            votee_name: votee.name
+          });
+        }
+      }
+
+      if (votesToInsert.length > 0) {
+        const { error: votesError } = await supabase
+          .from('wtw_votes')
+          .insert(votesToInsert);
+
+        if (votesError) {
+          console.error('[Supabase] Error inserting wtw_votes:', votesError.message);
+        }
+      }
+    }
+
+    log(room.roomId, `Game record successfully saved to database with ID: ${gameId}`);
+  } catch (err) {
+    console.error('[Supabase] Unexpected error saving game to database:', err);
+  }
+}
+
 
 function findRoomBySocketId(socketId) {
   for (const room of rooms.values()) {
@@ -192,6 +290,7 @@ function transitionToPhase(room, newStatus) {
       room.timer = 0;
       broadcastRoomState(room);
       global.wtwIo.to(room.roomId).emit('wtw-phase-changed', { status: 'FINAL_SCORES' });
+      saveGameToDatabase(room);
       break;
     }
 
@@ -295,8 +394,27 @@ module.exports = function initWtwGame(io) {
       // Reconnection — same name, was in the room
       const existing = room.players.find(p => p.name.toLowerCase() === name.toLowerCase());
       if (existing && !existing.connected) {
+        const oldId = existing.id;
         existing.id = socket.id;
         existing.connected = true;
+        
+        // Update references in questions and votes
+        room.questions.forEach(q => {
+          if (q.authorId === oldId) q.authorId = socket.id;
+          
+          if (q.votes[oldId] !== undefined) {
+            const votedFor = q.votes[oldId];
+            delete q.votes[oldId];
+            q.votes[socket.id] = votedFor;
+          }
+          
+          for (const [voterKey, voteeVal] of Object.entries(q.votes)) {
+            if (voteeVal === oldId) {
+              q.votes[voterKey] = socket.id;
+            }
+          }
+        });
+
         socket.join(roomId);
         room.lastActivity = Date.now();
         log(roomId, `"${name}" reconnected`);

@@ -237,6 +237,108 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Helper: Open Owner/Admin Login Modal
+  function showOwnerAuthModal() {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'custom-modal-overlay active';
+
+      overlay.innerHTML = `
+        <div class="custom-modal glass-panel popup-anim" style="max-width: 380px;">
+          <div class="modal-header">
+            <i data-lucide="shield-check" class="modal-icon info" style="color: var(--accent-cyan);"></i>
+            <h3 id="owner-modal-title">Admin Authentication</h3>
+          </div>
+          <div class="modal-body">
+            <form id="modal-owner-form" style="display: flex; flex-direction: column; gap: 14px;">
+              <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Please enter admin credentials to access Owner Mode.</p>
+              
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label for="owner-username" style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Username</label>
+                <div class="input-glow-wrapper">
+                  <input type="text" id="owner-username" required placeholder="Enter admin username..." style="width: 100%; background: transparent; border: none; outline: none; color: var(--text-primary); padding: 8px 12px; font-size: 14px;">
+                </div>
+              </div>
+              
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label for="owner-password" style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Password</label>
+                <div class="input-glow-wrapper">
+                  <input type="password" id="owner-password" required placeholder="Enter password..." style="width: 100%; background: transparent; border: none; outline: none; color: var(--text-primary); padding: 8px 12px; font-size: 14px;">
+                </div>
+              </div>
+              
+              <div id="owner-error-msg" style="color: var(--accent-pink); font-size: 12px; display: none;"></div>
+              
+              <div class="modal-footer" style="margin-top: 8px; gap: 12px; display: flex; width: 100%;">
+                <button type="button" class="btn-secondary btn-modal-cancel" style="flex: 1; padding: 10px;">Cancel</button>
+                <button type="submit" class="btn-primary btn-modal-submit" style="flex: 1; padding: 10px;">
+                  <span>Authenticate</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+      lucide.createIcons();
+
+      const form = overlay.querySelector('#modal-owner-form');
+      const usernameInput = overlay.querySelector('#owner-username');
+      const passwordInput = overlay.querySelector('#owner-password');
+      const errorMsg = overlay.querySelector('#owner-error-msg');
+      const btnCancel = overlay.querySelector('.btn-modal-cancel');
+
+      usernameInput.focus();
+
+      const closeModal = (successResult) => {
+        overlay.classList.remove('active');
+        const modal = overlay.querySelector('.custom-modal');
+        if (modal) {
+          modal.classList.remove('popup-anim');
+          modal.classList.add('popout-anim');
+        }
+        setTimeout(() => {
+          overlay.remove();
+          resolve(successResult);
+        }, 150);
+      };
+
+      btnCancel.addEventListener('click', () => closeModal(false));
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal(false);
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorMsg.style.display = 'none';
+
+        const uVal = usernameInput.value.trim();
+        const pVal = passwordInput.value;
+
+        try {
+          const res = await fetch('/api/auth/owner', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: uVal, password: pVal })
+          });
+
+          const data = await res.json();
+          if (res.ok && data.success) {
+            localStorage.setItem('owner_token', data.token);
+            closeModal(true);
+          } else {
+            errorMsg.textContent = data.error || 'Authentication failed.';
+            errorMsg.style.display = 'block';
+          }
+        } catch (err) {
+          errorMsg.textContent = 'Network error. Please try again.';
+          errorMsg.style.display = 'block';
+        }
+      });
+    });
+  }
+
   // --- State Variables ---
   let savedLinks = [];
   let currentFilter = 'all';
@@ -271,7 +373,13 @@ document.addEventListener('DOMContentLoaded', () => {
         btnLockMode.innerHTML = '<i data-lucide="unlock" style="width: 16px; height: 16px;"></i>';
       }
       localStorage.setItem('nexus_mode', 'owner');
-      document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'flex');
+      document.querySelectorAll('.owner-only').forEach(el => {
+        if (el.tagName === 'BUTTON' || el.classList.contains('nav-item')) {
+          el.style.display = 'flex';
+        } else {
+          el.style.display = 'block';
+        }
+      });
     } else {
       document.body.classList.remove('mode-owner');
       document.body.classList.add('mode-guest');
@@ -355,25 +463,9 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        const password = prompt('Enter Owner Password:');
-        if (password !== null) {
-          try {
-            const response = await fetch('/api/auth/owner', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ password })
-            });
-            const data = await response.json();
-            if (response.ok && data.success) {
-              localStorage.setItem('owner_token', data.token);
-              setAppMode('owner');
-            } else {
-              await showModalAlert(data.error || 'Incorrect password!', 'Authentication Failed', 'error');
-            }
-          } catch (err) {
-            console.error('Owner auth error:', err);
-            await showModalAlert('Failed to authenticate with server.', 'Connection Error', 'error');
-          }
+        const authSuccess = await showOwnerAuthModal();
+        if (authSuccess) {
+          setAppMode('owner');
         }
       } else {
         localStorage.removeItem('owner_token');
@@ -2590,6 +2682,7 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (status === 'FINAL_SCORES') {
       wtwShowScreen(wtwFinalScores);
       if (wtwRoomState) wtwRenderLeaderboard(wtwRoomState.players);
+      wtwLoadHistory();
       if (wtwIsHost) {
         btnWtwPlayAgain.style.display = 'inline-flex';
         wtwPlayAgainWait.style.display = 'none';
@@ -2621,12 +2714,163 @@ document.addEventListener('DOMContentLoaded', () => {
     wtwShowScreen(wtwLobbySetup);
   }
 
+  // ── Game History Logic ───────────────────────────────────────────────────
+  const wtwHistoryList = document.getElementById('wtw-history-list');
+  const btnWtwRefreshHistory = document.getElementById('btn-wtw-refresh-history');
+  const wtwHistoryModal = document.getElementById('wtw-history-modal');
+  const btnWtwCloseModal = document.getElementById('btn-wtw-close-modal');
+  const wtwModalTitle = document.getElementById('wtw-modal-title');
+  const wtwModalSubtitle = document.getElementById('wtw-modal-subtitle');
+  const wtwModalScoreboard = document.getElementById('wtw-modal-scoreboard');
+  const wtwModalQuestions = document.getElementById('wtw-modal-questions');
+
+  async function wtwLoadHistory() {
+    if (!wtwHistoryList) return;
+    wtwHistoryList.innerHTML = '<div class="wtw-history-empty">Loading history...</div>';
+    try {
+      const res = await fetch('/api/wtw/history');
+      if (!res.ok) throw new Error('Failed to fetch history');
+      const data = await res.json();
+      
+      if (!data || data.length === 0) {
+        wtwHistoryList.innerHTML = '<div class="wtw-history-empty">No games recorded yet. Play a game to see it here!</div>';
+        return;
+      }
+      
+      wtwHistoryList.innerHTML = '';
+      data.forEach(game => {
+        const dateStr = new Date(game.createdAt).toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        const card = document.createElement('div');
+        card.className = 'wtw-history-card';
+        card.innerHTML = `
+          <div class="wtw-hc-meta">
+            <span class="wtw-hc-room">Room ${game.roomCode}</span>
+            <span class="wtw-hc-date">${dateStr}</span>
+          </div>
+          <div class="wtw-hc-stats">
+            <span><i data-lucide="users" style="width: 14px; height: 14px; margin-right: 4px; vertical-align: middle;"></i>${game.playerCount} Players</span>
+            <span><i data-lucide="crown" style="width: 14px; height: 14px; margin-right: 4px; vertical-align: middle; color: gold;"></i>Winner: ${game.winnerName} (${game.winnerScore} pts)</span>
+          </div>
+        `;
+        card.addEventListener('click', () => wtwShowGameDetails(game.id));
+        wtwHistoryList.appendChild(card);
+      });
+      lucide.createIcons();
+    } catch (err) {
+      console.error('Error loading WTW history:', err);
+      wtwHistoryList.innerHTML = '<div class="wtw-history-empty error">Failed to load history. Please ensure Supabase tables are created.</div>';
+    }
+  }
+
+  async function wtwShowGameDetails(gameId) {
+    try {
+      const res = await fetch(`/api/wtw/history/${gameId}`);
+      if (!res.ok) throw new Error('Failed to fetch game details');
+      const game = await res.json();
+      
+      const dateStr = new Date(game.created_at).toLocaleString();
+      wtwModalTitle.textContent = `Room ${game.room_code} Details`;
+      wtwModalSubtitle.textContent = `Played on ${dateStr}`;
+      
+      // Render scoreboard
+      wtwModalScoreboard.innerHTML = '';
+      if (game.wtw_players && game.wtw_players.length > 0) {
+        game.wtw_players.forEach((p, idx) => {
+          const row = document.createElement('div');
+          row.className = 'wtw-modal-player-row';
+          row.style.cssText = 'display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: center;';
+          row.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: bold; width: 24px; color: ${idx === 0 ? 'gold' : 'white'};">#${idx + 1}</span>
+              <span>${p.name}</span>
+            </div>
+            <span style="font-weight: bold; color: var(--wtw-orange);">${p.score} pts</span>
+          `;
+          wtwModalScoreboard.appendChild(row);
+        });
+      } else {
+        wtwModalScoreboard.innerHTML = '<div style="opacity: 0.6; font-style: italic;">No players recorded</div>';
+      }
+      
+      // Render questions & votes
+      wtwModalQuestions.innerHTML = '';
+      if (game.wtw_questions && game.wtw_questions.length > 0) {
+        game.wtw_questions.forEach((q, idx) => {
+          const qBox = document.createElement('div');
+          qBox.className = 'wtw-modal-q-box';
+          qBox.style.cssText = 'background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;';
+          
+          let votesHtml = '';
+          if (q.wtw_votes && q.wtw_votes.length > 0) {
+            votesHtml = q.wtw_votes.map(v => `
+              <div class="wtw-modal-vote-row" style="display: flex; align-items: center; gap: 8px; font-size: 0.9em; opacity: 0.9; margin-top: 4px;">
+                <span style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">${v.voter_name}</span>
+                <span style="font-size: 0.8em; opacity: 0.5;">voted for</span>
+                <span style="background: var(--wtw-orange-dim); color: var(--wtw-orange); padding: 2px 6px; border-radius: 4px; font-weight: bold;">${v.votee_name}</span>
+              </div>
+            `).join('');
+          } else {
+            votesHtml = '<div style="font-size: 0.9em; opacity: 0.5; font-style: italic; margin-top: 4px;">No votes recorded</div>';
+          }
+          
+          qBox.innerHTML = `
+            <div style="font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+              <span>Q${idx + 1}: "${q.text}"</span>
+              <span style="font-size: 0.75em; opacity: 0.6; font-weight: normal; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; white-space: nowrap;">
+                By: ${q.author_name || 'System'}
+              </span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              ${votesHtml}
+            </div>
+          `;
+          wtwModalQuestions.appendChild(qBox);
+        });
+      } else {
+        wtwModalQuestions.innerHTML = '<div style="opacity: 0.6; font-style: italic;">No questions recorded</div>';
+      }
+      
+      wtwHistoryModal.classList.remove('hidden');
+      lucide.createIcons();
+    } catch (err) {
+      console.error('Error loading game details:', err);
+      showModalAlert('Failed to load game details.', 'Error', 'error');
+    }
+  }
+
+  // Bind History Listeners
+  if (btnWtwRefreshHistory) {
+    btnWtwRefreshHistory.addEventListener('click', (e) => {
+      e.stopPropagation();
+      wtwLoadHistory();
+    });
+  }
+  if (btnWtwCloseModal) {
+    btnWtwCloseModal.addEventListener('click', () => {
+      wtwHistoryModal.classList.add('hidden');
+    });
+  }
+  if (wtwHistoryModal) {
+    wtwHistoryModal.addEventListener('click', (e) => {
+      if (e.target === wtwHistoryModal) {
+        wtwHistoryModal.classList.add('hidden');
+      }
+    });
+  }
+
   // ── Open game ────────────────────────────────────────────────────────────
   document.querySelector('[data-game="wtw"]').addEventListener('click', () => {
     gamesListView.classList.add('hidden');
     wtwGameView.classList.remove('hidden');
     localStorage.setItem('active_game', 'wtw');
     wtwResetUI();
+    wtwLoadHistory();
     lucide.createIcons();
   });
 
@@ -2945,6 +3189,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (savedGame === 'wtw') {
       gamesListView.classList.add('hidden');
       wtwGameView.classList.remove('hidden');
+    } else if (savedGame === 'nhie') {
+      gamesListView.classList.add('hidden');
+      document.getElementById('game-nhie-view').classList.remove('hidden');
     }
   }
 
@@ -2999,6 +3246,925 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.removeItem('wtw_room_id');
         sessionStorage.removeItem('wtw_player_name');
         sessionStorage.removeItem('wtw_active');
+      }
+    });
+  }
+
+  // ==========================================================================
+  // Game Zone Logic: Never Have I Ever (NHIE)
+  // ==========================================================================
+
+  const nhieGameView       = document.getElementById('game-nhie-view');
+  const btnNhieBack        = document.getElementById('btn-nhie-back-to-arcade');
+
+  const nhieLobbySetup     = document.getElementById('nhie-lobby-setup');
+  const nhieLobbyWaiting   = document.getElementById('nhie-lobby-waiting');
+  const nhieStatementPhase = document.getElementById('nhie-statement-phase');
+  const nhieAnsweringPhase = document.getElementById('nhie-answering-phase');
+  const nhieStatementResults= document.getElementById('nhie-statement-results');
+  const nhieFinalScores    = document.getElementById('nhie-final-scores');
+  const nhieAllScreens     = [nhieLobbySetup, nhieLobbyWaiting, nhieStatementPhase, nhieAnsweringPhase, nhieStatementResults, nhieFinalScores];
+
+  const nhieNameCreate     = document.getElementById('nhie-name-create');
+  const nhieNameJoin       = document.getElementById('nhie-name-join');
+  const nhieRoomCodeInput  = document.getElementById('nhie-room-code-input');
+  const btnNhieCreateRoom  = document.getElementById('btn-nhie-create-room');
+  const btnNhieJoinRoom    = document.getElementById('btn-nhie-join-room');
+
+  const nhieDisplayCode      = document.getElementById('nhie-display-code');
+  const nhiePlayerCount      = document.getElementById('nhie-player-count');
+  const nhieLobbyPlayersList = document.getElementById('nhie-lobby-players-list');
+  const btnNhieCopyCode      = document.getElementById('btn-nhie-copy-code');
+  const nhieHostWarning      = document.getElementById('nhie-host-warning');
+  const nhieSettingsControls = document.getElementById('nhie-settings-controls');
+  const nhieSettingsReadonly = document.getElementById('nhie-settings-readonly');
+  const btnNhieStartGame     = document.getElementById('btn-nhie-start-game');
+  const nhieWaitingForHost   = document.getElementById('nhie-waiting-for-host-msg');
+
+  // Select Fields
+  const nhieSelectScoreMode     = document.getElementById('nhie-select-score-mode');
+  const nhieSelectLives         = document.getElementById('nhie-select-lives');
+  const nhieSelectStatementTime = document.getElementById('nhie-select-statement-time');
+  const nhieSelectAnswerTime    = document.getElementById('nhie-select-answer-time');
+  const nhieSelectSource        = document.getElementById('nhie-select-source');
+  const nhieSelectStatementsPerPlayer = document.getElementById('nhie-select-statements-per-player');
+  const nhieSelectPremadeTotal  = document.getElementById('nhie-select-premade-total');
+
+  const nhieLivesField          = document.getElementById('nhie-lives-field');
+  const nhieCustomPerPlayerField= document.getElementById('nhie-custom-per-player-field');
+  const nhiePremadeTotalField   = document.getElementById('nhie-premade-total-field');
+
+  // Timers
+  const nhieSTimer           = document.getElementById('nhie-s-timer');
+  const nhieSTimerBar        = document.getElementById('nhie-s-timer-bar');
+  const nhieATimer           = document.getElementById('nhie-a-timer');
+  const nhieATimerBar        = document.getElementById('nhie-a-timer-bar');
+  const nhieRTimer           = document.getElementById('nhie-r-timer');
+  const nhieRTimerBar        = document.getElementById('nhie-r-timer-bar');
+
+  // Phase Input
+  const nhieStatementInputsContainer = document.getElementById('nhie-statement-inputs-container');
+  const nhieSSubmittedCount  = document.getElementById('nhie-s-submitted-count');
+  const btnNhieSubmitStatements = document.getElementById('btn-nhie-submit-statements');
+  const nhieSPlayersStatus   = document.getElementById('nhie-s-players-status');
+
+  // Phase Answer
+  const nhieStatementNumber   = document.getElementById('nhie-statement-number');
+  const nhieStatementText     = document.getElementById('nhie-statement-text');
+  const nhieStatementAuthor   = document.getElementById('nhie-statement-author');
+  const nhieAnswerButtons      = document.getElementById('nhie-answer-buttons');
+  const nhieAnsweredWaiting    = document.getElementById('nhie-answered-waiting');
+  const nhieAnsweredProgress   = document.getElementById('nhie-answered-progress');
+  const nhieAnsweringPlayersChips = document.getElementById('nhie-answering-players-chips');
+  const btnNhieSkipAnswering   = document.getElementById('btn-nhie-skip-answering');
+
+  // Phase Results
+  const nhieResultStatementText = document.getElementById('nhie-result-statement-text');
+  const nhieResultAuthor       = document.getElementById('nhie-result-author');
+  const nhieResultsAdmittedList= document.getElementById('nhie-results-admitted-list');
+  const nhieResultsInnocentList= document.getElementById('nhie-results-innocent-list');
+  const nhieResultScoresList   = document.getElementById('nhie-result-scores-list');
+
+  // Phase Final
+  const nhieFinalLeaderboard   = document.getElementById('nhie-final-leaderboard');
+  const nhieWinnerAnnouncement = document.getElementById('nhie-winner-announcement');
+  const btnNhiePlayAgain       = document.getElementById('btn-nhie-play-again');
+  const nhiePlayAgainWait      = document.getElementById('nhie-play-again-wait');
+
+  let nhieRoomId       = null;
+  let nhieMyName       = '';
+  let nhieMyId         = socket.id;
+  let nhieIsHost       = false;
+  let nhieRoomState    = null;
+  let nhieSubmittedStatements = 0;
+  let nhieTimerInterval = null;
+
+  function nhieShowScreen(screen) {
+    nhieAllScreens.forEach(s => {
+      s.classList.add('hidden');
+      s.style.display = '';
+    });
+    screen.classList.remove('hidden');
+    
+    // Smooth scroll page to top on phase transition
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function nhieResetUI() {
+    nhieRoomId = null;
+    nhieMyName = '';
+    nhieIsHost = false;
+    nhieRoomState = null;
+    nhieSubmittedStatements = 0;
+    if (nhieTimerInterval) clearInterval(nhieTimerInterval);
+
+    nhieNameCreate.value = '';
+    nhieNameJoin.value = '';
+    nhieRoomCodeInput.value = '';
+    nhieDisplayCode.textContent = '----';
+    nhiePlayerCount.textContent = '0 / 12';
+    nhieLobbyPlayersList.innerHTML = '';
+    
+    btnNhieCreateRoom.disabled = false;
+    btnNhieCreateRoom.querySelector('span').textContent = 'Create Room';
+    btnNhieJoinRoom.disabled = false;
+    btnNhieJoinRoom.querySelector('span').textContent = 'Join Room';
+
+    nhieShowScreen(nhieLobbySetup);
+    nhieLoadHistory();
+  }
+
+  // Deterministic avatar gradient
+  function nhieGetAvatarStyle(name) {
+    const gradients = [
+      'linear-gradient(135deg, #f43f5e, #be123c)', // rose
+      'linear-gradient(135deg, #3b82f6, #1d4ed8)', // blue
+      'linear-gradient(135deg, #10b981, #047857)', // green
+      'linear-gradient(135deg, #8b5cf6, #6d28d9)', // purple
+      'linear-gradient(135deg, #ec4899, #be185d)', // pink
+      'linear-gradient(135deg, #06b6d4, #0891b2)', // cyan
+      'linear-gradient(135deg, #f59e0b, #b45309)', // amber
+      'linear-gradient(135deg, #f97316, #ea580c)', // orange
+      'linear-gradient(135deg, #14b8a6, #0f766e)'  // teal
+    ];
+    let sum = 0;
+    for (let i = 0; i < name.length; i++) {
+      sum += name.charCodeAt(i);
+    }
+    const idx = sum % gradients.length;
+    return `background: ${gradients[idx]}; border: 1px solid rgba(255,255,255,0.25); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.3);`;
+  }
+
+  function nhieRenderLobbyPlayers(players) {
+    nhieLobbyPlayersList.innerHTML = '';
+    players.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'nhie-player-lobby-row' + (p.connected ? '' : ' disconnected');
+      row.innerHTML = `
+        <div class="nhie-avatar" style="${nhieGetAvatarStyle(p.name)}">${p.name.substring(0, 2).toUpperCase()}</div>
+        <span style="font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size:14px; flex-grow:1;">${p.name} ${p.id === socket.id ? '(You)' : ''}</span>
+        ${p.isHost ? '<span class="nhie-host-badge">HOST</span>' : ''}
+        ${!p.connected ? '<span style="font-size: 10px; opacity:0.6;">(Offline)</span>' : ''}
+      `;
+      nhieLobbyPlayersList.appendChild(row);
+    });
+  }
+
+  function nhieRenderPlayersStatus(players) {
+    nhieSPlayersStatus.innerHTML = '';
+    players.forEach(p => {
+      const chip = document.createElement('div');
+      chip.className = 'nhie-status-chip' + (p.hasSubmittedStatement ? ' done' : '');
+      chip.innerHTML = `
+        <span>${p.name}</span>
+        <span>${p.hasSubmittedStatement ? '✅ Ready' : '✍️ Writing...'}</span>
+      `;
+      nhieSPlayersStatus.appendChild(chip);
+    });
+  }
+
+  function nhieRenderAnsweringChips(players) {
+    nhieAnsweringPlayersChips.innerHTML = '';
+    players.forEach(p => {
+      const chip = document.createElement('div');
+      chip.className = 'nhie-player-chip' + (p.hasAnswered ? ' done' : '');
+      chip.textContent = p.name;
+      nhieAnsweringPlayersChips.appendChild(chip);
+    });
+  }
+
+  // ── Local Timer Countdown fallback ───────────────────────────────────────
+  function nhieStartLocalCountdown(duration, barElement, textElement) {
+    if (nhieTimerInterval) clearInterval(nhieTimerInterval);
+    let left = duration;
+    if (textElement) textElement.textContent = left;
+    if (barElement) barElement.style.width = '100%';
+
+    nhieTimerInterval = setInterval(() => {
+      left--;
+      if (left < 0) left = 0;
+      if (textElement) textElement.textContent = left;
+      if (barElement) {
+        const pct = (left / duration) * 100;
+        barElement.style.width = `${pct}%`;
+      }
+      if (left <= 0) {
+        clearInterval(nhieTimerInterval);
+      }
+    }, 1000);
+  }
+
+  // ── Emit settings updates to server ──────────────────────────────────────
+  function nhieSendSettingsUpdate() {
+    if (!nhieIsHost) return;
+    const settings = {
+      scoreMode: nhieSelectScoreMode.value,
+      startingLives: parseInt(nhieSelectLives.value),
+      statementTime: parseInt(nhieSelectStatementTime.value),
+      answerTime: parseInt(nhieSelectAnswerTime.value),
+      statementSource: nhieSelectSource.value,
+      statementsPerPlayer: parseInt(nhieSelectStatementsPerPlayer.value),
+      totalPremadeStatements: parseInt(nhieSelectPremadeTotal.value),
+    };
+    socket.emit('nhie-update-settings', settings);
+  }
+
+  // Settings fields visibility toggle
+  function nhieSyncSettingsVisibility(settings) {
+    if (settings.scoreMode === 'SURVIVAL') {
+      nhieLivesField.classList.remove('hidden');
+    } else {
+      nhieLivesField.classList.add('hidden');
+    }
+
+    if (settings.statementSource === 'PREMADE_ONLY') {
+      nhieCustomPerPlayerField.classList.add('hidden');
+      nhiePremadeTotalField.classList.remove('hidden');
+    } else if (settings.statementSource === 'CUSTOM_ONLY') {
+      nhieCustomPerPlayerField.classList.remove('hidden');
+      nhiePremadeTotalField.classList.add('hidden');
+    } else {
+      nhieCustomPerPlayerField.classList.remove('hidden');
+      nhiePremadeTotalField.classList.add('hidden');
+    }
+  }
+
+  // Listeners for setting adjustments (Host only)
+  [nhieSelectScoreMode, nhieSelectLives, nhieSelectStatementTime, nhieSelectAnswerTime, nhieSelectSource, nhieSelectStatementsPerPlayer, nhieSelectPremadeTotal].forEach(el => {
+    el.addEventListener('change', () => {
+      nhieSendSettingsUpdate();
+    });
+  });
+
+  // ── Open game ────────────────────────────────────────────────────────────
+  document.querySelector('[data-game="nhie"]').addEventListener('click', () => {
+    gamesListView.classList.add('hidden');
+    nhieGameView.classList.remove('hidden');
+    localStorage.setItem('active_game', 'nhie');
+    nhieResetUI();
+    nhieLoadHistory();
+    lucide.createIcons();
+  });
+
+  btnNhieBack.addEventListener('click', () => {
+    nhieGameView.classList.add('hidden');
+    gamesListView.classList.remove('hidden');
+    localStorage.removeItem('active_game');
+    nhieResetUI();
+  });
+
+  // ── Create Room ──────────────────────────────────────────────────────────
+  btnNhieCreateRoom.addEventListener('click', async () => {
+    const name = nhieNameCreate.value.trim();
+    if (!name) { await showModalAlert('Please enter your name.', 'Name Required', 'warning'); return; }
+
+    btnNhieCreateRoom.disabled = true;
+    btnNhieCreateRoom.querySelector('span').textContent = 'Creating...';
+
+    socket.emit('nhie-create', { playerName: name }, (res) => {
+      btnNhieCreateRoom.disabled = false;
+      btnNhieCreateRoom.querySelector('span').textContent = 'Create Room';
+
+      if (res.error) {
+        showModalAlert(res.error, 'Error', 'danger');
+        return;
+      }
+
+      nhieRoomId = res.roomId;
+      nhieMyName = name;
+      nhieIsHost = true;
+      nhieMyId = socket.id;
+
+      sessionStorage.setItem('nhie_room_id', nhieRoomId);
+      sessionStorage.setItem('nhie_player_name', nhieMyName);
+      sessionStorage.setItem('nhie_active', 'true');
+
+      nhieRouteState(res.roomState);
+    });
+  });
+
+  // ── Join Room ────────────────────────────────────────────────────────────
+  btnNhieJoinRoom.addEventListener('click', async () => {
+    const name = nhieNameJoin.value.trim();
+    const code = nhieRoomCodeInput.value.trim().toUpperCase();
+
+    if (!name) { await showModalAlert('Please enter your name.', 'Name Required', 'warning'); return; }
+    if (!code || code.length !== 4) { await showModalAlert('Please enter a 4-letter room code.', 'Code Required', 'warning'); return; }
+
+    btnNhieJoinRoom.disabled = true;
+    btnNhieJoinRoom.querySelector('span').textContent = 'Joining...';
+
+    socket.emit('nhie-join', { roomId: code, playerName: name }, (res) => {
+      btnNhieJoinRoom.disabled = false;
+      btnNhieJoinRoom.querySelector('span').textContent = 'Join Room';
+
+      if (res.error) {
+        showModalAlert(res.error, 'Error', 'danger');
+        return;
+      }
+
+      nhieRoomId = code;
+      nhieMyName = name;
+      nhieIsHost = (res.roomState.hostId === socket.id);
+      nhieMyId = socket.id;
+
+      sessionStorage.setItem('nhie_room_id', nhieRoomId);
+      sessionStorage.setItem('nhie_player_name', nhieMyName);
+      sessionStorage.setItem('nhie_active', 'true');
+
+      nhieRouteState(res.roomState);
+    });
+  });
+
+  // ── Copy Room Code ────────────────────────────────────────────────────────
+  btnNhieCopyCode.addEventListener('click', () => {
+    if (!nhieRoomId) return;
+    navigator.clipboard.writeText(nhieRoomId).then(() => {
+      const originalText = btnNhieCopyCode.innerHTML;
+      btnNhieCopyCode.innerHTML = '<i data-lucide="check" style="color:var(--nhie-emerald);"></i>';
+      lucide.createIcons();
+      setTimeout(() => {
+        btnNhieCopyCode.innerHTML = originalText;
+        lucide.createIcons();
+      }, 1500);
+    });
+  });
+
+  // ── Start Game (Host only) ────────────────────────────────────────────────
+  btnNhieStartGame.addEventListener('click', () => {
+    if (!nhieIsHost) return;
+    socket.emit('nhie-start-game', {}, (res) => {
+      if (res && res.error) {
+        showModalAlert(res.error, 'Error starting match', 'danger');
+      }
+    });
+  });
+
+  // ── Submit custom statements ──────────────────────────────────────────────
+  btnNhieSubmitStatements.addEventListener('click', () => {
+    const inputs = nhieStatementInputsContainer.querySelectorAll('input');
+    let index = 0;
+
+    function submitNext() {
+      if (index >= inputs.length) {
+        btnNhieSubmitStatements.disabled = true;
+        btnNhieSubmitStatements.textContent = 'Submitted!';
+        return;
+      }
+      const val = inputs[index].value.trim();
+      if (!val) {
+        showModalAlert('Statements cannot be empty!', 'Required Field', 'warning');
+        return;
+      }
+
+      socket.emit('nhie-submit-statement', { statementText: val }, (res) => {
+        if (res.error) {
+          showModalAlert(res.error, 'Error submitting statement', 'danger');
+          return;
+        }
+        index++;
+        nhieSubmittedStatements = res.submitted;
+        nhieSSubmittedCount.textContent = `Submitted: ${nhieSubmittedStatements} / ${res.total}`;
+        submitNext();
+      });
+    }
+
+    submitNext();
+  });
+
+  // ── Submit Answer ─────────────────────────────────────────────────────────
+  document.querySelectorAll('#nhie-answer-buttons button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const ans = btn.getAttribute('data-answer');
+      const hasDone = (ans === 'have');
+
+      socket.emit('nhie-submit-answer', { hasDone }, (res) => {
+        if (res.error) {
+          showModalAlert(res.error, 'Error submitting answer', 'danger');
+          return;
+        }
+
+        // Hide buttons, show waiting confirmation
+        nhieAnswerButtons.classList.add('hidden');
+        nhieAnsweredWaiting.classList.remove('hidden');
+      });
+    });
+  });
+
+  // ── Skip Answering (Host only) ────────────────────────────────────────────
+  btnNhieSkipAnswering.addEventListener('click', () => {
+    if (!nhieIsHost) return;
+    socket.emit('nhie-skip-answering');
+  });
+
+  // ── Play Again / Next Round ───────────────────────────────────────────────
+  btnNhiePlayAgain.addEventListener('click', () => {
+    if (!nhieIsHost) return;
+    socket.emit('nhie-next-round');
+  });
+
+
+  // ── STATE ROUTING MACHINE ──────────────────────────────────────────────────
+  function nhieRouteState(state) {
+    nhieRoomState = state;
+    nhieIsHost = (state.hostId === socket.id);
+    nhieMyId = socket.id;
+
+    // Check Lobby settings
+    nhieSyncSettingsVisibility(state.settings);
+
+    // Sync settings UI controls
+    if (nhieIsHost) {
+      nhieSettingsControls.classList.remove('hidden');
+      nhieSettingsReadonly.classList.add('hidden');
+      
+      nhieSelectScoreMode.value = state.settings.scoreMode;
+      nhieSelectLives.value = state.settings.startingLives;
+      nhieSelectStatementTime.value = state.settings.statementTime;
+      nhieSelectAnswerTime.value = state.settings.answerTime;
+      nhieSelectSource.value = state.settings.statementSource;
+      nhieSelectStatementsPerPlayer.value = state.settings.statementsPerPlayer;
+      nhieSelectPremadeTotal.value = state.settings.totalPremadeStatements;
+    } else {
+      nhieSettingsControls.classList.add('hidden');
+      nhieSettingsReadonly.classList.remove('hidden');
+      
+      const srcText = state.settings.statementSource === 'PREMADE_ONLY' ? 'Pre-made prompts only' : 
+                      state.settings.statementSource === 'CUSTOM_ONLY' ? 'Custom prompts only' : 'Mixed pool';
+      const scoreModeText = state.settings.scoreMode === 'SURVIVAL' ? `Survival Mode (${state.settings.startingLives} lives)` : 'Points Mode';
+
+      nhieSettingsReadonly.innerHTML = `
+        <div><strong>Score Mode:</strong> ${scoreModeText}</div>
+        <div><strong>Statements Source:</strong> ${srcText}</div>
+        <div><strong>Statement Time:</strong> ${state.settings.statementTime}s</div>
+        <div><strong>Answering Time:</strong> ${state.settings.answerTime}s</div>
+      `;
+    }
+
+    // ── LOBBY ──
+    if (state.status === 'LOBBY') {
+      nhieShowScreen(nhieLobbyWaiting);
+      nhieDisplayCode.textContent = state.roomId;
+      nhiePlayerCount.textContent = `${state.players.length} / 12`;
+      nhieRenderLobbyPlayers(state.players);
+
+      const activeCount = state.players.filter(p => p.connected).length;
+
+      if (nhieIsHost) {
+        btnNhieStartGame.style.display = 'inline-flex';
+        nhieWaitingForHost.style.display = 'none';
+        
+        if (activeCount >= 2) {
+          btnNhieStartGame.disabled = false;
+          nhieHostWarning.classList.add('hidden');
+        } else {
+          btnNhieStartGame.disabled = true;
+          nhieHostWarning.classList.remove('hidden');
+        }
+      } else {
+        btnNhieStartGame.style.display = 'none';
+        nhieWaitingForHost.style.display = 'block';
+        nhieHostWarning.classList.add('hidden');
+      }
+    }
+
+    // ── STATEMENT INPUT PHASE ──
+    else if (state.status === 'STATEMENT_PHASE') {
+      nhieShowScreen(nhieStatementPhase);
+      nhieRenderPlayersStatus(state.players);
+
+      // Setup input text boxes
+      const existingInputs = nhieStatementInputsContainer.querySelectorAll('input').length;
+      if (existingInputs !== state.settings.statementsPerPlayer) {
+        nhieStatementInputsContainer.innerHTML = '';
+        for (let i = 0; i < state.settings.statementsPerPlayer; i++) {
+          const wrapper = document.createElement('div');
+          wrapper.style.display = 'flex';
+          wrapper.style.alignItems = 'center';
+          wrapper.style.gap = '8px';
+
+          const span = document.createElement('span');
+          span.textContent = `${i + 1}.`;
+          span.style.fontFamily = 'Space Grotesk', 'sans-serif';
+          span.style.fontWeight = 'bold';
+
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'input-field';
+          input.placeholder = 'Never have I ever...';
+          input.maxLength = 150;
+
+          wrapper.appendChild(span);
+          wrapper.appendChild(input);
+          nhieStatementInputsContainer.appendChild(wrapper);
+        }
+        
+        btnNhieSubmitStatements.disabled = false;
+        btnNhieSubmitStatements.textContent = 'Submit Statements';
+        nhieSubmittedStatements = 0;
+        nhieSSubmittedCount.textContent = `Submitted: 0 / ${state.settings.statementsPerPlayer}`;
+      }
+
+      // Check if self is already ready
+      const self = state.players.find(p => p.id === socket.id);
+      if (self && self.hasSubmittedStatement) {
+        btnNhieSubmitStatements.disabled = true;
+        btnNhieSubmitStatements.textContent = 'Submitted!';
+      }
+
+      nhieStartLocalCountdown(state.timer, nhieSTimerBar, nhieSTimer);
+    }
+
+    // ── ANSWERING PHASE ──
+    else if (state.status === 'ANSWERING_PHASE') {
+      nhieShowScreen(nhieAnsweringPhase);
+      nhieRenderAnsweringChips(state.players);
+
+      const currentQ = state.statements[state.currentStatementIndex];
+      nhieStatementText.textContent = currentQ ? `"${currentQ.text}"` : '';
+      nhieStatementNumber.textContent = `Statement ${state.currentStatementIndex + 1} of ${state.statements.length}`;
+
+      if (currentQ && currentQ.authorName) {
+        nhieStatementAuthor.textContent = `Submitted by: ${currentQ.authorName}`;
+      } else {
+        nhieStatementAuthor.textContent = '';
+      }
+
+      // Sync tally progress
+      nhieAnsweredProgress.textContent = `${state.answeredCount} / ${state.players.filter(p => p.connected).length} Answered`;
+
+      // Check if self has answered
+      const self = state.players.find(p => p.id === socket.id);
+      if (self && self.hasAnswered) {
+        nhieAnswerButtons.classList.add('hidden');
+        nhieAnsweredWaiting.classList.remove('hidden');
+      } else {
+        nhieAnswerButtons.classList.remove('hidden');
+        nhieAnsweredWaiting.classList.add('hidden');
+      }
+
+      // Skip button
+      if (nhieIsHost) {
+        btnNhieSkipAnswering.style.display = 'inline-block';
+      } else {
+        btnNhieSkipAnswering.style.display = 'none';
+      }
+
+      nhieStartLocalCountdown(state.timer, nhieATimerBar, nhieATimer);
+    }
+
+    // ── STATEMENT RESULTS ──
+    else if (state.status === 'STATEMENT_RESULTS') {
+      nhieShowScreen(nhieStatementResults);
+
+      const currentQ = state.statements[state.currentStatementIndex];
+      nhieResultStatementText.textContent = currentQ ? `"${currentQ.text}"` : '';
+      if (currentQ && currentQ.authorName) {
+        nhieResultAuthor.textContent = `Submitted by: ${currentQ.authorName}`;
+      } else {
+        nhieResultAuthor.textContent = '';
+      }
+
+      // Render Admitted vs Innocent lists
+      nhieResultsAdmittedList.innerHTML = '';
+      nhieResultsInnocentList.innerHTML = '';
+
+      let haveCount = 0;
+      let neverCount = 0;
+
+      if (currentQ && currentQ.answers) {
+        state.players.forEach(p => {
+          const hasDone = currentQ.answers[p.id];
+          const row = document.createElement('div');
+          row.className = 'nhie-results-player-row';
+          
+          if (hasDone === true) {
+            haveCount++;
+            row.innerHTML = `
+              <div class="nhie-avatar-mini" style="${nhieGetAvatarStyle(p.name)}">${p.name.substring(0,2).toUpperCase()}</div>
+              <span>${p.name} ${p.id === socket.id ? '(You)' : ''}</span>
+            `;
+            nhieResultsAdmittedList.appendChild(row);
+          } else {
+            neverCount++;
+            row.innerHTML = `
+              <div class="nhie-avatar-mini" style="${nhieGetAvatarStyle(p.name)}">${p.name.substring(0,2).toUpperCase()}</div>
+              <span>${p.name} ${p.id === socket.id ? '(You)' : ''}</span>
+            `;
+            nhieResultsInnocentList.appendChild(row);
+          }
+        });
+      }
+
+      if (haveCount === 0) {
+        nhieResultsAdmittedList.innerHTML = '<div style="text-align:center; padding:12px; font-size:12px; opacity:0.5;">Nobody admitted!</div>';
+      }
+      if (neverCount === 0) {
+        nhieResultsInnocentList.innerHTML = '<div style="text-align:center; padding:12px; font-size:12px; opacity:0.5;">Everyone has done it!</div>';
+      }
+
+      // Render updated scoreboard list
+      nhieResultScoresList.innerHTML = '';
+      state.players.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'nhie-results-score-row';
+        
+        let scorePill = '';
+        if (state.settings.scoreMode === 'SURVIVAL') {
+          if (p.score <= 0) {
+            scorePill = '<span class="nhie-score-pill dead">💀 ELIMINATED</span>';
+          } else {
+            scorePill = `<span class="nhie-score-pill survival">❤️ ${p.score} Lives</span>`;
+          }
+        } else {
+          scorePill = `<span class="nhie-score-pill points">🍷 ${p.score} Pts</span>`;
+        }
+
+        // Show indicator if player admitted on this statement
+        const didAdmit = currentQ?.answers[p.id] === true;
+        const diffText = didAdmit ? 
+          (state.settings.scoreMode === 'SURVIVAL' ? '<span style="color:var(--color-danger); margin-left:6px;">-1❤️</span>' : '<span style="color:var(--nhie-emerald); margin-left:6px;">+1 Pt</span>') : '';
+
+        row.innerHTML = `
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="nhie-avatar-mini" style="${nhieGetAvatarStyle(p.name)}">${p.name.substring(0,2).toUpperCase()}</div>
+            <span style="font-weight:600;">${p.name}</span>
+            ${diffText}
+          </div>
+          ${scorePill}
+        `;
+        nhieResultScoresList.appendChild(row);
+      });
+
+      nhieStartLocalCountdown(state.timer, nhieRTimerBar, nhieRTimer);
+    }
+
+    // ── FINAL SCORES ──
+    else if (state.status === 'FINAL_SCORES') {
+      nhieShowScreen(nhieFinalScores);
+      
+      // Determine ranking
+      const ranked = [...state.players].sort((a, b) => b.score - a.score);
+
+      // Winner text
+      if (ranked.length > 0) {
+        if (state.settings.scoreMode === 'SURVIVAL') {
+          // Survivors are those with score > 0.
+          const survivors = ranked.filter(p => p.score > 0);
+          if (survivors.length > 0) {
+            const listStr = survivors.map(s => s.name).join(', ');
+            nhieWinnerAnnouncement.innerHTML = `Survival Champions: <span style="color:var(--nhie-rose);">${listStr}</span>`;
+          } else {
+            // Find who survived longest (highest remaining score)
+            const highestScore = ranked[0].score;
+            const topSurvivors = ranked.filter(p => p.score === highestScore);
+            const listStr = topSurvivors.map(s => s.name).join(', ');
+            nhieWinnerAnnouncement.innerHTML = `Top Survivors: <span style="color:var(--nhie-rose);">${listStr}</span>`;
+          }
+        } else {
+          // Points mode: Highest score wins
+          const topScore = ranked[0].score;
+          const winners = ranked.filter(p => p.score === topScore);
+          const listStr = winners.map(w => w.name).join(', ');
+          nhieWinnerAnnouncement.innerHTML = `Most Adventurous: <span style="color:var(--nhie-rose);">${listStr}</span> (${topScore} pts)`;
+        }
+      }
+
+      // Render Leaderboard Grid
+      nhieFinalLeaderboard.innerHTML = '';
+      ranked.forEach((p, idx) => {
+        const row = document.createElement('div');
+        row.className = 'nhie-final-leaderboard-row' + (idx === 0 ? ' winner' : '');
+        
+        let scoreDisplay = '';
+        if (state.settings.scoreMode === 'SURVIVAL') {
+          scoreDisplay = p.score <= 0 ? '💀 ELIMINATED' : `❤️ ${p.score} Lives Left`;
+        } else {
+          scoreDisplay = `🍷 ${p.score} Points`;
+        }
+
+        row.innerHTML = `
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span style="font-family:'Orbitron',sans-serif; font-weight:bold; font-size:16px; width:24px; opacity:0.8;">#${idx+1}</span>
+            <div class="nhie-avatar" style="${nhieGetAvatarStyle(p.name)}">${p.name.substring(0,2).toUpperCase()}</div>
+            <span style="font-weight:600; font-family:'Space Grotesk',sans-serif;">${p.name} ${p.id === socket.id ? '(You)' : ''}</span>
+          </div>
+          <span style="font-family:'Orbitron',sans-serif; font-weight:700;">${scoreDisplay}</span>
+        `;
+        nhieFinalLeaderboard.appendChild(row);
+      });
+
+      // Show reset controls
+      if (nhieIsHost) {
+        btnNhiePlayAgain.style.display = 'inline-flex';
+        nhiePlayAgainWait.style.display = 'none';
+      } else {
+        btnNhiePlayAgain.style.display = 'none';
+        nhiePlayAgainWait.style.display = 'block';
+      }
+    }
+
+    lucide.createIcons();
+  }
+
+  // ── Sockets Events handlers ────────────────────────────────────────────────
+
+  socket.on('nhie-room-updated', (state) => {
+    nhieRouteState(state);
+  });
+
+  socket.on('nhie-phase-changed', (data) => {
+    if (!nhieRoomState) return;
+    nhieRoomState.status = data.status;
+    nhieRoomState.timer = data.timer;
+    
+    if (data.currentQuestionIndex !== undefined) nhieRoomState.currentStatementIndex = data.currentQuestionIndex;
+    if (data.currentQuestion !== undefined) {
+      if (!nhieRoomState.statements) nhieRoomState.statements = [];
+      nhieRoomState.statements[data.currentQuestionIndex] = data.currentQuestion;
+    }
+
+    nhieRouteState(nhieRoomState);
+  });
+
+  socket.on('nhie-timer-update', (timeLeft) => {
+    if (!nhieRoomState) return;
+    nhieRoomState.timer = timeLeft;
+
+    // Update active timers
+    if (nhieRoomState.status === 'STATEMENT_PHASE') {
+      nhieSTimer.textContent = timeLeft;
+    } else if (nhieRoomState.status === 'ANSWERING_PHASE') {
+      nhieATimer.textContent = timeLeft;
+    } else if (nhieRoomState.status === 'STATEMENT_RESULTS') {
+      nhieRTimer.textContent = timeLeft;
+    }
+  });
+
+
+  // ── Game History Modal & List Details ────────────────────────────────────
+  const nhieHistoryList = document.getElementById('nhie-history-list');
+  const btnNhieRefreshHistory = document.getElementById('btn-nhie-refresh-history');
+  const nhieHistoryModal = document.getElementById('nhie-history-modal');
+  const btnNhieCloseModal = document.getElementById('btn-nhie-close-modal');
+  const nhieModalTitle = document.getElementById('nhie-modal-title');
+  const nhieModalSubtitle = document.getElementById('nhie-modal-subtitle');
+  const nhieModalScoreboard = document.getElementById('nhie-modal-scoreboard');
+  const nhieModalStatements = document.getElementById('nhie-modal-statements');
+
+  async function nhieLoadHistory() {
+    if (!nhieHistoryList) return;
+    nhieHistoryList.innerHTML = '<div class="nhie-history-empty">Loading history...</div>';
+    try {
+      const res = await fetch('/api/nhie/history');
+      if (!res.ok) throw new Error('Failed to fetch history');
+      const data = await res.json();
+      
+      if (!data || data.length === 0) {
+        nhieHistoryList.innerHTML = '<div class="nhie-history-empty">No games recorded yet. Play a game to see it here!</div>';
+        return;
+      }
+      
+      nhieHistoryList.innerHTML = '';
+      data.forEach(game => {
+        const dateStr = new Date(game.createdAt).toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        const card = document.createElement('div');
+        card.className = 'nhie-history-card';
+        card.innerHTML = `
+          <div class="nhie-hc-meta">
+            <span class="nhie-hc-room">Room ${game.roomCode}</span>
+            <span class="nhie-hc-date">${dateStr}</span>
+          </div>
+          <div class="nhie-hc-stats">
+            <span><i data-lucide="users" style="width: 14px; height: 14px; margin-right: 4px; vertical-align: middle;"></i>${game.playerCount} Players</span>
+            <span><i data-lucide="crown" style="width: 14px; height: 14px; margin-right: 4px; vertical-align: middle; color: gold;"></i>Winner: ${game.winnerName} (${game.winnerScore} pts)</span>
+          </div>
+        `;
+        card.addEventListener('click', () => nhieShowGameDetails(game.id));
+        nhieHistoryList.appendChild(card);
+      });
+      lucide.createIcons();
+    } catch (err) {
+      console.error('Error loading NHIE history:', err);
+      nhieHistoryList.innerHTML = '<div class="nhie-history-empty error">Failed to load history. Please ensure Supabase tables are created.</div>';
+    }
+  }
+
+  async function nhieShowGameDetails(gameId) {
+    if (!nhieHistoryModal) return;
+    try {
+      const res = await fetch(`/api/nhie/history/${gameId}`);
+      if (!res.ok) throw new Error('Failed to fetch game details');
+      const game = await res.json();
+
+      const dateStr = new Date(game.created_at).toLocaleString();
+      nhieModalTitle.textContent = `Room ${game.room_code}`;
+      nhieModalSubtitle.textContent = `Played on ${dateStr}`;
+
+      // 1. Render scoreboard
+      nhieModalScoreboard.innerHTML = '';
+      game.nhie_players.forEach((p, idx) => {
+        const row = document.createElement('div');
+        row.className = 'nhie-modal-scoreboard-row';
+        row.innerHTML = `
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-family:'Orbitron',sans-serif; font-weight:bold; font-size:12px; width:16px;">#${idx+1}</span>
+            <div class="nhie-avatar-mini" style="width:20px; height:20px; font-size:8px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; ${nhieGetAvatarStyle(p.name)}">${p.name.substring(0,2).toUpperCase()}</div>
+            <span style="font-weight:600;">${p.name}</span>
+          </div>
+          <span style="font-family:'Orbitron',sans-serif; font-weight:700;">Score/Lives: ${p.score}</span>
+        `;
+        nhieModalScoreboard.appendChild(row);
+      });
+
+      // 2. Render statements & answers breakdown
+      nhieModalStatements.innerHTML = '';
+      if (game.nhie_statements && game.nhie_statements.length > 0) {
+        game.nhie_statements.forEach((s, idx) => {
+          const card = document.createElement('div');
+          card.className = 'nhie-modal-statement-card';
+          
+          let badgesHTML = '';
+          if (s.nhie_answers && s.nhie_answers.length > 0) {
+            s.nhie_answers.forEach(ans => {
+              const typeClass = ans.has_done ? 'have' : 'never';
+              const typeText = ans.has_done ? '🍷 I HAVE' : '😇 NEVER';
+              badgesHTML += `
+                <span class="nhie-modal-answer-badge ${typeClass}">
+                  <strong>${ans.player_name}:</strong> ${typeText}
+                </span>
+              `;
+            });
+          } else {
+            badgesHTML = '<span style="font-size:11px; opacity:0.5;">No response logs.</span>';
+          }
+
+          card.innerHTML = `
+            <div class="nhie-modal-statement-header">${idx+1}. "${s.text}" <span style="font-size:0.8em; opacity:0.6; font-weight:normal;">(Author: ${s.author_name || 'System'})</span></div>
+            <div class="nhie-modal-statement-answers">${badgesHTML}</div>
+          `;
+          nhieModalStatements.appendChild(card);
+        });
+      } else {
+        nhieModalStatements.innerHTML = '<div style="font-size:13px; opacity:0.6; text-align:center; padding:12px;">No statements logged.</div>';
+      }
+
+      nhieHistoryModal.classList.remove('hidden');
+    } catch (err) {
+      console.error('Error displaying NHIE game details:', err);
+      showModalAlert('Could not fetch details for this game.', 'Error', 'danger');
+    }
+  }
+
+  if (btnNhieRefreshHistory) {
+    btnNhieRefreshHistory.addEventListener('click', nhieLoadHistory);
+  }
+  if (btnNhieCloseModal) {
+    btnNhieCloseModal.addEventListener('click', () => {
+      nhieHistoryModal.classList.add('hidden');
+    });
+  }
+
+  // Close history modal on backdrop click
+  if (nhieHistoryModal) {
+    nhieHistoryModal.addEventListener('click', (e) => {
+      if (e.target === nhieHistoryModal) {
+        nhieHistoryModal.classList.add('hidden');
+      }
+    });
+  }
+
+
+  // ── Auto-reconnect session recovery on page load (Never Have I Ever) ────
+  const savedNhieRoomId = sessionStorage.getItem('nhie_room_id');
+  const savedNhiePlayerName = sessionStorage.getItem('nhie_player_name');
+  const nhieActive = sessionStorage.getItem('nhie_active');
+
+  if (savedNhieRoomId && savedNhiePlayerName && nhieActive === 'true') {
+    socket.emit('nhie-join', { roomId: savedNhieRoomId, playerName: savedNhiePlayerName }, (res) => {
+      if (res && !res.error) {
+        nhieMyName = savedNhiePlayerName;
+        nhieRoomId = savedNhieRoomId;
+        nhieIsHost = (res.roomState.hostId === socket.id);
+        nhieMyId = socket.id;
+
+        // Restore view to games tab and nhie screen
+        switchView('games');
+        localStorage.setItem('active_game', 'nhie');
+        gamesListView.classList.add('hidden');
+        nhieGameView.classList.remove('hidden');
+
+        nhieRouteState(res.roomState);
+      } else {
+        sessionStorage.removeItem('nhie_room_id');
+        sessionStorage.removeItem('nhie_player_name');
+        sessionStorage.removeItem('nhie_active');
       }
     });
   }

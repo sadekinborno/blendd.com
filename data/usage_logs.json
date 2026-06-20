@@ -1,1 +1,176 @@
-[]
+[
+  {
+    "timestamp": "2026-06-20T08:16:11.986Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:14:44.036Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:14:43.219Z",
+    "username": "Owner",
+    "action": "Viewed section: Link Saver",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:13:45.689Z",
+    "username": "Owner",
+    "action": "Viewed section: Link Saver",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:12:49.387Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:12:31.171Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:10:05.204Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:05:33.891Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:01:59.894Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:01:57.914Z",
+    "username": "Owner",
+    "action": "Viewed section: Media Downloader",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:01:57.481Z",
+    "username": "Owner",
+    "action": "Viewed section: Dashboard",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:01:29.829Z",
+    "username": "Owner",
+    "action": "Viewed section: Admin Portal",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:01:20.618Z",
+    "username": "Owner",
+    "action": "Logged into Owner Mode",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T08:01:11.082Z",
+    "username": "Guest",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T07:54:02.263Z",
+    "username": "Guest",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T07:53:25.239Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T07:35:15.651Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:14:10.531Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:14:09.336Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:14:08.963Z",
+    "username": "Owner",
+    "action": "Viewed section: Link Saver",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:13:55.585Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:13:52.999Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:13:52.508Z",
+    "username": "Owner",
+    "action": "Viewed section: Link Saver",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:13:52.053Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:13:50.888Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:13:40.882Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:13:22.947Z",
+    "username": "Owner",
+    "action": "Viewed section: Arcade Zone",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:13:20.945Z",
+    "username": "Owner",
+    "action": "Viewed section: Dashboard",
+    "ip": "::1"
+  },
+  {
+    "timestamp": "2026-06-20T05:13:14.457Z",
+    "username": "Owner",
+    "action": "Viewed section: Admin Portal",
+    "ip": "::1"
+  }
+]

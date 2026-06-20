@@ -29,6 +29,11 @@ const initWtwGame = require('./wtw_manager');
 initWtwGame(io);
 initWtwGame.bindIO(io);
 
+// Initialize Never Have I Ever Social Game
+const initNhieGame = require('./nhie_manager');
+initNhieGame(io);
+initNhieGame.bindIO(io);
+
 const PORT = process.env.PORT || 3000;
 
 // Setup directories
@@ -857,14 +862,45 @@ io.on('connection', (socket) => {
 // Admin & Owner Portal Endpoints
 // ==========================================================================
 
-app.post('/api/auth/owner', (req, res) => {
-  const { password } = req.body;
-  if (password === ownerPassword) {
-    trackUsage('Owner', 'Logged into Owner Mode', req);
-    res.json({ success: true, token: ownerSessionToken });
-  } else {
-    res.status(401).json({ error: 'Incorrect password' });
+app.post('/api/auth/owner', async (req, res) => {
+  const { username, password } = req.body;
+  const adminUsername = process.env.ADMIN_USERNAME || 'Borno';
+
+  if (username && password) {
+    const cleanUsername = username.trim();
+    const cleanPassword = password.trim();
+
+    if (cleanUsername.toLowerCase() === adminUsername.toLowerCase()) {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('username, password')
+          .ilike('username', cleanUsername)
+          .eq('password', cleanPassword);
+
+        if (error) {
+          console.error('Admin Auth Query Error:', error.message);
+          return res.status(500).json({ error: 'Database error during admin authentication' });
+        }
+
+        if (data && data.length > 0) {
+          trackUsage(data[0].username, 'Logged into Owner Mode via credentials', req);
+          return res.json({ success: true, token: ownerSessionToken });
+        }
+      } catch (err) {
+        console.error('Admin Auth Error:', err);
+        return res.status(500).json({ error: 'Internal server error during admin authentication' });
+      }
+    }
   }
+
+  // Fallback support for single password owner login
+  if (!username && password && password === ownerPassword) {
+    trackUsage('Owner', 'Logged into Owner Mode via password fallback', req);
+    return res.json({ success: true, token: ownerSessionToken });
+  }
+
+  res.status(401).json({ error: 'Incorrect username or password' });
 });
 
 app.get('/api/admin/stats', requireOwner, async (req, res) => {
@@ -1068,6 +1104,210 @@ app.get('/api/admin/analytics', requireOwner, (req, res) => {
   } catch (err) {
     console.error('Fetch analytics error:', err);
     res.status(500).json({ error: 'Failed to retrieve analytics data' });
+  }
+});
+
+// Check if WTW tables exist on startup
+async function verifyWtwTables() {
+  try {
+    const { error } = await supabase
+      .from('wtw_games')
+      .select('id')
+      .limit(1);
+
+    if (error) {
+      if (error.code === 'P0001' || error.message.includes('does not exist') || error.message.includes('undefined_table') || error.message.includes('schema cache') || error.message.includes('Could not find')) {
+        console.warn('\n[Supabase] ⚠️ WARNING: "wtw_games" table not found in database.');
+        console.warn('[Supabase] ⚠️ Please execute the SQL queries in "wtw_schema.sql" via the Supabase SQL Editor to enable game history tracking.\n');
+      } else {
+        console.error('[Supabase] Error verifying WTW tables on boot:', error.message);
+      }
+    } else {
+      console.log('[Supabase] WTW tables verified successfully. Game history is active.');
+    }
+  } catch (err) {
+    console.error('[Supabase] Unexpected error verifying WTW tables on boot:', err);
+  }
+}
+verifyWtwTables();
+
+// Check if NHIE tables exist on startup
+async function verifyNhieTables() {
+  try {
+    const { error } = await supabase
+      .from('nhie_games')
+      .select('id')
+      .limit(1);
+
+    if (error) {
+      if (error.code === 'P0001' || error.message.includes('does not exist') || error.message.includes('undefined_table') || error.message.includes('schema cache') || error.message.includes('Could not find')) {
+        console.warn('\n[Supabase] ⚠️ WARNING: "nhie_games" table not found in database.');
+        console.warn('[Supabase] ⚠️ Please execute the SQL queries in "nhie_schema.sql" via the Supabase SQL Editor to enable game history tracking.\n');
+      } else {
+        console.error('[Supabase] Error verifying NHIE tables on boot:', error.message);
+      }
+    } else {
+      console.log('[Supabase] NHIE tables verified successfully. Game history is active.');
+    }
+  } catch (err) {
+    console.error('[Supabase] Unexpected error verifying NHIE tables on boot:', err);
+  }
+}
+verifyNhieTables();
+
+// WTW Game History API: Get list of games
+app.get('/api/wtw/history', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('wtw_games')
+      .select(`
+        id,
+        room_code,
+        created_at,
+        wtw_players ( name, score )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Fetch WTW history error:', error.message);
+      return res.status(500).json({ error: 'Could not fetch history' });
+    }
+
+    const formatted = data.map(game => {
+      let winner = null;
+      if (game.wtw_players && game.wtw_players.length > 0) {
+        winner = game.wtw_players.reduce((max, p) => p.score > max.score ? p : max, game.wtw_players[0]);
+      }
+
+      return {
+        id: game.id,
+        roomCode: game.room_code,
+        createdAt: game.created_at,
+        playerCount: game.wtw_players ? game.wtw_players.length : 0,
+        winnerName: winner ? winner.name : 'No winner',
+        winnerScore: winner ? winner.score : 0
+      };
+    });
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('API Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// WTW Game History API: Get single game details
+app.get('/api/wtw/history/:gameId', async (req, res) => {
+  const { gameId } = req.params;
+  try {
+    const { data, error } = await supabase
+      .from('wtw_games')
+      .select(`
+        id,
+        room_code,
+        created_at,
+        wtw_players ( name, score ),
+        wtw_questions (
+          id,
+          text,
+          author_name,
+          wtw_votes ( voter_name, votee_name )
+        )
+      `)
+      .eq('id', gameId)
+      .single();
+
+    if (error) {
+      console.error('Fetch WTW game details error:', error.message);
+      return res.status(500).json({ error: 'Could not fetch game details' });
+    }
+
+    if (data && data.wtw_players) {
+      data.wtw_players.sort((a, b) => b.score - a.score);
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error('API Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// NHIE Game History API: Get list of games
+app.get('/api/nhie/history', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('nhie_games')
+      .select(`
+        id,
+        room_code,
+        created_at,
+        nhie_players ( name, score )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Fetch NHIE history error:', error.message);
+      return res.status(500).json({ error: 'Could not fetch history' });
+    }
+
+    const formatted = data.map(game => {
+      let winner = null;
+      if (game.nhie_players && game.nhie_players.length > 0) {
+        winner = game.nhie_players.reduce((max, p) => p.score > max.score ? p : max, game.nhie_players[0]);
+      }
+
+      return {
+        id: game.id,
+        roomCode: game.room_code,
+        createdAt: game.created_at,
+        playerCount: game.nhie_players ? game.nhie_players.length : 0,
+        winnerName: winner ? winner.name : 'No winner',
+        winnerScore: winner ? winner.score : 0
+      };
+    });
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('API Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// NHIE Game History API: Get single game details
+app.get('/api/nhie/history/:gameId', async (req, res) => {
+  const { gameId } = req.params;
+  try {
+    const { data, error } = await supabase
+      .from('nhie_games')
+      .select(`
+        id,
+        room_code,
+        created_at,
+        nhie_players ( name, score ),
+        nhie_statements (
+          id,
+          text,
+          author_name,
+          nhie_answers ( player_name, has_done )
+        )
+      `)
+      .eq('id', gameId)
+      .single();
+
+    if (error) {
+      console.error('Fetch NHIE game details error:', error.message);
+      return res.status(500).json({ error: 'Could not fetch game details' });
+    }
+
+    if (data && data.nhie_players) {
+      data.nhie_players.sort((a, b) => b.score - a.score);
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error('API Error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

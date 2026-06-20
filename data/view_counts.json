@@ -1,7 +1,7 @@
 {
-  "dashboard": 0,
-  "downloader": 0,
-  "linksaver": 0,
-  "games": 0,
-  "admin": 0
+  "dashboard": 2,
+  "downloader": 1,
+  "linksaver": 4,
+  "games": 19,
+  "admin": 2
 }

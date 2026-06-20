@@ -382,8 +382,8 @@
           <div class="game-card neon-card-purple" data-game="cdbp">
             <div class="game-card-preview">
               <div class="neon-cdbp-preview">
-                <span class="glow-pink">CHOR</span>
-                <span class="glow-cyan">POLICE</span>
+                <span class="glow-purple">CHOR</span>
+                <span class="glow-pink">POLICE</span>
               </div>
             </div>
             <div class="game-card-info">
@@ -413,6 +413,25 @@
               <h3>Who's the Worst?</h3>
               <p>Everyone submits spicy questions. Everyone votes anonymously. Find out who among your friends is truly the worst.</p>
               <button class="btn-neon-orange">PLAY GAME</button>
+            </div>
+          </div>
+
+          <!-- Game Card: Never Have I Ever -->
+          <div class="game-card neon-card-rose" data-game="nhie">
+            <div class="game-card-preview">
+              <div class="neon-nhie-preview">
+                <span class="nhie-preview-title">NEVER</span>
+                <span class="nhie-preview-subtitle">HAVE I EVER</span>
+              </div>
+            </div>
+            <div class="game-card-info">
+              <div class="game-meta">
+                <span class="game-tag tag-rose">2-12 Players</span>
+                <span class="game-difficulty">Social / Party</span>
+              </div>
+              <h3>Never Have I Ever</h3>
+              <p>State things you've never done. Admit your wildest secrets. Survive with your lives or score naughtiness points!</p>
+              <button class="btn-neon-rose">PLAY GAME</button>
             </div>
           </div>
 
@@ -538,6 +557,20 @@
                   <i data-lucide="arrow-right"></i>
                   <span>Join Room</span>
                 </button>
+              </div>
+            </div>
+
+            <!-- Past Games History Panel -->
+            <div class="glass-panel wtw-history-panel owner-only" style="margin-top: 24px; display: none;">
+              <div class="wtw-history-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="color: var(--wtw-orange); margin: 0; display: flex; align-items: center; gap: 8px;">
+                  <i data-lucide="history"></i> Past Games History
+                </h3>
+                <button class="btn-icon" id="btn-wtw-refresh-history" title="Refresh History"><i data-lucide="refresh-cw"></i></button>
+              </div>
+              <p style="margin: 0 0 16px 0; font-size: 0.9em; opacity: 0.85;">View details, questions, and voting outcomes of previously completed games.</p>
+              <div id="wtw-history-list" class="wtw-history-list">
+                <div class="wtw-history-empty">Loading history...</div>
               </div>
             </div>
           </div>
@@ -715,7 +748,374 @@
             </div>
           </div>
 
+          <!-- ── SCREEN 7: GAME HISTORY DETAILS MODAL ── -->
+          <div id="wtw-history-modal" class="wtw-modal-overlay hidden">
+            <div class="wtw-modal-content glass-panel">
+              <div class="wtw-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">
+                <div>
+                  <h3 id="wtw-modal-title" style="color: var(--wtw-orange); margin: 0; font-size: 1.5em; font-family: 'Space Grotesk', sans-serif;">Game Details</h3>
+                  <span id="wtw-modal-subtitle" style="font-size: 0.85em; opacity: 0.7;">Played on ...</span>
+                </div>
+                <button class="btn-icon" id="btn-wtw-close-modal" title="Close" style="background: transparent; border: none; cursor: pointer; color: white;"><i data-lucide="x"></i></button>
+              </div>
+              
+              <div class="wtw-modal-body" style="max-height: 60vh; overflow-y: auto; padding-right: 8px;">
+                <!-- Players Scoreboard -->
+                <div class="wtw-modal-section">
+                  <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px; font-family: 'Space Grotesk', sans-serif; font-size: 1.1em;">
+                    <i data-lucide="award" style="color: var(--wtw-orange);"></i> Final Scoreboard
+                  </h4>
+                  <div id="wtw-modal-scoreboard" class="wtw-modal-scoreboard-grid" style="display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <!-- Dynamic -->
+                  </div>
+                </div>
+
+                <!-- Questions & Votes -->
+                <div class="wtw-modal-section" style="margin-top: 24px;">
+                  <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px; font-family: 'Space Grotesk', sans-serif; font-size: 1.1em;">
+                    <i data-lucide="message-square" style="color: var(--wtw-orange);"></i> Questions & Votes Breakdown
+                  </h4>
+                  <div id="wtw-modal-questions" style="display: flex; flex-direction: column; gap: 16px;">
+                    <!-- Dynamic -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div><!-- /#game-wtw-view -->
+
+        <!-- Game Play Area: Never Have I Ever (NHIE) -->
+        <div class="game-play-container hidden" id="game-nhie-view">
+          <div class="game-play-header">
+            <button class="btn-back" id="btn-nhie-back-to-arcade">
+              <i data-lucide="arrow-left"></i>
+              <span>Back to Arcade</span>
+            </button>
+            <h2 style="color: var(--nhie-rose);">Never Have I Ever</h2>
+          </div>
+
+          <!-- ── SCREEN 1: LOBBY SETUP (Create or Join) ── -->
+          <div id="nhie-lobby-setup">
+            <div class="nhie-lobby-grid">
+              <!-- Create Card -->
+              <div class="glass-panel nhie-lobby-card">
+                <div class="nhie-lobby-card-icon"><i data-lucide="plus-circle"></i></div>
+                <h3>Create a New Room</h3>
+                <p>Start a new game session and invite your friends. You will be the host.</p>
+                <input type="text" id="nhie-name-create" class="input-field" placeholder="Your name..." maxlength="20" autocomplete="off" />
+                <button class="btn-primary nhie-btn-rose" id="btn-nhie-create-room">
+                  <i data-lucide="plus"></i>
+                  <span>Create Room</span>
+                </button>
+              </div>
+
+              <!-- Join Card -->
+              <div class="glass-panel nhie-lobby-card">
+                <div class="nhie-lobby-card-icon"><i data-lucide="log-in"></i></div>
+                <h3>Join an Existing Room</h3>
+                <p>Enter the 4-letter room code provided by the host to join an active session.</p>
+                <input type="text" id="nhie-name-join" class="input-field" placeholder="Your name..." maxlength="20" autocomplete="off" />
+                <input type="text" id="nhie-room-code-input" class="input-field" placeholder="Room code (e.g. ABCD)" maxlength="4" autocomplete="off" style="text-transform:uppercase;" />
+                <button class="btn-secondary" id="btn-nhie-join-room">
+                  <i data-lucide="log-in"></i>
+                  <span>Join Room</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Game History Panel -->
+            <div class="glass-panel nhie-history-panel owner-only" style="margin-top: 24px; display: none;">
+              <div class="nhie-history-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="color: var(--nhie-rose); margin: 0; display: flex; align-items: center; gap: 8px;">
+                  <i data-lucide="history"></i> Game History
+                </h3>
+                <button class="btn-icon" id="btn-nhie-refresh-history" title="Refresh History"><i data-lucide="refresh-cw"></i></button>
+              </div>
+              <div id="nhie-history-list" class="nhie-history-list">
+                <div class="nhie-history-empty">Loading history...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── SCREEN 2: LOBBY WAITING ROOM (Inside Room) ── -->
+          <div id="nhie-lobby-waiting" class="hidden">
+            <div class="nhie-waiting-layout">
+              <!-- Left side: Player details -->
+              <div class="glass-panel nhie-waiting-players-panel">
+                <div class="nhie-room-header">
+                  <div>
+                    <span class="nhie-label">Room Code</span>
+                    <div class="nhie-room-code-display">
+                      <span id="nhie-display-code">----</span>
+                      <button class="btn-icon" id="btn-nhie-copy-code" title="Copy Code"><i data-lucide="copy"></i></button>
+                    </div>
+                  </div>
+                  <div style="text-align: right;">
+                    <span class="nhie-label">Players</span>
+                    <span id="nhie-player-count" class="nhie-player-count">0 / 12</span>
+                  </div>
+                </div>
+
+                <div id="nhie-lobby-players-list" class="nhie-players-lobby-list"></div>
+                <p id="nhie-host-warning" class="nhie-warning hidden">Need at least 2 players to start.</p>
+              </div>
+
+              <!-- Right side: Game settings configuration -->
+              <div class="glass-panel" id="nhie-settings-panel">
+                <h3 class="nhie-settings-title"><i data-lucide="settings-2"></i> Game Settings</h3>
+                
+                <!-- Settings Control Grid (Host only) -->
+                <div class="nhie-setting-row" id="nhie-settings-controls">
+                  <div class="nhie-setting-field">
+                    <label class="nhie-label">Score Mode</label>
+                    <select id="nhie-select-score-mode" class="input-field select-field">
+                      <option value="SURVIVAL">Survival (Lose lives on "I HAVE")</option>
+                      <option value="POINTS">Points (Gain points on "I HAVE")</option>
+                    </select>
+                  </div>
+
+                  <div class="nhie-setting-field" id="nhie-lives-field">
+                    <label class="nhie-label">Starting Lives</label>
+                    <select id="nhie-select-lives" class="input-field select-field">
+                      <option value="3">3 Lives</option>
+                      <option value="5" selected>5 Lives</option>
+                      <option value="10">10 Lives</option>
+                    </select>
+                  </div>
+
+                  <div class="nhie-setting-field">
+                    <label class="nhie-label">Statement Time (secs)</label>
+                    <select id="nhie-select-statement-time" class="input-field select-field">
+                      <option value="30">30 seconds</option>
+                      <option value="45">45 seconds</option>
+                      <option value="60" selected>60 seconds</option>
+                    </select>
+                  </div>
+
+                  <div class="nhie-setting-field">
+                    <label class="nhie-label">Answer Time (secs)</label>
+                    <select id="nhie-select-answer-time" class="input-field select-field">
+                      <option value="10">10 seconds</option>
+                      <option value="15" selected>15 seconds</option>
+                      <option value="30">30 seconds</option>
+                    </select>
+                  </div>
+
+                  <div class="nhie-setting-field">
+                    <label class="nhie-label">Statements Source</label>
+                    <select id="nhie-select-source" class="input-field select-field">
+                      <option value="MIXED" selected>Mixed (Custom & Pre-made)</option>
+                      <option value="CUSTOM_ONLY">Custom Only (Players type them)</option>
+                      <option value="PREMADE_ONLY">Pre-made Only (Instant play)</option>
+                    </select>
+                  </div>
+
+                  <div class="nhie-setting-field" id="nhie-custom-per-player-field">
+                    <label class="nhie-label">Statements per Player</label>
+                    <select id="nhie-select-statements-per-player" class="input-field select-field">
+                      <option value="1">1 statement</option>
+                      <option value="2" selected>2 statements</option>
+                      <option value="3">3 statements</option>
+                    </select>
+                  </div>
+
+                  <div class="nhie-setting-field hidden" id="nhie-premade-total-field">
+                    <label class="nhie-label">Total Statements</label>
+                    <select id="nhie-select-premade-total" class="input-field select-field">
+                      <option value="5">5 statements</option>
+                      <option value="10" selected>10 statements</option>
+                      <option value="15">15 statements</option>
+                      <option value="20">20 statements</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Read-only text (Guest only) -->
+                <div id="nhie-settings-readonly" class="hidden nhie-settings-readonly-text">
+                  <!-- Dynamic text explaining settings -->
+                </div>
+
+                <div style="margin-top: 24px;">
+                  <button class="btn-primary nhie-btn-rose" id="btn-nhie-start-game" style="width: 100%; display: none;">
+                    <i data-lucide="play"></i>
+                    <span>Start Game</span>
+                  </button>
+                  <p id="nhie-waiting-for-host-msg" class="nhie-muted-msg" style="display:none;">Waiting for host to start...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── SCREEN 3: STATEMENT SUBMISSION PHASE ── -->
+          <div id="nhie-statement-phase" class="hidden">
+            <div class="nhie-phase-header">
+              <div class="nhie-phase-badge rose">📝 Submit Statements</div>
+              <div class="nhie-timer-display" id="nhie-s-timer">60</div>
+            </div>
+            <div class="nhie-timer-track"><div id="nhie-s-timer-bar" class="nhie-timer-bar"></div></div>
+
+            <div class="nhie-game-grid" style="margin-top: 24px;">
+              <div class="glass-panel nhie-input-card">
+                <h3>Write your "Never Have I Ever" statements</h3>
+                <p class="nhie-info-text">Complete the phrase. Type things you have NOT done, but suspect others HAVE!</p>
+                
+                <div id="nhie-statement-inputs-container" style="display: flex; flex-direction: column; gap: 12px; margin: 20px 0;">
+                  <!-- Dynamic text inputs -->
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span id="nhie-s-submitted-count" style="font-size: 0.9em; opacity: 0.8;">Submitted: 0 / 2</span>
+                  <button class="btn-primary nhie-btn-rose" id="btn-nhie-submit-statements">Submit Statements</button>
+                </div>
+              </div>
+
+              <div class="glass-panel nhie-status-card">
+                <h3>Submission Progress</h3>
+                <div id="nhie-s-players-status" class="nhie-players-status-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── SCREEN 4: ANSWERING PHASE ── -->
+          <div id="nhie-answering-phase" class="hidden">
+            <div class="nhie-phase-header">
+              <div class="nhie-phase-badge rose">🤫 Admitting Phase</div>
+              <div class="nhie-timer-display" id="nhie-a-timer">15</div>
+            </div>
+            <div class="nhie-timer-track"><div id="nhie-a-timer-bar" class="nhie-timer-bar"></div></div>
+
+            <div id="nhie-answering-layout" style="margin-top: 24px; display: flex; flex-direction: column; align-items: center; gap: 24px;">
+              <div class="nhie-statement-display-card glass-panel">
+                <span class="nhie-statement-tag">STATEMENT</span>
+                <span id="nhie-statement-number" class="nhie-statement-number">Statement 1 of 10</span>
+                <div id="nhie-statement-text" class="nhie-statement-text">"Never have I ever fallen asleep in public"</div>
+                <div id="nhie-statement-author" style="font-size:0.85em; opacity:0.6; margin-top:10px;"></div>
+              </div>
+
+              <!-- Answering Buttons -->
+              <div id="nhie-answer-buttons" class="nhie-action-buttons">
+                <button class="btn-action-have" data-answer="have">
+                  <div class="btn-action-icon">🍷</div>
+                  <span>I HAVE</span>
+                </button>
+                <button class="btn-action-never" data-answer="never">
+                  <div class="btn-action-icon">😇</div>
+                  <span>I HAVE NEVER</span>
+                </button>
+              </div>
+
+              <!-- Waiting state for players -->
+              <div id="nhie-answered-waiting" class="hidden text-center">
+                <p class="nhie-success-text"><i data-lucide="check-circle" style="vertical-align: middle; margin-right: 6px;"></i>Answer submitted! Waiting for other players...</p>
+              </div>
+
+              <!-- Responder count info -->
+              <div style="width: 100%; max-width: 600px;" class="glass-panel">
+                <div style="display:flex; justify-content:space-between; margin-bottom: 8px; font-size: 0.9em;">
+                  <span>Responses Tally:</span>
+                  <span id="nhie-answered-progress">0 / 0 Answered</span>
+                </div>
+                <div id="nhie-answering-players-chips" class="nhie-player-chips-list"></div>
+                
+                <div style="margin-top: 16px; text-align: center;">
+                  <button class="btn-danger btn-sm" id="btn-nhie-skip-answering" style="display:none;">Force Skip to Results</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── SCREEN 5: STATEMENT RESULTS PHASE ── -->
+          <div id="nhie-statement-results" class="hidden">
+            <div class="nhie-phase-header">
+              <div class="nhie-phase-badge rose">📢 Statement Results</div>
+              <div class="nhie-timer-display" id="nhie-r-timer">10</div>
+            </div>
+            <div class="nhie-timer-track"><div id="nhie-r-timer-bar" class="nhie-timer-bar"></div></div>
+
+            <div class="nhie-results-layout" style="margin-top: 24px;">
+              <!-- Current Statement Detail -->
+              <div class="glass-panel text-center" style="grid-column: 1 / -1; padding: 20px;">
+                <h4 style="margin: 0; opacity: 0.6; font-size: 0.9em; text-transform: uppercase;">The Statement was</h4>
+                <div id="nhie-result-statement-text" class="nhie-statement-text-result">"Never have I ever..."</div>
+                <div id="nhie-result-author" style="font-size: 0.9em; opacity: 0.7; margin-top: 4px;"></div>
+              </div>
+
+              <!-- Two columns: Admitted vs Innocent -->
+              <div class="glass-panel nhie-results-col-admitted">
+                <h3>🍷 Said "I HAVE"</h3>
+                <div id="nhie-results-admitted-list" class="nhie-results-player-list"></div>
+              </div>
+
+              <div class="glass-panel nhie-results-col-innocent">
+                <h3>😇 Said "I HAVE NEVER"</h3>
+                <div id="nhie-results-innocent-list" class="nhie-results-player-list"></div>
+              </div>
+
+              <!-- Score update on the side -->
+              <div class="glass-panel nhie-results-scores" style="grid-column: 1 / -1;">
+                <h3>Scoreboard Update</h3>
+                <div id="nhie-result-scores-list" class="nhie-results-scores-grid"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── SCREEN 6: FINAL GAME OVER SCREEN ── -->
+          <div id="nhie-final-scores" class="hidden glass-panel" style="margin-top: 24px; padding: 32px;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <span style="font-size: 3rem;">🏆</span>
+              <h2 style="color: var(--nhie-rose); margin: 8px 0 4px 0; font-family: 'Space Grotesk', sans-serif;">Game Over!</h2>
+              <p id="nhie-winner-announcement" style="font-size:1.15em; font-weight: bold;"></p>
+            </div>
+
+            <!-- Final leaderboard -->
+            <div id="nhie-final-leaderboard" class="nhie-final-leaderboard-grid"></div>
+
+            <div style="text-align:center; margin-top: 28px; display: flex; gap: 12px; justify-content: center;">
+              <button class="btn-primary nhie-btn-rose" id="btn-nhie-play-again" style="display:none;">
+                <i data-lucide="refresh-cw"></i>
+                <span>Play Again</span>
+              </button>
+              <p id="nhie-play-again-wait" class="nhie-muted-msg" style="display:none;">Waiting for host to start a new round...</p>
+            </div>
+          </div>
+
+          <!-- ── SCREEN 7: GAME HISTORY DETAILS MODAL ── -->
+          <div id="nhie-history-modal" class="nhie-modal-overlay hidden">
+            <div class="nhie-modal-content glass-panel">
+              <div class="nhie-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">
+                <div>
+                  <h3 id="nhie-modal-title" style="color: var(--nhie-rose); margin: 0; font-size: 1.5em; font-family: 'Space Grotesk', sans-serif;">Game Details</h3>
+                  <span id="nhie-modal-subtitle" style="font-size: 0.85em; opacity: 0.7;">Played on ...</span>
+                </div>
+                <button class="btn-icon" id="btn-nhie-close-modal" title="Close" style="background: transparent; border: none; cursor: pointer; color: white;"><i data-lucide="x"></i></button>
+              </div>
+              
+              <div class="nhie-modal-body" style="max-height: 60vh; overflow-y: auto; padding-right: 8px;">
+                <!-- Players Scoreboard -->
+                <div class="nhie-modal-section">
+                  <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px; font-family: 'Space Grotesk', sans-serif; font-size: 1.1em;">
+                    <i data-lucide="award" style="color: var(--nhie-rose);"></i> Final Scoreboard
+                  </h4>
+                  <div id="nhie-modal-scoreboard" class="nhie-modal-scoreboard-grid" style="display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <!-- Dynamic -->
+                  </div>
+                </div>
+
+                <!-- Statements & Answers -->
+                <div class="nhie-modal-section" style="margin-top: 24px;">
+                  <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 6px; font-family: 'Space Grotesk', sans-serif; font-size: 1.1em;">
+                    <i data-lucide="message-square" style="color: var(--nhie-rose);"></i> Statements & Answers Breakdown
+                  </h4>
+                  <div id="nhie-modal-statements" style="display: flex; flex-direction: column; gap: 16px;">
+                    <!-- Dynamic -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /#game-nhie-view -->
 
         <!-- Game Play Area: Chor Dakat Babu Police -->
         <div class="game-play-container hidden" id="game-cdbp-view">
