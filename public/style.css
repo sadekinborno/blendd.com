@@ -22,6 +22,8 @@
   --accent-pink-glow: rgba(236, 72, 153, 0.3);
   --accent-green: #10b981;
   --accent-green-glow: rgba(16, 185, 129, 0.3);
+  --accent-orange: #f97316;
+  --accent-orange-glow: rgba(249, 115, 22, 0.3);
   --accent-indigo: #6366f1;
   --accent-indigo-glow: rgba(99, 102, 241, 0.35);
   --accent-indigo-dim: rgba(99, 102, 241, 0.1);
@@ -1214,6 +1216,13 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
   box-shadow: 0 0 12px rgba(16, 185, 129, 0.08);
 }
 
+.genre-icon-anime {
+  background: rgba(249, 115, 22, 0.12);
+  color: var(--accent-orange);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.08);
+}
+
 .genre-icon-development {
   background: rgba(6, 182, 212, 0.12);
   color: var(--accent-cyan);
@@ -1360,6 +1369,12 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
   background: rgba(16, 185, 129, 0.1);
   color: var(--accent-green);
   border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.tag-anime {
+  background: rgba(249, 115, 22, 0.1);
+  color: var(--accent-orange);
+  border: 1px solid rgba(249, 115, 22, 0.15);
 }
 
 .tag-development {
@@ -3034,6 +3049,12 @@ body.mode-guest-auth #btn-lock-mode {
 .bookmark-favicon.icon-film svg {
   color: var(--accent-pink);
   filter: drop-shadow(0 0 5px var(--accent-pink-glow));
+}
+
+.bookmark-favicon.icon-tv i,
+.bookmark-favicon.icon-tv svg {
+  color: var(--accent-orange);
+  filter: drop-shadow(0 0 5px var(--accent-orange-glow));
 }
 
 .bookmark-favicon.icon-gamepad i,

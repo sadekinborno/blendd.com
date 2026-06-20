@@ -851,6 +851,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function getCategoryColorClass(cat) {
     if (cat === 'Movies & Shows') return 'tag-movies';
     if (cat === 'Sports') return 'tag-sports';
+    if (cat === 'Anime') return 'tag-anime';
     if (cat === 'Development') return 'tag-development';
     return 'tag-general';
   }
@@ -885,6 +886,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const iconName = favicon.split(':')[1] || 'globe';
       let iconClass = 'has-icon';
       if (iconName === 'film') iconClass += ' icon-film';
+      if (iconName === 'tv-2') iconClass += ' icon-tv';
       if (iconName === 'gamepad-2') iconClass += ' icon-gamepad';
       if (iconName === 'terminal') iconClass += ' icon-terminal';
       if (iconName === 'book-open') iconClass += ' icon-book';
@@ -968,7 +970,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Default category order to keep the rendering order consistent
-    const categoryOrder = ['Movies & Shows', 'Sports', 'Development', 'General'];
+    const categoryOrder = ['Movies & Shows', 'Sports', 'Anime', 'Development', 'General'];
     
     // Add any dynamically created category that's not in the default list
     const finalCategories = [...categoryOrder];
@@ -999,6 +1001,10 @@ document.addEventListener('DOMContentLoaded', () => {
         iconName = 'tv';
         iconClass = 'genre-icon-sports';
         displayTitle = 'Sports Streaming';
+      } else if (cat === 'Anime') {
+        iconName = 'tv-2';
+        iconClass = 'genre-icon-anime';
+        displayTitle = 'Anime';
       } else if (cat === 'Development') {
         iconName = 'terminal';
         iconClass = 'genre-icon-development';
