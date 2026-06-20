@@ -271,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnLockMode.innerHTML = '<i data-lucide="unlock" style="width: 16px; height: 16px;"></i>';
       }
       localStorage.setItem('nexus_mode', 'owner');
+      document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'flex');
     } else {
       document.body.classList.remove('mode-owner');
       document.body.classList.add('mode-guest');
@@ -293,10 +294,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       localStorage.setItem('nexus_mode', 'guest');
+      document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'none');
 
-      // Kick user out of downloader view if they switch to guest mode
+      // Kick user out of downloader or admin view if they switch to guest mode
       const activeView = document.querySelector('.content-view.active');
-      if (activeView && activeView.id === 'view-downloader') {
+      if (activeView && (activeView.id === 'view-downloader' || activeView.id === 'view-admin')) {
         switchView('dashboard');
       }
     }
@@ -354,12 +356,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const password = prompt('Enter Owner Password:');
-        if (password === 'pass') {
-          setAppMode('owner');
-        } else if (password !== null) {
-          await showModalAlert('Incorrect password!', 'Authentication Failed', 'error');
+        if (password !== null) {
+          try {
+            const response = await fetch('/api/auth/owner', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ password })
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+              localStorage.setItem('owner_token', data.token);
+              setAppMode('owner');
+            } else {
+              await showModalAlert(data.error || 'Incorrect password!', 'Authentication Failed', 'error');
+            }
+          } catch (err) {
+            console.error('Owner auth error:', err);
+            await showModalAlert('Failed to authenticate with server.', 'Connection Error', 'error');
+          }
         }
       } else {
+        localStorage.removeItem('owner_token');
         setAppMode('guest');
       }
     });
@@ -393,6 +410,36 @@ document.addEventListener('DOMContentLoaded', () => {
       showModalAlert('The Media Downloader is locked in Guest Mode. Please switch to Owner Mode (bottom left) to use this feature.', 'Feature Locked', 'warning');
       return;
     }
+    if (viewId === 'admin') {
+      const isOwner = localStorage.getItem('nexus_mode') === 'owner';
+      const token = localStorage.getItem('owner_token');
+      if (!isOwner || !token) {
+        showModalAlert('The Admin Portal is locked. Please switch to Owner Mode (bottom left) to use this feature.', 'Feature Locked', 'warning');
+        return;
+      }
+      
+      // Reset active admin tab to overview
+      document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
+      
+      const firstTabBtn = document.querySelector('.admin-tab-btn[data-admin-tab="overview"]');
+      if (firstTabBtn) firstTabBtn.classList.add('active');
+      const firstTabContent = document.getElementById('admin-tab-overview');
+      if (firstTabContent) firstTabContent.classList.add('active');
+      
+      if (typeof loadAdminTab === 'function') {
+        loadAdminTab('overview');
+      }
+    }
+
+    // Send track view action to server
+    const currentMode = localStorage.getItem('nexus_mode') || 'guest';
+    const activeUser = currentMode === 'owner' ? 'Owner' : (guestUser || 'Guest');
+    fetch('/api/track/view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ viewId, username: activeUser })
+    }).catch(e => console.error('Failed to track view:', e));
 
     views.forEach(view => {
       view.classList.remove('active');
@@ -539,11 +586,12 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadSize.textContent = '0.00 MiB';
     downloadEta.textContent = '--:--';
 
-    // Emit Socket Download request
+    const isOwner = document.body.classList.contains('mode-owner');
     socket.emit('download-request', {
       url: activeMediaInfo.originalUrl,
       format: selectedFormat,
-      title: activeMediaInfo.title
+      title: activeMediaInfo.title,
+      username: isOwner ? 'Owner' : (guestUser || 'Guest')
     });
   });
 
@@ -895,7 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const faviconHtml = getFaviconHtml(item.favicon, item.title);
         
         const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
-        const canModify = (item.addedBy || 'Owner').toLowerCase() === currentUser.toLowerCase();
+        const canModify = isOwner || (item.addedBy || 'Owner').toLowerCase() === currentUser.toLowerCase();
         
         card.innerHTML = `
           <div class="bookmark-card-top">
@@ -1063,7 +1111,8 @@ document.addEventListener('DOMContentLoaded', () => {
           method: 'PUT',
           headers: { 
             'Content-Type': 'application/json',
-            'x-user-name': addedBy
+            'x-user-name': addedBy,
+            'x-owner-token': localStorage.getItem('owner_token') || ''
           },
           body: JSON.stringify({ linkUrl: urlVal, category: catVal, customTitle: titleVal, favicon: iconVal, addedBy })
         });
@@ -1143,7 +1192,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const response = await fetch(`/api/links/${id}`, { 
         method: 'DELETE',
         headers: {
-          'x-user-name': currentUser
+          'x-user-name': currentUser,
+          'x-owner-token': localStorage.getItem('owner_token') || ''
         }
       });
       const res = await response.json();
@@ -2952,6 +3002,477 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // ==========================================================================
+  // Admin & Owner Portal Logic
+  // ==========================================================================
+  
+  let adminUsers = [];
+  let adminBookmarks = [];
+
+  // Admin tabs switching
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabName = btn.getAttribute('data-admin-tab');
+      document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
+      
+      btn.classList.add('active');
+      const targetContent = document.getElementById(`admin-tab-${tabName}`);
+      if (targetContent) targetContent.classList.add('active');
+      
+      loadAdminTab(tabName);
+    });
+  });
+
+  window.loadAdminTab = async function(tabName) {
+    const token = localStorage.getItem('owner_token');
+    if (!token) return;
+
+    if (tabName === 'overview') {
+      await loadAdminOverview(token);
+    } else if (tabName === 'users') {
+      await loadAdminUsers(token);
+    } else if (tabName === 'bookmarks') {
+      await loadAdminBookmarks(token);
+    } else if (tabName === 'analytics') {
+      await loadAdminAnalytics(token);
+    }
+  };
+
+  async function loadAdminOverview(token) {
+    try {
+      const response = await fetch('/api/admin/stats', {
+        headers: { 'x-owner-token': token }
+      });
+      if (!response.ok) throw new Error('Failed to fetch stats');
+      const data = await response.json();
+      
+      // Update stats cards
+      document.getElementById('admin-stat-users').textContent = data.stats.users;
+      document.getElementById('admin-stat-bookmarks').textContent = data.stats.bookmarks;
+      document.getElementById('admin-stat-downloads').textContent = data.stats.activeDownloads;
+      
+      // Format uptime
+      const hrs = Math.floor(data.uptime / 3600);
+      const mins = Math.floor((data.uptime % 3600) / 60);
+      const secs = Math.floor(data.uptime % 60);
+      document.getElementById('admin-stat-uptime').textContent = `${hrs}h ${mins}m ${secs}s`;
+
+      // Update spec details
+      document.getElementById('admin-spec-os').textContent = data.system.platform;
+      document.getElementById('admin-spec-arch').textContent = data.system.arch;
+      document.getElementById('admin-spec-cpus').textContent = `${data.system.cpus} Cores`;
+      document.getElementById('admin-spec-mem').textContent = `${(data.system.freeMem / 1024 / 1024 / 1024).toFixed(2)} GB / ${(data.system.totalMem / 1024 / 1024 / 1024).toFixed(2)} GB Free`;
+      document.getElementById('admin-spec-node-mem').textContent = `${(data.memory.rss / 1024 / 1024).toFixed(1)} MB`;
+    } catch (err) {
+      console.error('Stats loading error:', err);
+    }
+  }
+
+  async function loadAdminUsers(token) {
+    try {
+      const response = await fetch('/api/admin/users', {
+        headers: { 'x-owner-token': token }
+      });
+      if (!response.ok) throw new Error('Failed to fetch users');
+      adminUsers = await response.json();
+      renderAdminUsers(adminUsers);
+    } catch (err) {
+      console.error('Users loading error:', err);
+    }
+  }
+
+  function renderAdminUsers(users) {
+    const listBody = document.getElementById('admin-users-list');
+    listBody.innerHTML = '';
+    if (!users || users.length === 0) {
+      listBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 20px;">No guest user accounts found.</td></tr>';
+      return;
+    }
+
+    users.forEach(u => {
+      const tr = document.createElement('tr');
+      const regDate = u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A';
+      
+      tr.innerHTML = `
+        <td style="font-weight: 600; color: var(--text-primary);">${u.username}</td>
+        <td>${regDate}</td>
+        <td style="text-align: right;">
+          <div class="admin-actions">
+            <button class="btn-admin-action reset-pw" title="Reset Password">
+              <i data-lucide="key-round"></i>
+            </button>
+            <button class="btn-admin-action delete" title="Delete User">
+              <i data-lucide="user-minus"></i>
+            </button>
+          </div>
+        </td>
+      `;
+      
+      // Reset Password Handler
+      tr.querySelector('.reset-pw').addEventListener('click', async () => {
+        const username = u.username;
+        const newPassword = prompt(`Enter new password for guest user "${username}":`);
+        if (newPassword === null) return;
+        if (newPassword.trim().length < 4) {
+          await showModalAlert('Password must be at least 4 characters long.', 'Invalid Password', 'error');
+          return;
+        }
+        
+        try {
+          const res = await fetch(`/api/admin/users/${username}/reset-password`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-owner-token': localStorage.getItem('owner_token')
+            },
+            body: JSON.stringify({ newPassword: newPassword.trim() })
+          });
+          const result = await res.json();
+          if (res.ok) {
+            await showModalAlert(result.message, 'Password Reset Success', 'success');
+          } else {
+            await showModalAlert(result.error, 'Reset Failed', 'error');
+          }
+        } catch (e) {
+          await showModalAlert('Failed to reset password.', 'Error', 'error');
+        }
+      });
+
+      // Delete User Handler
+      tr.querySelector('.delete').addEventListener('click', async () => {
+        const username = u.username;
+        const confirmed = await showModalConfirm(`Are you sure you want to permanently delete the guest account "${username}"? All their session access will be revoked.`, 'Delete Guest Account');
+        if (!confirmed) return;
+
+        try {
+          const res = await fetch(`/api/admin/users/${username}`, {
+            method: 'DELETE',
+            headers: {
+              'x-owner-token': localStorage.getItem('owner_token')
+            }
+          });
+          const result = await res.json();
+          if (res.ok) {
+            await showModalAlert(result.message, 'User Deleted', 'success');
+            loadAdminUsers(localStorage.getItem('owner_token'));
+          } else {
+            await showModalAlert(result.error, 'Delete Failed', 'error');
+          }
+        } catch (e) {
+          await showModalAlert('Failed to delete account.', 'Error', 'error');
+        }
+      });
+
+      listBody.appendChild(tr);
+    });
+
+    lucide.createIcons();
+  }
+
+  // Filter users search
+  document.getElementById('admin-users-search').addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    const filtered = adminUsers.filter(u => u.username.toLowerCase().includes(query));
+    renderAdminUsers(filtered);
+  });
+
+  async function loadAdminBookmarks(token) {
+    try {
+      const response = await fetch('/api/links');
+      if (!response.ok) throw new Error('Failed to fetch bookmarks');
+      adminBookmarks = await response.json();
+      renderAdminBookmarks(adminBookmarks);
+    } catch (err) {
+      console.error('Bookmarks loading error:', err);
+    }
+  }
+
+  function renderAdminBookmarks(bookmarks) {
+    const listBody = document.getElementById('admin-bookmarks-list');
+    listBody.innerHTML = '';
+    if (!bookmarks || bookmarks.length === 0) {
+      listBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No bookmarks found.</td></tr>';
+      return;
+    }
+
+    bookmarks.forEach(bm => {
+      const tr = document.createElement('tr');
+      
+      let iconHtml = `<div class="admin-favicon"><i data-lucide="globe" style="width:14px; height:14px; color:var(--text-muted)"></i></div>`;
+      if (bm.favicon) {
+        if (bm.favicon.startsWith('letter:')) {
+          const letter = bm.favicon.split(':')[1];
+          iconHtml = `<div class="admin-favicon" style="font-weight:700; color:var(--accent-purple); font-size:12px;">${letter}</div>`;
+        } else if (bm.favicon.startsWith('icon:')) {
+          const icon = bm.favicon.split(':')[1];
+          iconHtml = `<div class="admin-favicon"><i data-lucide="${icon}" style="width:14px; height:14px; color:var(--accent-cyan)"></i></div>`;
+        } else {
+          iconHtml = `<div class="admin-favicon"><img src="${bm.favicon}" onerror="this.src='blend_icon.png'"></div>`;
+        }
+      }
+
+      tr.innerHTML = `
+        <td style="width: 50px;">${iconHtml}</td>
+        <td>
+          <span class="admin-table-title">${bm.title}</span>
+          <span class="admin-table-url" title="${bm.url}">${bm.url}</span>
+        </td>
+        <td><span class="category-tag category-tag-general" style="font-size: 11px; padding: 2px 6px;">${bm.category}</span></td>
+        <td style="font-weight: 500;">${bm.addedBy || 'Owner'}</td>
+        <td style="text-align: right;">
+          <div class="admin-actions">
+            <button class="btn-admin-action edit-btn" title="Edit Bookmark">
+              <i data-lucide="edit-2"></i>
+            </button>
+            <button class="btn-admin-action delete" title="Delete Bookmark">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+        </td>
+      `;
+
+      // Edit Bookmark Hook
+      tr.querySelector('.edit-btn').addEventListener('click', () => {
+        editingLinkId = bm.id;
+        linkUrlInput.value = bm.url;
+        linkTitleInput.value = bm.title;
+        linkCategorySelect.value = bm.category;
+        
+        let selectVal = 'auto';
+        if (bm.favicon && bm.favicon.startsWith('letter:')) {
+          selectVal = 'letter';
+        } else if (bm.favicon && bm.favicon.startsWith('icon:')) {
+          selectVal = bm.favicon;
+        }
+        linkIconSelect.value = selectVal;
+
+        switchView('linksaver');
+        const form = document.getElementById('linksaver-form');
+        form.classList.remove('hidden');
+        const submitBtnSpan = document.getElementById('btn-save-bookmark').querySelector('span');
+        if (submitBtnSpan) submitBtnSpan.textContent = 'Update Bookmark';
+      });
+
+      // Delete Bookmark Hook
+      tr.querySelector('.delete').addEventListener('click', async () => {
+        const confirmed = await showModalConfirm('Are you sure you want to delete this bookmark?', 'Delete Bookmark');
+        if (!confirmed) return;
+
+        try {
+          const response = await fetch(`/api/links/${bm.id}`, {
+            method: 'DELETE',
+            headers: {
+              'x-user-name': 'Owner',
+              'x-owner-token': localStorage.getItem('owner_token')
+            }
+          });
+          const result = await response.json();
+          if (response.ok && result.message) {
+            await showModalAlert(result.message, 'Bookmark Deleted', 'success');
+            loadAdminBookmarks(localStorage.getItem('owner_token'));
+          } else {
+            await showModalAlert(result.error || 'Failed to delete bookmark.', 'Delete Error', 'error');
+          }
+        } catch (e) {
+          console.error(e);
+          await showModalAlert('Network error occurred.', 'Error', 'error');
+        }
+      });
+
+      listBody.appendChild(tr);
+    });
+
+    lucide.createIcons();
+  }
+
+  // Filter bookmarks search
+  document.getElementById('admin-bookmarks-search').addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    const filtered = adminBookmarks.filter(bm => 
+      bm.title.toLowerCase().includes(query) ||
+      bm.url.toLowerCase().includes(query) ||
+      (bm.addedBy || 'owner').toLowerCase().includes(query)
+    );
+    renderAdminBookmarks(filtered);
+  });
+
+  // Change owner password handler
+  document.getElementById('owner-password-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const currentPassword = document.getElementById('owner-current-password').value;
+    const newPassword = document.getElementById('owner-new-password').value;
+    const confirmPassword = document.getElementById('owner-confirm-password').value;
+
+    if (newPassword !== confirmPassword) {
+      await showModalAlert('New passwords do not match!', 'Validation Error', 'error');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-owner-token': localStorage.getItem('owner_token')
+        },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        await showModalAlert(result.message, 'Password Changed', 'success');
+        document.getElementById('owner-password-form').reset();
+      } else {
+        await showModalAlert(result.error, 'Update Failed', 'error');
+      }
+    } catch (e) {
+      await showModalAlert('Connection error updating password.', 'Error', 'error');
+    }
+  });
+
+  // Clean Temp Operations Handler
+  document.getElementById('btn-admin-clean-temp').addEventListener('click', async () => {
+    const confirmed = await showModalConfirm('Are you sure you want to purge all downloaded files in the temporary folder?', 'Purge Temp Files');
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch('/api/admin/clean-temp', {
+        method: 'POST',
+        headers: { 'x-owner-token': localStorage.getItem('owner_token') }
+      });
+      const result = await res.json();
+      if (res.ok) {
+        await showModalAlert(result.message, 'Cleanup Complete', 'success');
+      } else {
+        await showModalAlert(result.error, 'Cleanup Failed', 'error');
+      }
+    } catch (e) {
+      await showModalAlert('Connection error cleaning files.', 'Error', 'error');
+    }
+  });
+
+  // Export DB backup handler
+  document.getElementById('btn-admin-export').addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/admin/export', {
+        headers: { 'x-owner-token': localStorage.getItem('owner_token') }
+      });
+      if (!res.ok) throw new Error('Backup failed');
+      const data = await res.json();
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `touchme_portal_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      await showModalAlert('Failed to export backup.', 'Export Error', 'error');
+    }
+  });
+
+  // ==========================================================================
+  // Analytics & Activity Log Dashboard Controller
+  // ==========================================================================
+  
+  let adminActivityLogs = [];
+
+  async function loadAdminAnalytics(token) {
+    try {
+      const response = await fetch('/api/admin/analytics', {
+        headers: { 'x-owner-token': token }
+      });
+      if (!response.ok) throw new Error('Failed to fetch analytics');
+      const data = await response.json();
+      
+      const counts = data.counts || {};
+      adminActivityLogs = data.logs || [];
+      
+      // Calculate total views
+      const totalViews = Object.values(counts).reduce((a, b) => a + b, 0);
+      document.getElementById('analytics-total-views').textContent = totalViews;
+
+      // Render section progress bars
+      const sectionContainer = document.getElementById('analytics-sections-container');
+      sectionContainer.innerHTML = '';
+
+      const sectionMetadata = [
+        { id: 'dashboard', name: 'Dashboard', class: 'dashboard' },
+        { id: 'downloader', name: 'Media Downloader', class: 'downloader' },
+        { id: 'linksaver', name: 'Link Saver', class: 'linksaver' },
+        { id: 'games', name: 'Arcade Zone', class: 'games' },
+        { id: 'admin', name: 'Admin Portal', class: 'admin' }
+      ];
+
+      sectionMetadata.forEach(sec => {
+        const count = counts[sec.id] || 0;
+        const percentage = totalViews > 0 ? ((count / totalViews) * 100).toFixed(1) : '0.0';
+        
+        const row = document.createElement('div');
+        row.className = 'analytics-section-row';
+        row.innerHTML = `
+          <div class="analytics-label-row">
+            <span class="analytics-section-title">${sec.name}</span>
+            <span class="analytics-section-percentage">${count} views (${percentage}%)</span>
+          </div>
+          <div class="analytics-bar-bg">
+            <div class="analytics-bar-fill ${sec.class}" style="width: ${percentage}%"></div>
+          </div>
+        `;
+        sectionContainer.appendChild(row);
+      });
+
+      // Render activity feed logs
+      renderAdminAuditLog(adminActivityLogs);
+    } catch (err) {
+      console.error('Analytics loading error:', err);
+    }
+  }
+
+  function renderAdminAuditLog(logs) {
+    const feed = document.getElementById('admin-audit-log');
+    feed.innerHTML = '';
+    if (!logs || logs.length === 0) {
+      feed.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--text-muted);">No activity logs available.</div>';
+      return;
+    }
+
+    logs.forEach(log => {
+      const row = document.createElement('div');
+      row.className = 'audit-row';
+      
+      const timeStr = new Date(log.timestamp).toLocaleString();
+      let roleClass = 'role-guest';
+      if (log.username.toLowerCase() === 'owner') {
+        roleClass = 'role-owner';
+      } else if (log.username.toLowerCase() !== 'guest') {
+        roleClass = 'role-guest-auth';
+      }
+
+      row.innerHTML = `
+        <span class="audit-time">${timeStr}</span>
+        <span class="audit-user ${roleClass}">${log.username}</span>
+        <span class="audit-action">${log.action}</span>
+        <span class="audit-ip">${log.ip}</span>
+      `;
+      feed.appendChild(row);
+    });
+  }
+
+  // Filter activity search
+  document.getElementById('admin-activity-search').addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    const filtered = adminActivityLogs.filter(log => 
+      log.username.toLowerCase().includes(query) ||
+      log.action.toLowerCase().includes(query) ||
+      log.ip.toLowerCase().includes(query)
+    );
+    renderAdminAuditLog(filtered);
+  });
 
 });
 

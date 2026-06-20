@@ -45,6 +45,10 @@
           <i data-lucide="gamepad-2"></i>
           <span>Arcade Zone</span>
         </button>
+        <button class="nav-item owner-only" data-view="admin" style="display: none;">
+          <i data-lucide="shield-check"></i>
+          <span>Admin Portal</span>
+        </button>
       </nav>
       
       <div class="sidebar-footer" id="mode-switcher-footer" style="cursor: pointer;" title="Click to switch between Guest/Owner mode">
@@ -1050,6 +1054,266 @@
                   </div>
                 </div>
 
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: ADMIN PORTAL -->
+      <section id="view-admin" class="content-view">
+        <div class="view-header">
+          <h1>Admin Control Portal</h1>
+          <p>Manage system, review bookmarks, reset passwords, and monitor system performance.</p>
+        </div>
+
+        <div class="admin-tabs">
+          <button class="admin-tab-btn active" data-admin-tab="overview">
+            <i data-lucide="bar-chart-3"></i>
+            <span>Overview</span>
+          </button>
+          <button class="admin-tab-btn" data-admin-tab="users">
+            <i data-lucide="users"></i>
+            <span>Manage Users</span>
+          </button>
+          <button class="admin-tab-btn" data-admin-tab="bookmarks">
+            <i data-lucide="bookmark"></i>
+            <span>Manage Bookmarks</span>
+          </button>
+          <button class="admin-tab-btn" data-admin-tab="settings">
+            <i data-lucide="settings"></i>
+            <span>Portal Settings</span>
+          </button>
+          <button class="admin-tab-btn" data-admin-tab="analytics">
+            <i data-lucide="activity"></i>
+            <span>Usage & Analytics</span>
+          </button>
+        </div>
+
+        <!-- TAB: OVERVIEW -->
+        <div class="admin-tab-content active" id="admin-tab-overview">
+          <div class="admin-stats-grid">
+            <div class="stat-card">
+              <div class="stat-card-icon" style="color: var(--accent-cyan); background: rgba(6, 182, 212, 0.1);">
+                <i data-lucide="users"></i>
+              </div>
+              <div class="stat-card-details">
+                <span class="stat-card-title">Registered Users</span>
+                <span class="stat-card-value" id="admin-stat-users">-</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-icon" style="color: var(--accent-purple); background: rgba(139, 92, 246, 0.1);">
+                <i data-lucide="bookmark"></i>
+              </div>
+              <div class="stat-card-details">
+                <span class="stat-card-title">Total Bookmarks</span>
+                <span class="stat-card-value" id="admin-stat-bookmarks">-</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-icon" style="color: var(--accent-pink); background: rgba(236, 72, 153, 0.1);">
+                <i data-lucide="download-cloud"></i>
+              </div>
+              <div class="stat-card-details">
+                <span class="stat-card-title">Active Downloads</span>
+                <span class="stat-card-value" id="admin-stat-downloads">-</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-icon" style="color: var(--accent-green); background: rgba(16, 185, 129, 0.1);">
+                <i data-lucide="activity"></i>
+              </div>
+              <div class="stat-card-details">
+                <span class="stat-card-title">Server Uptime</span>
+                <span class="stat-card-value" id="admin-stat-uptime">-</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-layout-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-top: 20px;">
+            <!-- Server Specs Card -->
+            <div class="glass-panel">
+              <div class="panel-header">
+                <h2><i data-lucide="cpu" class="panel-header-icon"></i> Server Specifications</h2>
+              </div>
+              <div class="panel-body">
+                <table class="specs-table">
+                  <tbody>
+                    <tr>
+                      <td>OS Platform</td>
+                      <td id="admin-spec-os">-</td>
+                    </tr>
+                    <tr>
+                      <td>CPU Architecture</td>
+                      <td id="admin-spec-arch">-</td>
+                    </tr>
+                    <tr>
+                      <td>CPU Core Count</td>
+                      <td id="admin-spec-cpus">-</td>
+                    </tr>
+                    <tr>
+                      <td>System Memory</td>
+                      <td id="admin-spec-mem">-</td>
+                    </tr>
+                    <tr>
+                      <td>Node.js Memory RSS</td>
+                      <td id="admin-spec-node-mem">-</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Quick Actions Card -->
+            <div class="glass-panel">
+              <div class="panel-header">
+                <h2><i data-lucide="zap" class="panel-header-icon"></i> Quick Operations</h2>
+              </div>
+              <div class="panel-body operations-list" style="display: flex; flex-direction: column; gap: 12px; padding: 8px 0;">
+                <button class="btn-glow" id="btn-admin-clean-temp" style="justify-content: center; gap: 8px;">
+                  <i data-lucide="trash-2"></i>
+                  <span>Clean Downloads Temp</span>
+                </button>
+                <button class="btn-success" id="btn-admin-export" style="justify-content: center; gap: 8px; border-radius: var(--border-radius-md);">
+                  <i data-lucide="download"></i>
+                  <span>Export Database Backup</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: USERS -->
+        <div class="admin-tab-content" id="admin-tab-users">
+          <div class="glass-panel">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <h2><i data-lucide="users-round" class="panel-header-icon"></i> Registered User Accounts</h2>
+              <div class="search-bar-wrapper" style="width: 250px;">
+                <input type="text" id="admin-users-search" class="admin-search-input" placeholder="Search users...">
+                <i data-lucide="search" class="search-bar-icon"></i>
+              </div>
+            </div>
+            <div class="panel-body" style="overflow-x: auto;">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Username</th>
+                    <th>Registered Date</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-users-list">
+                  <!-- Users loaded dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: BOOKMARKS -->
+        <div class="admin-tab-content" id="admin-tab-bookmarks">
+          <div class="glass-panel">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <h2><i data-lucide="folder-git" class="panel-header-icon"></i> Global Bookmarks Manager</h2>
+              <div class="search-bar-wrapper" style="width: 250px;">
+                <input type="text" id="admin-bookmarks-search" class="admin-search-input" placeholder="Search bookmarks...">
+                <i data-lucide="search" class="search-bar-icon"></i>
+              </div>
+            </div>
+            <div class="panel-body" style="overflow-x: auto;">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Icon</th>
+                    <th>Title & URL</th>
+                    <th>Category</th>
+                    <th>Created By</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-bookmarks-list">
+                  <!-- Bookmarks loaded dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: SETTINGS -->
+        <div class="admin-tab-content" id="admin-tab-settings">
+          <div class="glass-panel" style="max-width: 550px;">
+            <div class="panel-header">
+              <h2><i data-lucide="lock-keyhole" class="panel-header-icon"></i> Change Owner Access Password</h2>
+            </div>
+            <div class="panel-body">
+              <form id="owner-password-form" style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="form-group">
+                  <label for="owner-current-password">Current Owner Password</label>
+                  <div class="input-glow-wrapper">
+                    <input type="password" id="owner-current-password" placeholder="Enter current owner password" required>
+                    <span class="input-focus-border"></span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="owner-new-password">New Owner Password</label>
+                  <div class="input-glow-wrapper">
+                    <input type="password" id="owner-new-password" placeholder="Enter new password (min. 4 characters)" required>
+                    <span class="input-focus-border"></span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="owner-confirm-password">Confirm New Password</label>
+                  <div class="input-glow-wrapper">
+                    <input type="password" id="owner-confirm-password" placeholder="Confirm new password" required>
+                    <span class="input-focus-border"></span>
+                  </div>
+                </div>
+                <button type="submit" class="btn-glow" style="margin-top: 10px; align-self: flex-start;">
+                  <i data-lucide="save"></i>
+                  <span>Update Password</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: ANALYTICS -->
+        <div class="admin-tab-content" id="admin-tab-analytics">
+          <div class="admin-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <!-- Section Views Stat Card -->
+            <div class="glass-panel">
+              <div class="panel-header">
+                <h2><i data-lucide="bar-chart-4" class="panel-header-icon"></i> Section Popularity</h2>
+              </div>
+              <div class="panel-body" id="analytics-sections-container" style="display: flex; flex-direction: column; gap: 16px;">
+                <!-- Dynamically loaded popularity progress bars -->
+              </div>
+            </div>
+
+            <!-- Total Views Overview -->
+            <div class="glass-panel" style="display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 32px; text-align: center;">
+              <div class="stat-card-icon" style="color: var(--accent-gold); background: rgba(251, 191, 36, 0.1); width: 64px; height: 64px; border-radius: 50%; margin-bottom: 16px; display: flex; align-items: center; justify-content: center;">
+                <i data-lucide="eye" style="width: 32px; height: 32px;"></i>
+              </div>
+              <span class="stat-card-title" style="font-size: 14px;">Total Section Views</span>
+              <span class="stat-card-value" id="analytics-total-views" style="font-size: 48px; margin-top: 8px;">0</span>
+              <p style="font-size: 13px; color: var(--text-muted); margin-top: 12px; max-width: 250px;">Tracking dashboard visits, tool launches, and admin session activities since server initialization.</p>
+            </div>
+          </div>
+
+          <!-- Activity Audit Log Card -->
+          <div class="glass-panel" style="margin-top: 20px;">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <h2><i data-lucide="scroll" class="panel-header-icon"></i> User Activity Audit Feed</h2>
+              <div class="search-bar-wrapper" style="width: 300px;">
+                <input type="text" id="admin-activity-search" class="admin-search-input" placeholder="Filter logs by username or action...">
+                <i data-lucide="search" class="search-bar-icon"></i>
+              </div>
+            </div>
+            <div class="panel-body" style="padding: 0;">
+              <div class="audit-log-terminal" id="admin-audit-log" style="max-height: 400px; overflow-y: auto; padding: 12px; font-family: monospace; font-size: 12px; background: rgba(5, 7, 12, 0.5);">
+                <!-- Dynamically loaded terminal-like logs -->
               </div>
             </div>
           </div>

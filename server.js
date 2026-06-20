@@ -42,6 +42,72 @@ if (!fs.existsSync(LINKS_FILE)) fs.writeFileSync(LINKS_FILE, JSON.stringify([], 
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2));
 
+const VIEW_COUNTS_FILE = path.join(DATA_DIR, 'view_counts.json');
+const USAGE_LOGS_FILE = path.join(DATA_DIR, 'usage_logs.json');
+
+if (!fs.existsSync(VIEW_COUNTS_FILE)) {
+  fs.writeFileSync(VIEW_COUNTS_FILE, JSON.stringify({
+    dashboard: 0,
+    downloader: 0,
+    linksaver: 0,
+    games: 0,
+    admin: 0
+  }, null, 2));
+}
+if (!fs.existsSync(USAGE_LOGS_FILE)) {
+  fs.writeFileSync(USAGE_LOGS_FILE, JSON.stringify([], null, 2));
+}
+
+function trackUsage(username, action, req) {
+  try {
+    const logs = JSON.parse(fs.readFileSync(USAGE_LOGS_FILE, 'utf8') || '[]');
+    let ip = 'N/A';
+    if (req) {
+      ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+      if (ip.includes('::ffff:')) {
+        ip = ip.replace('::ffff:', '');
+      }
+    }
+    logs.unshift({
+      timestamp: new Date().toISOString(),
+      username: username || 'Guest',
+      action: action,
+      ip: ip
+    });
+    if (logs.length > 1000) {
+      logs.pop();
+    }
+    fs.writeFileSync(USAGE_LOGS_FILE, JSON.stringify(logs, null, 2));
+  } catch (e) {
+    console.error('Error tracking usage:', e);
+  }
+}
+
+// Owner Mode Security Configuration
+const OWNER_CONFIG_FILE = path.join(DATA_DIR, 'owner_config.json');
+let ownerPassword = process.env.OWNER_PASSWORD || 'pass';
+if (fs.existsSync(OWNER_CONFIG_FILE)) {
+  try {
+    const config = JSON.parse(fs.readFileSync(OWNER_CONFIG_FILE, 'utf8'));
+    if (config.password) {
+      ownerPassword = config.password;
+    }
+  } catch (e) {
+    console.error('Error reading owner_config.json:', e);
+  }
+}
+const ownerSessionToken = uuidv4();
+
+function requireOwner(req, res, next) {
+  const token = req.headers['x-owner-token'];
+  if (token && token === ownerSessionToken) {
+    req.isOwner = true;
+    next();
+  } else {
+    res.status(401).json({ error: 'Unauthorized: Owner access required' });
+  }
+}
+
 // Memory map to track download sessions
 const activeDownloads = new Map();
 
@@ -216,6 +282,9 @@ app.get('/api/info', (req, res) => {
       formats.push({ id: 'best', label: 'Highest Quality Available', ext: 'mp4' });
       formats.push({ id: 'mp3', label: 'Audio Only (MP3 Extraction)', ext: 'mp3' });
 
+      const requestUser = req.headers['x-user-name'] || 'Guest';
+      trackUsage(requestUser, `Fetched media metadata for: "${meta.title}"`, req);
+
       res.json({
         title: meta.title,
         duration: meta.duration, // in seconds
@@ -358,6 +427,7 @@ app.post('/api/links', async (req, res) => {
       addedBy: inserted.added_by || inserted.addedby || 'Owner'
     };
 
+    trackUsage(formatted.addedBy, `Created bookmark: "${formatted.title}"`, req);
     res.status(201).json(formatted);
   } catch (err) {
     console.error('API Error:', err);
@@ -387,7 +457,8 @@ app.delete('/api/links/:id', async (req, res) => {
     }
 
     const owner = bookmark.added_by || bookmark.addedby || 'Owner';
-    if (owner.toLowerCase() !== reqUser.toLowerCase()) {
+    const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
+    if (!isOwnerRequest && owner.toLowerCase() !== reqUser.toLowerCase()) {
       return res.status(403).json({ error: 'You can only delete your own bookmarks' });
     }
 
@@ -411,6 +482,7 @@ app.delete('/api/links/:id', async (req, res) => {
       return res.status(500).json({ error: 'Could not delete bookmark' });
     }
 
+    trackUsage(reqUser, `Deleted bookmark: "${bookmark.title}"`, req);
     res.json({ message: 'Link deleted successfully' });
   } catch (err) {
     console.error('API Error:', err);
@@ -445,7 +517,8 @@ app.put('/api/links/:id', async (req, res) => {
     }
 
     const owner = bookmark.added_by || bookmark.addedby || 'Owner';
-    if (owner.toLowerCase() !== reqUser.toLowerCase()) {
+    const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
+    if (!isOwnerRequest && owner.toLowerCase() !== reqUser.toLowerCase()) {
       return res.status(403).json({ error: 'You can only edit your own bookmarks' });
     }
 
@@ -559,6 +632,7 @@ app.put('/api/links/:id', async (req, res) => {
       addedBy: updated.added_by || updated.addedby || 'Owner'
     };
 
+    trackUsage(reqUser, `Updated bookmark: "${formatted.title}"`, req);
     res.json(formatted);
   } catch (err) {
     console.error('API Error:', err);
@@ -606,6 +680,7 @@ app.post('/api/auth/signup', async (req, res) => {
       return res.status(500).json({ error: 'Could not register user' });
     }
 
+    trackUsage(cleanUsername, 'Registered a new guest account', req);
     res.status(201).json({ message: 'User registered successfully', username: cleanUsername });
   } catch (err) {
     console.error('Signup Error:', err);
@@ -639,6 +714,7 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
+    trackUsage(data[0].username, 'Logged into guest account', req);
     res.json({ success: true, username: data[0].username });
   } catch (err) {
     console.error('Login Error:', err);
@@ -651,7 +727,8 @@ io.on('connection', (socket) => {
   console.log(`Socket client connected: ${socket.id}`);
 
   socket.on('download-request', (data) => {
-    const { url: videoUrl, format, title } = data;
+    const { url: videoUrl, format, title, username } = data;
+    trackUsage(username || 'Guest', `Started media download: "${title || videoUrl}"`);
     const downloadToken = uuidv4();
     
     // Create folder mapping and standard output file path
@@ -774,6 +851,224 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`Socket client disconnected: ${socket.id}`);
   });
+});
+
+// ==========================================================================
+// Admin & Owner Portal Endpoints
+// ==========================================================================
+
+app.post('/api/auth/owner', (req, res) => {
+  const { password } = req.body;
+  if (password === ownerPassword) {
+    trackUsage('Owner', 'Logged into Owner Mode', req);
+    res.json({ success: true, token: ownerSessionToken });
+  } else {
+    res.status(401).json({ error: 'Incorrect password' });
+  }
+});
+
+app.get('/api/admin/stats', requireOwner, async (req, res) => {
+  try {
+    const os = require('os');
+    const memory = process.memoryUsage();
+    const uptime = process.uptime();
+
+    // Fetch exact counts from Supabase
+    const { count: bookmarksCount, error: bmError } = await supabase
+      .from('bookmarks')
+      .select('*', { count: 'exact', head: true });
+    
+    const { count: usersCount, error: usrError } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true });
+
+    res.json({
+      uptime,
+      memory: {
+        rss: memory.rss,
+        heapTotal: memory.heapTotal,
+        heapUsed: memory.heapUsed,
+        external: memory.external
+      },
+      system: {
+        platform: os.platform(),
+        arch: os.arch(),
+        cpus: os.cpus().length,
+        freeMem: os.freemem(),
+        totalMem: os.totalmem()
+      },
+      stats: {
+        users: usersCount || 0,
+        bookmarks: bookmarksCount || 0,
+        activeDownloads: activeDownloads.size
+      }
+    });
+  } catch (err) {
+    console.error('Stats Error:', err);
+    res.status(500).json({ error: 'Failed to fetch server statistics' });
+  }
+});
+
+app.get('/api/admin/users', requireOwner, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('username, created_at')
+      .order('username', { ascending: true });
+
+    if (error) {
+      console.error('Fetch users error:', error.message);
+      return res.status(500).json({ error: 'Failed to fetch users' });
+    }
+
+    res.json(data || []);
+  } catch (err) {
+    console.error('Users API Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/admin/users/:username', requireOwner, async (req, res) => {
+  const username = req.params.username;
+  try {
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .ilike('username', username);
+
+    if (error) {
+      console.error('Delete user error:', error.message);
+      return res.status(500).json({ error: 'Failed to delete user' });
+    }
+
+    trackUsage('Owner', `Deleted user account "${username}"`, req);
+    res.json({ message: `User "${username}" deleted successfully` });
+  } catch (err) {
+    console.error('Delete user API Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/admin/users/:username/reset-password', requireOwner, async (req, res) => {
+  const username = req.params.username;
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.trim().length < 4) {
+    return res.status(400).json({ error: 'Password must be at least 4 characters long' });
+  }
+  try {
+    const { error } = await supabase
+      .from('users')
+      .update({ password: newPassword.trim() })
+      .ilike('username', username);
+
+    if (error) {
+      console.error('Reset password error:', error.message);
+      return res.status(500).json({ error: 'Failed to reset password' });
+    }
+
+    trackUsage('Owner', `Reset password for user "${username}"`, req);
+    res.json({ message: `Password for "${username}" reset successfully` });
+  } catch (err) {
+    console.error('Reset password API Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/admin/change-password', requireOwner, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (currentPassword !== ownerPassword) {
+    return res.status(400).json({ error: 'Current owner password is incorrect' });
+  }
+  if (!newPassword || newPassword.trim().length < 4) {
+    return res.status(400).json({ error: 'New password must be at least 4 characters long' });
+  }
+
+  ownerPassword = newPassword.trim();
+  try {
+    fs.writeFileSync(OWNER_CONFIG_FILE, JSON.stringify({ password: ownerPassword }, null, 2));
+    trackUsage('Owner', 'Changed Owner Access Password', req);
+    res.json({ message: 'Owner password changed successfully' });
+  } catch (err) {
+    console.error('Failed to save config:', err);
+    res.status(500).json({ error: 'Failed to save new password on the server' });
+  }
+});
+
+app.post('/api/admin/clean-temp', requireOwner, (req, res) => {
+  fs.readdir(TEMP_DIR, (err, files) => {
+    if (err) {
+      return res.status(500).json({ error: 'Failed to read temp directory' });
+    }
+    let deletedCount = 0;
+    for (const file of files) {
+      try {
+        fs.unlinkSync(path.join(TEMP_DIR, file));
+        deletedCount++;
+      } catch (e) {
+        console.error(`Failed to delete ${file}:`, e);
+      }
+    }
+    trackUsage('Owner', `Purged temporary downloads folder (${deletedCount} files)`, req);
+    res.json({ message: `Cleaned temp directory. Removed ${deletedCount} files.` });
+  });
+});
+
+app.get('/api/admin/export', requireOwner, async (req, res) => {
+  try {
+    const { data: bookmarks, error: bmError } = await supabase
+      .from('bookmarks')
+      .select('*');
+    const { data: users, error: usrError } = await supabase
+      .from('users')
+      .select('username, created_at');
+
+    trackUsage('Owner', 'Exported database backup', req);
+    res.json({
+      exportedAt: new Date().toISOString(),
+      bookmarks: bookmarks || [],
+      users: users || []
+    });
+  } catch (err) {
+    console.error('Export Error:', err);
+    res.status(500).json({ error: 'Failed to export site data' });
+  }
+});
+
+// New Analytics Tracking Endpoints
+app.post('/api/track/view', (req, res) => {
+  const { viewId, username } = req.body;
+  if (!viewId) return res.status(400).json({ error: 'viewId is required' });
+
+  try {
+    const counts = JSON.parse(fs.readFileSync(VIEW_COUNTS_FILE, 'utf8') || '{}');
+    counts[viewId] = (counts[viewId] || 0) + 1;
+    fs.writeFileSync(VIEW_COUNTS_FILE, JSON.stringify(counts, null, 2));
+
+    const cleanName = username || 'Guest';
+    let sectionName = viewId;
+    if (viewId === 'dashboard') sectionName = 'Dashboard';
+    else if (viewId === 'downloader') sectionName = 'Media Downloader';
+    else if (viewId === 'linksaver') sectionName = 'Link Saver';
+    else if (viewId === 'games') sectionName = 'Arcade Zone';
+    else if (viewId === 'admin') sectionName = 'Admin Portal';
+
+    trackUsage(cleanName, `Viewed section: ${sectionName}`, req);
+    res.json({ success: true, counts });
+  } catch (err) {
+    console.error('Track view error:', err);
+    res.status(500).json({ error: 'Failed to record section view' });
+  }
+});
+
+app.get('/api/admin/analytics', requireOwner, (req, res) => {
+  try {
+    const counts = JSON.parse(fs.readFileSync(VIEW_COUNTS_FILE, 'utf8') || '{}');
+    const logs = JSON.parse(fs.readFileSync(USAGE_LOGS_FILE, 'utf8') || '[]');
+    res.json({ counts, logs });
+  } catch (err) {
+    console.error('Fetch analytics error:', err);
+    res.status(500).json({ error: 'Failed to retrieve analytics data' });
+  }
 });
 
 // Catch-all route to serve SPA
