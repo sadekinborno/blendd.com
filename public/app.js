@@ -489,23 +489,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- Sparkles/Glow Toggle Effect ---
+  // --- Theme Toggle (Dark/Light Mode) ---
   const themeToggle = document.getElementById('theme-toggle');
-  let glowActive = true;
-  themeToggle.addEventListener('click', () => {
-    glowActive = !glowActive;
-    if (glowActive) {
-      document.body.style.backgroundImage = `
-        radial-gradient(circle at 30% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
-        radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.08) 0%, transparent 45%)
-      `;
-      themeToggle.style.color = 'var(--accent-cyan)';
-      themeToggle.style.boxShadow = '0 0 10px var(--accent-cyan-glow)';
+  let currentTheme = localStorage.getItem('app-theme') || 'dark';
+
+  function applyTheme(theme) {
+    if (theme === 'light') {
+      document.body.classList.add('light-theme');
+      themeToggle.innerHTML = '<i data-lucide="moon"></i>';
+      themeToggle.title = 'Switch to Dark Mode';
     } else {
-      document.body.style.backgroundImage = 'none';
-      themeToggle.style.color = 'var(--text-secondary)';
-      themeToggle.style.boxShadow = 'none';
+      document.body.classList.remove('light-theme');
+      themeToggle.innerHTML = '<i data-lucide="sun"></i>';
+      themeToggle.title = 'Switch to Light Mode';
     }
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+    localStorage.setItem('app-theme', theme);
+  }
+
+  applyTheme(currentTheme);
+
+  themeToggle.addEventListener('click', () => {
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(currentTheme);
   });
 
   // --- Routing (View Switcher) ---
