@@ -1712,6 +1712,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const cdbpGuessDakat = document.getElementById('cdbp-guess-dakat');
   const btnCdbpSubmitGuess = document.getElementById('btn-cdbp-submit-guess');
 
+  // Police Quick Vote Selectors
+  const cdbpPoliceQuickVoteBox = document.getElementById('cdbp-police-quick-vote');
+  const cdbpQuickGuessChor = document.getElementById('cdbp-quick-guess-chor');
+  const cdbpQuickGuessDakat = document.getElementById('cdbp-quick-guess-dakat');
+  const btnCdbpQuickSubmitGuess = document.getElementById('btn-cdbp-quick-submit-guess');
+
   // Reveal UI elements
   const cdbpOutcomeBanner = document.getElementById('cdbp-outcome-banner');
   const cdbpOutcomeTitle = document.getElementById('cdbp-outcome-title');
@@ -1918,6 +1924,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Action: Submit Police Quick Guesses (Early)
+  btnCdbpQuickSubmitGuess.addEventListener('click', async () => {
+    const chor = cdbpQuickGuessChor.value;
+    const dakat = cdbpQuickGuessDakat.value;
+    if (chor === dakat) {
+      await showModalAlert('Suspects for Chor and Dakat must be different players.', 'Invalid Selection', 'error');
+      return;
+    }
+
+    btnCdbpQuickSubmitGuess.disabled = true;
+    socket.emit('cdbp-police-decision', { chorPlayerName: chor, dakatPlayerName: dakat }, async (response) => {
+      btnCdbpQuickSubmitGuess.disabled = false;
+      if (response.error) {
+        await showModalAlert(response.error, 'Game Error', 'error');
+      }
+    });
+  });
+
   // Action: Start Next Round (Host)
   btnCdbpNextRound.addEventListener('click', async () => {
     socket.emit('cdbp-next-round', async (response) => {
@@ -2053,6 +2077,8 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on('cdbp-room-updated', (roomState) => {
     if (!cdbpRoomId) return; // Ignore if not in a CDBP session
 
+    cdbpPlayersList = roomState.players;
+
     if (roomState.status === 'LOBBY') {
       transitionToLobby(roomState);
     } else {
@@ -2108,6 +2134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     phaseDiscussion.classList.add('hidden');
     phasePoliceDecision.classList.add('hidden');
     phaseReveal.classList.add('hidden');
+    cdbpPoliceQuickVoteBox.classList.add('hidden');
 
     // Populate and show active phase view
     switch (status) {
@@ -2155,6 +2182,14 @@ document.addEventListener('DOMContentLoaded', () => {
         cdbpChatLogs.innerHTML = '';
         appendSystemMessage('Discussion phase started! Accuse suspects, bluff, and defend your positions.');
         cdbpChatInput.focus();
+
+        if (myRole === 'Police') {
+          cdbpPoliceQuickVoteBox.classList.remove('hidden');
+          btnCdbpQuickSubmitGuess.removeAttribute('disabled');
+          populatePlayerSelectors(cdbpQuickGuessChor, cdbpQuickGuessDakat);
+        } else {
+          cdbpPoliceQuickVoteBox.classList.add('hidden');
+        }
         break;
 
       case 'POLICE_DECISION':

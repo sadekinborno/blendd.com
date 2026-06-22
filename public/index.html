@@ -1364,6 +1364,31 @@
                         <i data-lucide="send"></i>
                       </button>
                     </form>
+                    
+                    <!-- Quick-Vote for Police -->
+                    <div class="police-quick-vote-box hidden" id="cdbp-police-quick-vote" style="margin-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 16px; width: 100%;">
+                      <h4 style="font-size: 13px; color: var(--accent-blue); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                        <i data-lucide="shield-alert" style="width: 14px; height: 14px;"></i>
+                        <span>Police Quick Vote (Submit Early)</span>
+                      </h4>
+                      <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <div class="form-group" style="flex: 1; min-width: 140px; margin-bottom: 0;">
+                          <label style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight:600;">Chor</label>
+                          <div class="select-wrapper">
+                            <select id="cdbp-quick-guess-chor" style="padding: 6px 10px; font-size: 12px;"></select>
+                          </div>
+                        </div>
+                        <div class="form-group" style="flex: 1; min-width: 140px; margin-bottom: 0;">
+                          <label style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight:600;">Dakat</label>
+                          <div class="select-wrapper">
+                            <select id="cdbp-quick-guess-dakat" style="padding: 6px 10px; font-size: 12px;"></select>
+                          </div>
+                        </div>
+                        <button class="btn-glow" id="btn-cdbp-quick-submit-guess" style="padding: 6px 16px; font-size: 12px; align-self: flex-end; height: 36px;">
+                          <span>Submit early</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

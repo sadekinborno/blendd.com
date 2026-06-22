@@ -232,7 +232,7 @@ module.exports = function initCDbpGame(io) {
     socket.on('cdbp-police-decision', ({ chorPlayerName, dakatPlayerName }, callback) => {
       const room = findRoomBySocketId(socket.id);
       if (!room) return callback({ error: 'Room not found' });
-      if (room.status !== 'POLICE_DECISION') return callback({ error: 'Not in Police decision phase' });
+      if (room.status !== 'POLICE_DECISION' && room.status !== 'DISCUSSION') return callback({ error: 'Not in Police decision or discussion phase' });
 
       const policePlayer = room.players.find(p => p.role === 'Police');
       if (!policePlayer || policePlayer.id !== socket.id) {

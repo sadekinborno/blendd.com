@@ -5251,4 +5251,21 @@ body.mode-guest-auth #btn-lock-mode {
   to { transform: scale(1); opacity: 1; }
 }
 
+/* CDBP Layout Overrides & Quick Vote Styling */
+.cdbp-active-game-container .game-layout {
+  grid-template-columns: 1fr 2.2fr;
+}
+
+@media (max-width: 992px) {
+  .cdbp-active-game-container .game-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .reveal-grids-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 
