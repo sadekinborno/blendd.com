@@ -70,6 +70,7 @@ module.exports = function initCDbpGame(io) {
         spyInfo: '',
         history: [],
         selectedExtraRoles: [],
+        roundNum: 0,
         lastActivity: Date.now()
       };
 
@@ -100,27 +101,23 @@ module.exports = function initCDbpGame(io) {
       // Check for Reconnection
       const existingPlayer = room.players.find(p => p.name.toLowerCase() === name.toLowerCase());
       if (existingPlayer) {
-        if (!existingPlayer.connected) {
-          // Reconnect player slot
-          const oldId = existingPlayer.id;
-          existingPlayer.id = socket.id;
-          existingPlayer.connected = true;
-          if (existingPlayer.isHost || room.hostId === oldId) {
-            room.hostId = socket.id;
-            existingPlayer.isHost = true;
-          }
-          socket.join(roomId);
-          logRoom(roomId, `Player ${name} reconnected.`);
-          
-          callback({ success: true, roomId, roomState: getClientRoomState(room, socket.id) });
-          io.to(roomId).emit('cdbp-room-updated', getClientRoomState(room));
-          
-          // Re-send phase info specifically to the reconnected socket
-          sendPhaseChangedUpdate(room, socket.id);
-          return;
-        } else {
-          return callback({ error: 'Player name is already in use' });
+        // Reconnect player slot
+        const oldId = existingPlayer.id;
+        existingPlayer.id = socket.id;
+        existingPlayer.connected = true;
+        if (existingPlayer.isHost || room.hostId === oldId) {
+          room.hostId = socket.id;
+          existingPlayer.isHost = true;
         }
+        socket.join(roomId);
+        logRoom(roomId, `Player ${name} reconnected.`);
+        
+        callback({ success: true, roomId, roomState: getClientRoomState(room, socket.id) });
+        io.to(roomId).emit('cdbp-room-updated', getClientRoomState(room));
+        
+        // Re-send phase info specifically to the reconnected socket
+        sendPhaseChangedUpdate(room, socket.id);
+        return;
       }
 
       // If game is in progress, no new players can join
@@ -244,19 +241,36 @@ module.exports = function initCDbpGame(io) {
         return callback({ error: 'Only the Police can make the decision!' });
       }
 
-      const chor = room.players.find(p => p.name === chorPlayerName);
-      const dakat = room.players.find(p => p.name === dakatPlayerName);
+      const targetRole = getTargetRoleForRound(room);
+      if (targetRole === 'Both') {
+        const chor = room.players.find(p => p.name === chorPlayerName);
+        const dakat = room.players.find(p => p.name === dakatPlayerName);
 
-      if (!chor || !dakat) {
-        return callback({ error: 'Selected players are invalid' });
+        if (!chor || !dakat) {
+          return callback({ error: 'Selected players are invalid' });
+        }
+
+        if (chor.id === dakat.id) {
+          return callback({ error: 'You must select different players for Chor and Dakat' });
+        }
+
+        room.guesses = { chor: chor.name, dakat: dakat.name };
+        logRoom(room.roomId, `Police guessed Chor: ${chor.name}, Dakat: ${dakat.name}`);
+      } else if (targetRole === 'Chor') {
+        const chor = room.players.find(p => p.name === chorPlayerName);
+        if (!chor) {
+          return callback({ error: 'Selected player is invalid' });
+        }
+        room.guesses = { chor: chor.name, dakat: null };
+        logRoom(room.roomId, `Police guessed Chor: ${chor.name}`);
+      } else if (targetRole === 'Dakat') {
+        const dakat = room.players.find(p => p.name === dakatPlayerName);
+        if (!dakat) {
+          return callback({ error: 'Selected player is invalid' });
+        }
+        room.guesses = { chor: null, dakat: dakat.name };
+        logRoom(room.roomId, `Police guessed Dakat: ${dakat.name}`);
       }
-
-      if (chor.id === dakat.id) {
-        return callback({ error: 'You must select different players for Chor and Dakat' });
-      }
-
-      room.guesses = { chor: chor.name, dakat: dakat.name };
-      logRoom(room.roomId, `Police guessed Chor: ${chor.name}, Dakat: ${dakat.name}`);
 
       callback({ success: true });
       // Proceed to reveal early
@@ -294,7 +308,7 @@ module.exports = function initCDbpGame(io) {
           logRoom(roomId, `Player disconnected: ${player.name}`);
 
           if (room.status === 'LOBBY') {
-            // Reconnect grace period: Wait 4 seconds before removing player
+            // Reconnect grace period: Wait 15 seconds before removing player
             setTimeout(() => {
               const pCheck = room.players.find(p => p.name === player.name);
               if (pCheck && !pCheck.connected) {
@@ -311,27 +325,20 @@ module.exports = function initCDbpGame(io) {
                   }
                 }
 
-                // If room is empty, delete it
                 const activePlayers = room.players.filter(p => p.connected);
                 if (activePlayers.length === 0) {
-                  logRoom(roomId, 'Room empty. Deleting.');
-                  if (room.timerId) clearInterval(room.timerId);
-                  rooms.delete(roomId);
-                  return;
+                  room.lastActivity = Date.now();
+                } else {
+                  // Notify room
+                  global.ioInstance?.to(roomId).emit('cdbp-room-updated', getClientRoomState(room));
                 }
-
-                // Notify room
-                global.ioInstance?.to(roomId).emit('cdbp-room-updated', getClientRoomState(room));
               }
-            }, 4000);
+            }, 15000);
           } else {
-            // Active game: immediately check if room is empty
+            // Active game: if all players leave, mark activity (periodic cleanup handles deletion)
             const activePlayers = room.players.filter(p => p.connected);
             if (activePlayers.length === 0) {
-              logRoom(roomId, 'Room empty. Deleting.');
-              if (room.timerId) clearInterval(room.timerId);
-              rooms.delete(roomId);
-              return;
+              room.lastActivity = Date.now();
             }
           }
 
@@ -351,6 +358,15 @@ function findRoomBySocketId(socketId) {
     if (room.players.some(p => p.id === socketId)) return room;
   }
   return null;
+}
+
+function getTargetRoleForRound(room) {
+  const count = room.players.length;
+  if (count <= 5) {
+    const round = room.roundNum || 1;
+    return round % 2 !== 0 ? 'Chor' : 'Dakat';
+  }
+  return 'Both';
 }
 
 // Map server state to a safe client JSON state (Prevents role cheating)
@@ -380,7 +396,9 @@ function getClientRoomState(room, requestSocketId = null) {
     timer: room.timer,
     guesses: room.guesses,
     swapLogs: (room.status === 'REVEAL' || room.status === 'SCORING') ? room.swapLogs : [],
-    selectedExtraRoles: room.selectedExtraRoles || []
+    selectedExtraRoles: room.selectedExtraRoles || [],
+    roundNum: room.roundNum || 1,
+    targetRole: getTargetRoleForRound(room)
   };
 }
 
@@ -439,6 +457,7 @@ function transitionToPhase(room, newStatus) {
     room.swapLogs = [];
     room.detectiveClue = '';
     room.spyInfo = '';
+    room.roundNum = (room.roundNum || 0) + 1;
 
     // Assign roles randomly
     assignRoles(room);
@@ -486,7 +505,9 @@ function transitionToPhase(room, newStatus) {
       const phaseData = {
         status: room.status,
         timer: room.timer,
-        myRole: p.role
+        myRole: p.role,
+        targetRole: getTargetRoleForRound(room),
+        roundNum: room.roundNum || 1
       };
       
       if (room.status === 'INFO_PHASE' || room.status === 'DISCUSSION' || room.status === 'POLICE_DECISION') {
@@ -498,7 +519,9 @@ function transitionToPhase(room, newStatus) {
         phaseData.reveal = {
           guesses: room.guesses,
           swapLogs: room.swapLogs,
-          actualRoles: room.players.map(pl => ({ name: pl.name, role: pl.role, initialRole: pl.initialRole }))
+          actualRoles: room.players.map(pl => ({ name: pl.name, role: pl.role, initialRole: pl.initialRole })),
+          targetRole: getTargetRoleForRound(room),
+          roundNum: room.roundNum || 1
         };
       }
 
@@ -600,9 +623,18 @@ function calculatePoints(room) {
 
   const policeCorrectChor = guessChor === chorPlayer.name;
   const policeCorrectDakat = guessDakat === dakatPlayer.name;
-  const policeSuccess = policeCorrectChor && policeCorrectDakat;
+  
+  const targetRole = getTargetRoleForRound(room);
+  let policeSuccess = false;
+  if (targetRole === 'Chor') {
+    policeSuccess = policeCorrectChor;
+  } else if (targetRole === 'Dakat') {
+    policeSuccess = policeCorrectDakat;
+  } else {
+    policeSuccess = policeCorrectChor && policeCorrectDakat;
+  }
 
-  logRoom(room.roomId, `Round results: Guess Correct Chor? ${policeCorrectChor}, Dakat? ${policeCorrectDakat}`);
+  logRoom(room.roomId, `Round results: TargetRole: ${targetRole}, Guess Correct Chor? ${policeCorrectChor}, Dakat? ${policeCorrectDakat}, Success? ${policeSuccess}`);
 
   room.players.forEach(p => {
     let pts = 0;
@@ -611,18 +643,33 @@ function calculatePoints(room) {
         pts = 1000; // Always receives +1000
         break;
       case 'Police':
-        // +700 if fully correct, scaled to +300 if partially correct, else +0
-        if (policeSuccess) pts = 700;
-        else if (policeCorrectChor || policeCorrectDakat) pts = 300;
-        else pts = 0;
+        if (targetRole === 'Both') {
+          // +700 if fully correct, scaled to +300 if partially correct, else +0
+          if (policeSuccess) pts = 700;
+          else if (policeCorrectChor || policeCorrectDakat) pts = 300;
+          else pts = 0;
+        } else {
+          // Single target: +700 if correct, else +0
+          pts = policeSuccess ? 700 : 0;
+        }
         break;
       case 'Chor':
-        // Chor wins if police failed to identify correctly
-        pts = policeSuccess ? 0 : 400;
+        if (targetRole === 'Chor') {
+          pts = policeSuccess ? 0 : 400;
+        } else if (targetRole === 'Dakat') {
+          pts = 400; // Chor is safe
+        } else {
+          pts = policeSuccess ? 0 : 400;
+        }
         break;
       case 'Dakat':
-        // Dakat wins if police failed
-        pts = policeSuccess ? 0 : 700;
+        if (targetRole === 'Dakat') {
+          pts = policeSuccess ? 0 : 700;
+        } else if (targetRole === 'Chor') {
+          pts = 700; // Dakat is safe
+        } else {
+          pts = policeSuccess ? 0 : 700;
+        }
         break;
       case 'Spy':
         // Spy gains points if criminals win (police fail)
@@ -662,18 +709,45 @@ function handleTimerExpiry(room) {
   
   else if (room.status === 'POLICE_DECISION') {
     // If police timer expires without guess, assign random guesses!
-    if (!room.guesses.chor || !room.guesses.dakat) {
-      const policePlayer = room.players.find(p => p.role === 'Police');
-      const candidates = room.players.filter(p => p.role !== 'Police');
-      
-      if (candidates.length >= 2) {
-        // Shuffle candidates
-        const shuffled = [...candidates].sort(() => Math.random() - 0.5);
-        room.guesses = {
-          chor: shuffled[0].name,
-          dakat: shuffled[1].name
-        };
-        logRoom(room.roomId, `Police guess expired. Auto-guessing Chor: ${shuffled[0].name}, Dakat: ${shuffled[1].name}`);
+    const targetRole = getTargetRoleForRound(room);
+    if (targetRole === 'Both') {
+      if (!room.guesses.chor || !room.guesses.dakat) {
+        const policePlayer = room.players.find(p => p.role === 'Police');
+        const candidates = room.players.filter(p => p.role !== 'Police');
+        
+        if (candidates.length >= 2) {
+          // Shuffle candidates
+          const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+          room.guesses = {
+            chor: shuffled[0].name,
+            dakat: shuffled[1].name
+          };
+          logRoom(room.roomId, `Police guess expired. Auto-guessing Chor: ${shuffled[0].name}, Dakat: ${shuffled[1].name}`);
+        }
+      }
+    } else if (targetRole === 'Chor') {
+      if (!room.guesses.chor) {
+        const candidates = room.players.filter(p => p.role !== 'Police');
+        if (candidates.length > 0) {
+          const randCandidate = candidates[Math.floor(Math.random() * candidates.length)];
+          room.guesses = {
+            chor: randCandidate.name,
+            dakat: null
+          };
+          logRoom(room.roomId, `Police guess expired. Auto-guessing Chor: ${randCandidate.name}`);
+        }
+      }
+    } else if (targetRole === 'Dakat') {
+      if (!room.guesses.dakat) {
+        const candidates = room.players.filter(p => p.role !== 'Police');
+        if (candidates.length > 0) {
+          const randCandidate = candidates[Math.floor(Math.random() * candidates.length)];
+          room.guesses = {
+            chor: null,
+            dakat: randCandidate.name
+          };
+          logRoom(room.roomId, `Police guess expired. Auto-guessing Dakat: ${randCandidate.name}`);
+        }
       }
     }
     transitionToPhase(room, 'REVEAL');

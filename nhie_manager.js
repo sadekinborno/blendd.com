@@ -389,19 +389,7 @@ function shuffleArray(arr) {
 }
 
 function fillPremadeStatements(room) {
-  const mode = room.settings.statementSource;
-  const activePlayersCount = room.players.filter(p => p.connected).length;
-  
-  let targetCount = 0;
-  if (mode === 'PREMADE_ONLY') {
-    targetCount = room.settings.totalPremadeStatements || 10;
-  } else {
-    targetCount = room.settings.statementsPerPlayer * activePlayersCount;
-  }
-
-  // Calculate how many more statements we need
-  const currentCount = room.statements.length;
-  const needed = targetCount - currentCount;
+  const needed = room.settings.systemStatementsCount || 0;
 
   if (needed > 0) {
     const shuffledPool = shuffleArray(PREMADE_STATEMENTS);
@@ -468,9 +456,8 @@ module.exports = function initNhieGame(io) {
           startingLives: 5, // 3 | 5 | 10
           statementTime: 60, // 30s | 45s | 60s
           answerTime: 15, // 10s | 15s | 30s
-          statementSource: 'MIXED', // CUSTOM_ONLY | PREMADE_ONLY | MIXED
-          statementsPerPlayer: 2, // 1 | 2 | 3 (if Custom/Mixed)
-          totalPremadeStatements: 10, // 5 | 10 | 15 | 20 (if Premade only)
+          statementsPerPlayer: 2, // 0 | 1 | 2 | 3
+          systemStatementsCount: 10, // 0 | 5 | 10 | 15 | 20
         },
         statements: [],
         currentStatementIndex: 0,
@@ -506,23 +493,19 @@ module.exports = function initNhieGame(io) {
       // Check for Reconnection
       const existing = room.players.find(p => p.name.toLowerCase() === name.toLowerCase());
       if (existing) {
-        if (!existing.connected) {
-          const oldId = existing.id;
-          existing.id = socket.id;
-          existing.connected = true;
-          if (existing.isHost || room.hostId === oldId) {
-            room.hostId = socket.id;
-            existing.isHost = true;
-          }
-          socket.join(code);
-          log(room.roomId, `"${name}" reconnected.`);
-          
-          callback && callback({ success: true, roomId: code, roomState: getClientRoomState(room) });
-          broadcastRoomState(room);
-          return;
-        } else {
-          return callback && callback({ error: 'Name already taken in this room' });
+        const oldId = existing.id;
+        existing.id = socket.id;
+        existing.connected = true;
+        if (existing.isHost || room.hostId === oldId) {
+          room.hostId = socket.id;
+          existing.isHost = true;
         }
+        socket.join(code);
+        log(room.roomId, `"${name}" reconnected.`);
+        
+        callback && callback({ success: true, roomId: code, roomState: getClientRoomState(room) });
+        broadcastRoomState(room);
+        return;
       }
 
       // If game is in progress, block joins
@@ -562,12 +545,11 @@ module.exports = function initNhieGame(io) {
       // Update room settings
       room.settings = {
         scoreMode: newSettings.scoreMode || room.settings.scoreMode,
-        startingLives: parseInt(newSettings.startingLives) || room.settings.startingLives,
-        statementTime: parseInt(newSettings.statementTime) || room.settings.statementTime,
-        answerTime: parseInt(newSettings.answerTime) || room.settings.answerTime,
-        statementSource: newSettings.statementSource || room.settings.statementSource,
-        statementsPerPlayer: parseInt(newSettings.statementsPerPlayer) || room.settings.statementsPerPlayer,
-        totalPremadeStatements: parseInt(newSettings.totalPremadeStatements) || room.settings.totalPremadeStatements,
+        startingLives: isNaN(parseInt(newSettings.startingLives)) ? room.settings.startingLives : parseInt(newSettings.startingLives),
+        statementTime: isNaN(parseInt(newSettings.statementTime)) ? room.settings.statementTime : parseInt(newSettings.statementTime),
+        answerTime: isNaN(parseInt(newSettings.answerTime)) ? room.settings.answerTime : parseInt(newSettings.answerTime),
+        statementsPerPlayer: isNaN(parseInt(newSettings.statementsPerPlayer)) ? room.settings.statementsPerPlayer : parseInt(newSettings.statementsPerPlayer),
+        systemStatementsCount: isNaN(parseInt(newSettings.systemStatementsCount)) ? room.settings.systemStatementsCount : parseInt(newSettings.systemStatementsCount),
       };
 
       // Reset players scores to the new configuration
@@ -595,7 +577,7 @@ module.exports = function initNhieGame(io) {
       room.lastActivity = Date.now();
       
       // Determine if we need to write statements or skip to answering
-      if (room.settings.statementSource === 'PREMADE_ONLY') {
+      if (room.settings.statementsPerPlayer === 0) {
         // Skip straight to answering
         fillPremadeStatements(room);
         transitionToPhase(room, 'ANSWERING_PHASE');

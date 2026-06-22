@@ -336,29 +336,75 @@ app.get('/api/retrieve/:token', (req, res) => {
 // REST API: Link Saver CRUD
 app.get('/api/links', async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
+
+    let fetchQuery = supabase
       .from('bookmarks')
       .select('*')
+      .order('sort_order', { ascending: true, nullsFirst: false })
       .order('added_at', { ascending: false });
+
+    let { data, error } = await fetchQuery;
+
+    if (error && error.message && error.message.includes('column "sort_order" does not exist')) {
+      console.warn('[Supabase] "sort_order" column does not exist yet. Please run: ALTER TABLE bookmarks ADD COLUMN sort_order FLOAT; Falling back to chronological order.');
+      const fallback = await supabase
+        .from('bookmarks')
+        .select('*')
+        .order('added_at', { ascending: false });
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) {
       console.error('Fetch bookmarks error:', error.message);
       return res.status(500).json({ error: 'Could not read links' });
     }
 
+    // Resolve null sort orders sequentially per category, or globally?
+    // We order them first by sort_order (with nulls last), and then by added_at desc.
+    // So the returned data array is in the correct default visual order.
+    // We can assign sequential sort_orders to any legacy null entries.
+    let currentMax = 0;
+    if (data && data.length > 0) {
+      data.forEach(item => {
+        if (item.sort_order !== null && item.sort_order !== undefined) {
+          currentMax = Math.max(currentMax, item.sort_order);
+        }
+      });
+    }
+    if (currentMax === 0) {
+      currentMax = 1000;
+    }
+
     // Map database fields to frontend keys (specifically added_at -> addedAt) and filter out soft-deleted ones
-    const formatted = data
+    const filtered = (data || [])
       .filter(item => item.is_deleted !== true && item.deleted !== true)
-      .map(item => ({
-        id: item.id,
-        title: item.title,
-        url: item.url,
-        category: item.category,
-        favicon: item.favicon,
-        domain: item.domain,
-        addedAt: item.added_at,
-        addedBy: item.added_by || item.addedby || 'Owner'
-      }));
+      .filter(item => {
+        // If not owner, hide bookmarks that admin has hidden
+        if (!isOwnerRequest && item.hidden_by_admin === true) return false;
+        return true;
+      });
+
+    filtered.forEach(item => {
+      if (item.sort_order === null || item.sort_order === undefined) {
+        currentMax += 10;
+        item.sort_order = currentMax;
+      }
+    });
+
+    const formatted = filtered.map(item => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      category: item.category,
+      favicon: item.favicon,
+      domain: item.domain,
+      addedAt: item.added_at,
+      addedBy: item.added_by || item.addedby || 'Owner',
+      hiddenByAdmin: item.hidden_by_admin === true,
+      sortOrder: item.sort_order
+    }));
 
     res.json(formatted);
   } catch (err) {
@@ -389,7 +435,29 @@ app.post('/api/links', async (req, res) => {
       title = meta.title;
     }
 
-    // Insert into Supabase (defensively check for added_by column)
+    // Fetch the minimum sort_order in the category
+    let minSortOrder = 1000;
+    let hasSortOrderColumn = true;
+    try {
+      const { data: catData, error: catError } = await supabase
+        .from('bookmarks')
+        .select('sort_order')
+        .eq('category', category || 'General')
+        .order('sort_order', { ascending: true })
+        .limit(1);
+
+      if (catError) {
+        if (catError.message && catError.message.includes('column "sort_order" does not exist')) {
+          hasSortOrderColumn = false;
+        }
+      } else if (catData && catData.length > 0 && catData[0].sort_order !== null && catData[0].sort_order !== undefined) {
+        minSortOrder = catData[0].sort_order - 10;
+      }
+    } catch (err) {
+      console.warn('Failed to query min sort_order:', err);
+    }
+
+    // Insert into Supabase (defensively check for added_by and sort_order columns)
     const insertObj = {
       title,
       url: linkUrl,
@@ -398,6 +466,10 @@ app.post('/api/links', async (req, res) => {
       domain,
       added_by: addedBy || 'Owner'
     };
+
+    if (hasSortOrderColumn) {
+      insertObj.sort_order = minSortOrder;
+    }
 
     let { data, error } = await supabase
       .from('bookmarks')
@@ -429,7 +501,9 @@ app.post('/api/links', async (req, res) => {
       favicon: inserted.favicon,
       domain: inserted.domain,
       addedAt: inserted.added_at,
-      addedBy: inserted.added_by || inserted.addedby || 'Owner'
+      addedBy: inserted.added_by || inserted.addedby || 'Owner',
+      hiddenByAdmin: inserted.hidden_by_admin === true,
+      sortOrder: inserted.sort_order
     };
 
     trackUsage(formatted.addedBy, `Created bookmark: "${formatted.title}"`, req);
@@ -622,7 +696,8 @@ app.put('/api/links/:id', async (req, res) => {
     }
 
     if (!data || data.length === 0) {
-      return res.status(404).json({ error: 'Bookmark not found' });
+      console.warn('[Supabase] No rows updated. This usually happens if Row Level Security (RLS) is enabled on the "bookmarks" table and there is no UPDATE policy. Please run: ALTER TABLE bookmarks DISABLE ROW LEVEL SECURITY;');
+      return res.status(404).json({ error: 'Bookmark not found (No rows updated. Make sure Row Level Security is disabled or configured properly on the bookmarks table).' });
     }
 
     const updated = data[0];
@@ -634,10 +709,129 @@ app.put('/api/links/:id', async (req, res) => {
       favicon: updated.favicon,
       domain: updated.domain,
       addedAt: updated.added_at,
-      addedBy: updated.added_by || updated.addedby || 'Owner'
+      addedBy: updated.added_by || updated.addedby || 'Owner',
+      hiddenByAdmin: updated.hidden_by_admin === true
     };
 
     trackUsage(reqUser, `Updated bookmark: "${formatted.title}"`, req);
+    res.json(formatted);
+  } catch (err) {
+    console.error('API Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Toggle bookmark visibility (admin hide/unhide)
+app.patch('/api/links/:id/visibility', async (req, res) => {
+  const id = req.params.id;
+  const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
+
+  if (!isOwnerRequest) {
+    return res.status(401).json({ error: 'Unauthorized: Owner access required' });
+  }
+
+  const { hidden } = req.body;
+  if (typeof hidden !== 'boolean') {
+    return res.status(400).json({ error: '"hidden" must be a boolean' });
+  }
+
+  try {
+    let { data, error } = await supabase
+      .from('bookmarks')
+      .update({ hidden_by_admin: hidden })
+      .eq('id', id)
+      .select();
+
+    // Defensive: if column doesn't exist yet, return a helpful error
+    if (error && error.message && error.message.includes('hidden_by_admin')) {
+      console.error('[Supabase] "hidden_by_admin" column does not exist. Please run: ALTER TABLE bookmarks ADD COLUMN hidden_by_admin BOOLEAN DEFAULT FALSE;');
+      return res.status(500).json({ error: 'Database column "hidden_by_admin" not found. Please add it to your bookmarks table.' });
+    }
+
+    if (error) {
+      console.error('Toggle visibility error:', error.message);
+      return res.status(500).json({ error: 'Could not update visibility' });
+    }
+
+    if (!data || data.length === 0) {
+      console.warn('[Supabase] No rows updated. This usually happens if Row Level Security (RLS) is enabled on the "bookmarks" table and there is no UPDATE policy. Please run: ALTER TABLE bookmarks DISABLE ROW LEVEL SECURITY;');
+      return res.status(404).json({ error: 'Bookmark not found (No rows updated. Make sure Row Level Security is disabled or configured properly on the bookmarks table).' });
+    }
+
+    const updated = data[0];
+    const formatted = {
+      id: updated.id,
+      title: updated.title,
+      url: updated.url,
+      category: updated.category,
+      favicon: updated.favicon,
+      domain: updated.domain,
+      addedAt: updated.added_at,
+      addedBy: updated.added_by || updated.addedby || 'Owner',
+      hiddenByAdmin: updated.hidden_by_admin === true
+    };
+
+    trackUsage('Owner', `${hidden ? 'Hid' : 'Unhid'} bookmark: "${formatted.title}"`, req);
+    res.json(formatted);
+  } catch (err) {
+    console.error('API Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Reorder bookmark (admin/owner only)
+app.patch('/api/links/:id/reorder', async (req, res) => {
+  const id = req.params.id;
+  const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
+
+  if (!isOwnerRequest) {
+    return res.status(401).json({ error: 'Unauthorized: Owner access required' });
+  }
+
+  const { category, sortOrder } = req.body;
+  if (!category || typeof sortOrder !== 'number') {
+    return res.status(400).json({ error: 'category (string) and sortOrder (number) are required' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('bookmarks')
+      .update({
+        category: category,
+        sort_order: sortOrder
+      })
+      .eq('id', id)
+      .select();
+
+    if (error && error.message && error.message.includes('column "sort_order" does not exist')) {
+      console.error('[Supabase] "sort_order" column does not exist. Please run: ALTER TABLE bookmarks ADD COLUMN sort_order FLOAT;');
+      return res.status(500).json({ error: 'Database column "sort_order" not found. Please add it to your bookmarks table.' });
+    }
+
+    if (error) {
+      console.error('Reorder bookmark error:', error.message);
+      return res.status(500).json({ error: 'Could not reorder bookmark' });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Bookmark not found' });
+    }
+
+    const inserted = data[0];
+    const formatted = {
+      id: inserted.id,
+      title: inserted.title,
+      url: inserted.url,
+      category: inserted.category,
+      favicon: inserted.favicon,
+      domain: inserted.domain,
+      addedAt: inserted.added_at,
+      addedBy: inserted.added_by || inserted.addedby || 'Owner',
+      hiddenByAdmin: inserted.hidden_by_admin === true,
+      sortOrder: inserted.sort_order
+    };
+
+    trackUsage('Owner', `Reordered bookmark: "${formatted.title}" in category "${formatted.category}"`, req);
     res.json(formatted);
   } catch (err) {
     console.error('API Error:', err);
@@ -1317,5 +1511,5 @@ app.get('/*splat', (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`blend.com server running on http://localhost:${PORT}`);
+  console.log(`blendd.com server running on http://localhost:${PORT}`);
 });

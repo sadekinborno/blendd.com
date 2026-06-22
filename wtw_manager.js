@@ -391,9 +391,9 @@ module.exports = function initWtwGame(io) {
       }
       const name = playerName.trim().substring(0, 20);
 
-      // Reconnection — same name, was in the room
+      // Reconnection / Takeover — same name, was in the room
       const existing = room.players.find(p => p.name.toLowerCase() === name.toLowerCase());
-      if (existing && !existing.connected) {
+      if (existing) {
         const oldId = existing.id;
         existing.id = socket.id;
         existing.connected = true;
@@ -424,11 +424,6 @@ module.exports = function initWtwGame(io) {
         log(roomId, `"${name}" reconnected`);
         broadcastRoomState(room);
         return callback && callback({ roomState: getClientRoomState(room) });
-      }
-
-      // Name conflict with active player
-      if (existing && existing.connected) {
-        return callback && callback({ error: `"${name}" is already in this room. Choose a different name.` });
       }
 
       // Game already started — only allow reconnects

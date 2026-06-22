@@ -1,5 +1,5 @@
 /* ==========================================================================
-   blend.com | Design System & Styling
+   blendd.com | Design System & Styling
    ========================================================================== */
 
 :root {
@@ -102,23 +102,21 @@ body {
 }
 
 .brand-logo {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  border: 2px solid var(--accent-cyan);
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
-  box-shadow: 0 0 10px var(--accent-cyan-glow);
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
-.brand-orb {
-  width: 14px;
-  height: 14px;
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+.brand-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   border-radius: 50%;
-  animation: logoPulse 2.5s infinite ease-in-out;
 }
 
 .brand-name {
@@ -126,9 +124,25 @@ body {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: 0.5px;
-  background: linear-gradient(to right, #ffffff, var(--text-secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  line-height: 1.3;
+  padding-top: 2px;
+  color: #ffffff;
+  display: inline-block;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  margin-top: 1px;
+  font-weight: 500;
+  opacity: 0.8;
+  letter-spacing: 0.2px;
 }
 
 .sidebar-nav {
@@ -1223,6 +1237,13 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
   box-shadow: 0 0 12px rgba(249, 115, 22, 0.08);
 }
 
+.genre-icon-games {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent-indigo);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.08);
+}
+
 .genre-icon-development {
   background: rgba(6, 182, 212, 0.12);
   color: var(--accent-cyan);
@@ -1271,6 +1292,7 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
   flex-direction: column;
   transition: var(--transition-smooth);
   position: relative;
+  cursor: pointer;
 }
 
 .bookmark-card-top {
@@ -1377,6 +1399,12 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
   border: 1px solid rgba(249, 115, 22, 0.15);
 }
 
+.tag-games {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-indigo);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
 .tag-development {
   background: rgba(6, 182, 212, 0.1);
   color: var(--accent-cyan);
@@ -1422,12 +1450,97 @@ button, .btn-primary, .btn-secondary, .btn-glow, .btn-success {
   color: #ef4444;
 }
 
+/* Admin-hidden bookmark toggle button */
+.btn-bookmark-action.hide-toggle-btn:hover {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+/* Admin-hidden bookmark card */
+.bookmark-card.admin-hidden {
+  opacity: 0.55;
+  border-style: dashed;
+  border-color: rgba(245, 158, 11, 0.25);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 8px,
+    rgba(245, 158, 11, 0.02) 8px,
+    rgba(245, 158, 11, 0.02) 16px
+  ), rgba(13, 18, 28, 0.85);
+}
+
+.bookmark-card.admin-hidden:hover {
+  opacity: 0.75;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+/* Hidden badge on bookmark card */
+.bookmark-hidden-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-top: 4px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
 /* Bookmark Card Hover */
 .bookmark-card:hover {
   transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.12);
   background: rgba(13, 18, 28, 0.95);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* Drag and Drop Reordering */
+body.mode-owner .bookmark-card {
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.mode-owner .drag-handle {
+  cursor: grab;
+}
+
+body.mode-owner .drag-handle:active {
+  cursor: grabbing;
+}
+
+/* SortableJS Styles */
+.bookmark-ghost {
+  opacity: 0.25 !important;
+  border: 1px dashed rgba(255, 255, 255, 0.4) !important;
+  background: rgba(255, 255, 255, 0.01) !important;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
+.bookmark-chosen {
+  opacity: 0.95;
+  transform: scale(1.02) translateY(-4px) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4) !important;
+  background: rgba(20, 26, 40, 0.98) !important;
+  z-index: 9999;
+}
+
+.bookmark-drag-active {
+  opacity: 0.8;
+  cursor: grabbing;
+}
+
+.bookmarks-grid.drag-over {
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: var(--border-radius-md);
 }
 
 /* ==========================================================================
@@ -5061,7 +5174,7 @@ body.mode-guest-auth #btn-lock-mode {
 
 .nhie-results-scores-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 10px;
 }
 .nhie-results-score-row {
@@ -5072,6 +5185,7 @@ body.mode-guest-auth #btn-lock-mode {
   padding: 8px 12px;
   border-radius: var(--border-radius-sm);
   font-size: 13px;
+  white-space: nowrap;
 }
 .nhie-score-pill {
   font-family: 'Orbitron', sans-serif;
@@ -5079,6 +5193,7 @@ body.mode-guest-auth #btn-lock-mode {
   padding: 2px 8px;
   border-radius: 12px;
   font-size: 11px;
+  white-space: nowrap;
 }
 .nhie-score-pill.survival {
   background: var(--nhie-rose-dim);

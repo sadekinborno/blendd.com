@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>blend.com | Media Tool & Game Portal</title>
+  <title>blendd.com | Media Tool & Game Portal</title>
   <link rel="icon" type="image/png" href="blend_icon.png">
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,6 +11,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- SortableJS -->
+  <script src="Sortable.min.js"></script>
   <!-- Styling -->
   <link rel="stylesheet" href="style.css?v=1.0.1">
 </head>
@@ -23,9 +25,12 @@
     <aside class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-logo">
-          <div class="brand-orb"></div>
+          <img src="blend_icon.png" alt="blendd.com" class="brand-icon-img">
         </div>
-        <span class="brand-name">blend.com</span>
+        <div class="brand-text">
+          <span class="brand-name">blendd.com</span>
+          <span class="brand-subtitle">by Sadekin Borno</span>
+        </div>
       </div>
       
       <nav class="sidebar-nav">
@@ -85,13 +90,6 @@
 
       <!-- VIEW: DASHBOARD -->
       <section id="view-dashboard" class="content-view active">
-        <div class="welcome-banner">
-          <div class="banner-overlay"></div>
-          <div class="banner-content">
-            <h1>Welcome to blend.com</h1>
-            <p>Your local companion for media downloading, bookmark organization, and gaming. Ready to serve.</p>
-          </div>
-        </div>
 
         <div class="dashboard-grid">
           <!-- Card: Downloader Quick Link -->
@@ -288,6 +286,7 @@
                     <option value="Movies & Shows">Movies & Shows</option>
                     <option value="Sports">Sports Streaming</option>
                     <option value="Anime">Anime</option>
+                    <option value="Games">Games</option>
                     <option value="Development">Coding & Tools</option>
                     <option value="General" selected>General Bookmarks</option>
                   </select>
@@ -330,6 +329,7 @@
             <button class="tab-btn" data-filter="Movies & Shows">Movies</button>
             <button class="tab-btn" data-filter="Sports">Sports</button>
             <button class="tab-btn" data-filter="Anime">Anime</button>
+            <button class="tab-btn" data-filter="Games">Games</button>
             <button class="tab-btn" data-filter="Development">Tools</button>
             <button class="tab-btn" data-filter="General">General</button>
           </div>
@@ -940,30 +940,23 @@
                   </div>
 
                   <div class="nhie-setting-field">
-                    <label class="nhie-label">Statements Source</label>
-                    <select id="nhie-select-source" class="input-field select-field">
-                      <option value="MIXED" selected>Mixed (Custom & Pre-made)</option>
-                      <option value="CUSTOM_ONLY">Custom Only (Players type them)</option>
-                      <option value="PREMADE_ONLY">Pre-made Only (Instant play)</option>
+                    <label class="nhie-label">System Generated Prompts</label>
+                    <select id="nhie-select-system-prompts" class="input-field select-field">
+                      <option value="0">None (Only show player statements)</option>
+                      <option value="5">Show 5 prompts</option>
+                      <option value="10" selected>Show 10 prompts</option>
+                      <option value="15">Show 15 prompts</option>
+                      <option value="20">Show 20 prompts</option>
                     </select>
                   </div>
 
                   <div class="nhie-setting-field" id="nhie-custom-per-player-field">
                     <label class="nhie-label">Statements per Player</label>
                     <select id="nhie-select-statements-per-player" class="input-field select-field">
+                      <option value="0">0 (None)</option>
                       <option value="1">1 statement</option>
                       <option value="2" selected>2 statements</option>
                       <option value="3">3 statements</option>
-                    </select>
-                  </div>
-
-                  <div class="nhie-setting-field hidden" id="nhie-premade-total-field">
-                    <label class="nhie-label">Total Statements</label>
-                    <select id="nhie-select-premade-total" class="input-field select-field">
-                      <option value="5">5 statements</option>
-                      <option value="10" selected>10 statements</option>
-                      <option value="15">15 statements</option>
-                      <option value="20">20 statements</option>
                     </select>
                   </div>
                 </div>
@@ -1423,13 +1416,13 @@
                         <span>Police Quick Vote (Submit Early)</span>
                       </h4>
                       <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                        <div class="form-group" style="flex: 1; min-width: 140px; margin-bottom: 0;">
+                        <div class="form-group" id="cdbp-quick-guess-chor-group" style="flex: 1; min-width: 140px; margin-bottom: 0;">
                           <label style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight:600;">Chor</label>
                           <div class="select-wrapper">
                             <select id="cdbp-quick-guess-chor" style="padding: 6px 10px; font-size: 12px;"></select>
                           </div>
                         </div>
-                        <div class="form-group" style="flex: 1; min-width: 140px; margin-bottom: 0;">
+                        <div class="form-group" id="cdbp-quick-guess-dakat-group" style="flex: 1; min-width: 140px; margin-bottom: 0;">
                           <label style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight:600;">Dakat</label>
                           <div class="select-wrapper">
                             <select id="cdbp-quick-guess-dakat" style="padding: 6px 10px; font-size: 12px;"></select>
@@ -1449,18 +1442,18 @@
                   <div class="police-view hidden" id="cdbp-police-panel">
                     <div class="phase-splash-top">
                       <i data-lucide="shield-alert" class="neon-icon-blue"></i>
-                      <h2>Select the Suspects</h2>
-                      <p>You must identify BOTH the Chor and the Dakat to win. Examine the discussion evidence carefully.</p>
+                      <h2 id="cdbp-police-panel-title">Select the Suspects</h2>
+                      <p id="cdbp-police-panel-desc">You must identify BOTH the Chor and the Dakat to win. Examine the discussion evidence carefully.</p>
                     </div>
                     <div class="police-selectors" style="margin-top: 24px;">
-                      <div class="form-group" style="margin-bottom: 16px;">
+                      <div class="form-group" id="cdbp-guess-chor-group" style="margin-bottom: 16px;">
                         <label for="cdbp-guess-chor">Suspected CHOR (Thief)</label>
                         <div class="select-wrapper">
                           <select id="cdbp-guess-chor"></select>
                           <i data-lucide="chevron-down" class="select-chevron"></i>
                         </div>
                       </div>
-                      <div class="form-group" style="margin-bottom: 24px;">
+                      <div class="form-group" id="cdbp-guess-dakat-group" style="margin-bottom: 24px;">
                         <label for="cdbp-guess-dakat">Suspected DAKAT (Dacoit)</label>
                         <div class="select-wrapper">
                           <select id="cdbp-guess-dakat"></select>
@@ -1480,7 +1473,7 @@
                         <i data-lucide="shield-alert" class="pulse-icon-blue"></i>
                       </div>
                       <h2>Police is Deliberating</h2>
-                      <p>The Police is currently selecting suspects for Chor and Dakat. Prepare for the final reveal!</p>
+                      <p id="cdbp-police-deliberating-text">The Police is currently selecting suspects for Chor and Dakat. Prepare for the final reveal!</p>
                     </div>
                   </div>
                 </div>
@@ -1500,7 +1493,11 @@
                         <h3>Round Activities</h3>
                         <div class="reveal-log-item">
                           <span>Police Guesses:</span>
-                          <p>Chor: <span id="cdbp-reveal-guess-chor" class="glow-cyan">Name</span> | Dakat: <span id="cdbp-reveal-guess-dakat" class="glow-pink">Name</span></p>
+                          <p>
+                            <span id="cdbp-reveal-guess-chor-row">Chor: <span id="cdbp-reveal-guess-chor" class="glow-cyan">Name</span></span>
+                            <span id="cdbp-reveal-guess-divider"> | </span>
+                            <span id="cdbp-reveal-guess-dakat-row">Dakat: <span id="cdbp-reveal-guess-dakat" class="glow-pink">Name</span></span>
+                          </p>
                         </div>
                         <div class="reveal-log-item" id="cdbp-reveal-swaps-box">
                           <span>Jadukar Swaps:</span>

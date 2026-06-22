@@ -867,6 +867,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cat === 'Movies & Shows') return 'tag-movies';
     if (cat === 'Sports') return 'tag-sports';
     if (cat === 'Anime') return 'tag-anime';
+    if (cat === 'Games') return 'tag-games';
     if (cat === 'Development') return 'tag-development';
     return 'tag-general';
   }
@@ -946,6 +947,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Render bookmarks grouped by category/genre
   function renderBookmarks() {
     const isOwner = document.body.classList.contains('mode-owner');
+
+    // Ensure bookmarks are sorted by sortOrder (ascending) before rendering
+    savedLinks.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
     let filtered = savedLinks;
 
     // Filter by tab category
@@ -985,7 +990,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Default category order to keep the rendering order consistent
-    const categoryOrder = ['Movies & Shows', 'Sports', 'Anime', 'Development', 'General'];
+    const categoryOrder = ['Movies & Shows', 'Sports', 'Anime', 'Games', 'Development', 'General'];
     
     // Add any dynamically created category that's not in the default list
     const finalCategories = [...categoryOrder];
@@ -1020,6 +1025,10 @@ document.addEventListener('DOMContentLoaded', () => {
         iconName = 'tv-2';
         iconClass = 'genre-icon-anime';
         displayTitle = 'Anime';
+      } else if (cat === 'Games') {
+        iconName = 'gamepad-2';
+        iconClass = 'genre-icon-games';
+        displayTitle = 'Games';
       } else if (cat === 'Development') {
         iconName = 'terminal';
         iconClass = 'genre-icon-development';
@@ -1043,14 +1052,91 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="genre-count-badge">${items.length}</span>
           </div>
         </div>
-        <div class="bookmarks-grid"></div>
+        <div class="bookmarks-grid" data-category="${cat}"></div>
       `;
 
       const grid = section.querySelector('.bookmarks-grid');
 
+      // Set up Sortable on the grid container for admins/owners
+      if (isOwner && typeof Sortable !== 'undefined') {
+        new Sortable(grid, {
+          group: 'bookmarks-shared-group', // Allows dragging between categories
+          animation: 250, // smooth shifting transitions (in milliseconds)
+          handle: '.drag-handle', // drag only by handle to prevent click/window.open interference
+          ghostClass: 'bookmark-ghost',
+          chosenClass: 'bookmark-chosen',
+          dragClass: 'bookmark-drag-active',
+          fallbackOnBody: true,
+          swapThreshold: 0.65,
+          // When drop is completed
+          onEnd: async function (evt) {
+            const itemEl = evt.item;
+            const toGrid = evt.to;
+            const bookmarkId = itemEl.getAttribute('data-id');
+            const newCategory = toGrid.getAttribute('data-category');
+
+            // Find siblings to determine new sortOrder float midpoint
+            const prevEl = itemEl.previousElementSibling;
+            const nextEl = itemEl.nextElementSibling;
+
+            let newSortOrder = 1000;
+
+            if (prevEl && nextEl) {
+              const prevOrder = parseFloat(prevEl.getAttribute('data-sort-order'));
+              const nextOrder = parseFloat(nextEl.getAttribute('data-sort-order'));
+              newSortOrder = (prevOrder + nextOrder) / 2;
+            } else if (nextEl) {
+              const nextOrder = parseFloat(nextEl.getAttribute('data-sort-order'));
+              newSortOrder = nextOrder - 10;
+            } else if (prevEl) {
+              const prevOrder = parseFloat(prevEl.getAttribute('data-sort-order'));
+              newSortOrder = prevOrder + 10;
+            }
+
+            // Update attributes on the element itself
+            itemEl.setAttribute('data-sort-order', newSortOrder);
+
+            // Update local array state
+            const bookmarkIndex = savedLinks.findIndex(b => b.id === bookmarkId);
+            if (bookmarkIndex !== -1) {
+              savedLinks[bookmarkIndex].category = newCategory;
+              savedLinks[bookmarkIndex].sortOrder = newSortOrder;
+            }
+
+            try {
+              const response = await fetch(`/api/links/${bookmarkId}/reorder`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-owner-token': localStorage.getItem('owner_token') || ''
+                },
+                body: JSON.stringify({
+                  category: newCategory,
+                  sortOrder: newSortOrder
+                })
+              });
+
+              if (!response.ok) {
+                throw new Error('Failed to update bookmark order on server');
+              }
+
+              // Keep locally-sorted structure in sync and refresh UI to update counts/badges
+              savedLinks.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+              renderBookmarks();
+            } catch (err) {
+              console.error('Failed to save bookmark order:', err);
+              // Revert state by fetching fresh from the server
+              fetchBookmarks();
+            }
+          }
+        });
+      }
+
       items.forEach(item => {
         const card = document.createElement('div');
-        card.className = 'bookmark-card';
+        card.className = 'bookmark-card' + (item.hiddenByAdmin ? ' admin-hidden' : '');
+        card.setAttribute('data-id', item.id);
+        card.setAttribute('data-sort-order', item.sortOrder || '0');
         
         const categoryClass = getCategoryColorClass(item.category);
         const faviconHtml = getFaviconHtml(item.favicon, item.title);
@@ -1065,17 +1151,25 @@ document.addEventListener('DOMContentLoaded', () => {
               <h4 class="bookmark-title" title="${item.title}">${item.title}</h4>
               <span class="bookmark-domain">${item.domain || 'External Link'}</span>
               <span class="bookmark-added-by">${item.addedBy || 'Owner'}</span>
+              ${item.hiddenByAdmin ? '<span class="bookmark-hidden-badge"><i data-lucide="eye-off" style="width:10px;height:10px;"></i> Hidden</span>' : ''}
             </div>
           </div>
           <div class="bookmark-mid">
             <span class="category-tag ${categoryClass}">${item.category}</span>
             <div class="bookmark-actions">
+              ${isOwner ? `
+              <div class="btn-bookmark-action drag-handle" title="Drag to Reorder" style="cursor: grab;">
+                <i data-lucide="grip-vertical"></i>
+              </div>
+              ` : ''}
               <button class="btn-bookmark-action btn-copy" data-url="${item.url}" title="Copy Link">
                 <i data-lucide="copy"></i>
               </button>
-              <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="btn-bookmark-action" title="Open Link">
-                <i data-lucide="external-link"></i>
-              </a>
+              ${isOwner ? `
+              <button class="btn-bookmark-action hide-toggle-btn" data-id="${item.id}" data-hidden="${item.hiddenByAdmin ? 'true' : 'false'}" title="${item.hiddenByAdmin ? 'Unhide from guests' : 'Hide from guests'}">
+                <i data-lucide="${item.hiddenByAdmin ? 'eye' : 'eye-off'}"></i>
+              </button>
+              ` : ''}
               ${canModify ? `
               <button class="btn-bookmark-action edit-btn" data-id="${item.id}" title="Edit Bookmark">
                 <i data-lucide="edit-2"></i>
@@ -1087,6 +1181,13 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           </div>
         `;
+
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.btn-bookmark-action')) {
+            return;
+          }
+          window.open(item.url, '_blank', 'noopener,noreferrer');
+        });
         
         grid.appendChild(card);
       });
@@ -1097,6 +1198,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Attach clipboard and delete event listeners
     bookmarksContainer.querySelectorAll('.btn-copy').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const urlToCopy = btn.getAttribute('data-url');
         navigator.clipboard.writeText(urlToCopy).then(() => {
           btn.innerHTML = '<i data-lucide="check"></i>';
@@ -1112,16 +1214,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     bookmarksContainer.querySelectorAll('.edit-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const linkId = btn.getAttribute('data-id');
         startEditBookmark(linkId);
       });
     });
 
     bookmarksContainer.querySelectorAll('.delete').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const linkId = btn.getAttribute('data-id');
         deleteBookmark(linkId);
+      });
+    });
+
+    bookmarksContainer.querySelectorAll('.hide-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const linkId = btn.getAttribute('data-id');
+        const isCurrentlyHidden = btn.getAttribute('data-hidden') === 'true';
+        toggleBookmarkVisibility(linkId, !isCurrentlyHidden);
       });
     });
 
@@ -1131,7 +1244,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Render recent bookmarks preview on Dashboard
   function renderRecentBookmarks() {
     dashboardRecentLinks.innerHTML = '';
-    const recents = savedLinks.slice(0, 3);
+    const isOwner = document.body.classList.contains('mode-owner');
+    // Filter out admin-hidden bookmarks for non-owners in dashboard preview
+    const visibleLinks = isOwner ? savedLinks : savedLinks.filter(item => !item.hiddenByAdmin);
+    const recents = visibleLinks.slice(0, 3);
 
     if (recents.length === 0) {
       dashboardRecentLinks.innerHTML = `
@@ -1172,7 +1288,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Fetch bookmarks
   async function fetchBookmarks() {
     try {
-      const response = await fetch('/api/links');
+      const headers = {};
+      const ownerToken = localStorage.getItem('owner_token');
+      if (ownerToken) headers['x-owner-token'] = ownerToken;
+
+      const response = await fetch('/api/links', { headers });
       const data = await response.json();
       savedLinks = data;
       
@@ -1321,6 +1441,38 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (e) {
       await showModalAlert('Failed to delete bookmark.', 'Delete Error', 'error');
+    }
+  }
+
+  // Toggle bookmark visibility (admin hide/unhide)
+  async function toggleBookmarkVisibility(id, hide) {
+    try {
+      const response = await fetch(`/api/links/${id}/visibility`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-owner-token': localStorage.getItem('owner_token') || ''
+        },
+        body: JSON.stringify({ hidden: hide })
+      });
+      const result = await response.json();
+
+      if (result.error) {
+        await showModalAlert(result.error, 'Visibility Error', 'error');
+        return;
+      }
+
+      // Update local array
+      const idx = savedLinks.findIndex(item => item.id === id);
+      if (idx !== -1) {
+        savedLinks[idx] = result;
+      }
+
+      renderBookmarks();
+      renderRecentBookmarks();
+    } catch (e) {
+      console.error('Toggle visibility error:', e);
+      await showModalAlert('Failed to update bookmark visibility.', 'Visibility Error', 'error');
     }
   }
 
@@ -1736,6 +1888,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let cdbpMyName = '';
   let cdbpIsHost = false;
   let cdbpPlayersList = [];
+  let cdbpMyRole = '';
+  let cdbpTargetRole = 'Both';
+  let cdbpRoundNum = 1;
 
   // Reset lobby UI views
   function resetCdbpUI() {
@@ -1746,6 +1901,9 @@ document.addEventListener('DOMContentLoaded', () => {
     cdbpMyName = '';
     cdbpIsHost = false;
     cdbpPlayersList = [];
+    cdbpMyRole = '';
+    cdbpTargetRole = 'Both';
+    cdbpRoundNum = 1;
   }
 
   // Open Game Menu Routing
@@ -1980,7 +2138,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnCdbpSubmitGuess.addEventListener('click', async () => {
     const chor = cdbpGuessChor.value;
     const dakat = cdbpGuessDakat.value;
-    if (chor === dakat) {
+    if (cdbpTargetRole === 'Both' && chor === dakat) {
       await showModalAlert('Suspects for Chor and Dakat must be different players.', 'Invalid Selection', 'error');
       return;
     }
@@ -1998,7 +2156,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnCdbpQuickSubmitGuess.addEventListener('click', async () => {
     const chor = cdbpQuickGuessChor.value;
     const dakat = cdbpQuickGuessDakat.value;
-    if (chor === dakat) {
+    if (cdbpTargetRole === 'Both' && chor === dakat) {
       await showModalAlert('Suspects for Chor and Dakat must be different players.', 'Invalid Selection', 'error');
       return;
     }
@@ -2148,6 +2306,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!cdbpRoomId) return; // Ignore if not in a CDBP session
 
     cdbpPlayersList = roomState.players;
+    cdbpTargetRole = roomState.targetRole || 'Both';
+    cdbpRoundNum = roomState.roundNum || 1;
 
     if (roomState.status === 'LOBBY') {
       transitionToLobby(roomState);
@@ -2190,8 +2350,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Socket: Phase Changes & Secret Dispatches
   socket.on('cdbp-phase-changed', (phaseData) => {
-    const { status, timer, myRole, detectiveClue, spyInfo, reveal } = phaseData;
+    const { status, timer, myRole, detectiveClue, spyInfo, reveal, targetRole, roundNum } = phaseData;
     cdbpMyRole = myRole;
+    if (targetRole) cdbpTargetRole = targetRole;
+    if (roundNum) cdbpRoundNum = roundNum;
 
     // Update HUD phase indicators
     cdbpHudPhase.textContent = status.replace('_', ' ');
@@ -2257,6 +2419,21 @@ document.addEventListener('DOMContentLoaded', () => {
           cdbpPoliceQuickVoteBox.classList.remove('hidden');
           btnCdbpQuickSubmitGuess.removeAttribute('disabled');
           populatePlayerSelectors(cdbpQuickGuessChor, cdbpQuickGuessDakat);
+
+          const chorGroup = document.getElementById('cdbp-quick-guess-chor-group');
+          const dakatGroup = document.getElementById('cdbp-quick-guess-dakat-group');
+          if (chorGroup && dakatGroup) {
+            if (cdbpTargetRole === 'Chor') {
+              chorGroup.classList.remove('hidden');
+              dakatGroup.classList.add('hidden');
+            } else if (cdbpTargetRole === 'Dakat') {
+              chorGroup.classList.add('hidden');
+              dakatGroup.classList.remove('hidden');
+            } else {
+              chorGroup.classList.remove('hidden');
+              dakatGroup.classList.remove('hidden');
+            }
+          }
         } else {
           cdbpPoliceQuickVoteBox.classList.add('hidden');
         }
@@ -2271,9 +2448,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Populate Chor/Dakat suspects selector
           populatePlayerSelectors(cdbpGuessChor, cdbpGuessDakat);
+
+          // Update titles & descriptions dynamically
+          const panelTitle = document.getElementById('cdbp-police-panel-title');
+          const panelDesc = document.getElementById('cdbp-police-panel-desc');
+          
+          // Show/hide based on targetRole
+          const chorGroup = document.getElementById('cdbp-guess-chor-group');
+          const dakatGroup = document.getElementById('cdbp-guess-dakat-group');
+          
+          if (chorGroup && dakatGroup) {
+            if (cdbpTargetRole === 'Chor') {
+              chorGroup.classList.remove('hidden');
+              dakatGroup.classList.add('hidden');
+              if (panelTitle) panelTitle.textContent = 'Identify the CHOR';
+              if (panelDesc) panelDesc.textContent = 'For a 4-5 player game, this round you only need to identify the Chor (Thief).';
+            } else if (cdbpTargetRole === 'Dakat') {
+              chorGroup.classList.add('hidden');
+              dakatGroup.classList.remove('hidden');
+              if (panelTitle) panelTitle.textContent = 'Identify the DAKAT';
+              if (panelDesc) panelDesc.textContent = 'For a 4-5 player game, this round you only need to identify the Dakat (Dacoit).';
+            } else {
+              chorGroup.classList.remove('hidden');
+              dakatGroup.classList.remove('hidden');
+              if (panelTitle) panelTitle.textContent = 'Select the Suspects';
+              if (panelDesc) panelDesc.textContent = 'You must identify BOTH the Chor and the Dakat to win. Examine the discussion evidence carefully.';
+            }
+          }
         } else {
           cdbpPolicePanel.classList.add('hidden');
           cdbpNonPolicePanel.classList.remove('hidden');
+
+          const deliberatingText = document.getElementById('cdbp-police-deliberating-text');
+          if (deliberatingText) {
+            if (cdbpTargetRole === 'Chor') {
+              deliberatingText.textContent = 'The Police is currently selecting the suspect for Chor. Prepare for the final reveal!';
+            } else if (cdbpTargetRole === 'Dakat') {
+              deliberatingText.textContent = 'The Police is currently selecting the suspect for Dakat. Prepare for the final reveal!';
+            } else {
+              deliberatingText.textContent = 'The Police is currently selecting suspects for Chor and Dakat. Prepare for the final reveal!';
+            }
+          }
         }
         break;
 
@@ -2386,7 +2601,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Helper: Render Reveal & Scoreboard Summary
   function renderRevealSummary(revealData) {
-    const { guesses, swapLogs, actualRoles } = revealData;
+    const { guesses, swapLogs, actualRoles, targetRole } = revealData;
+    const currentTargetRole = targetRole || cdbpTargetRole || 'Both';
 
     // Check if guess is correct
     const actualChor = actualRoles.find(r => r.role === 'Chor');
@@ -2394,20 +2610,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const correctChor = guesses.chor === actualChor?.name;
     const correctDakat = guesses.dakat === actualDakat?.name;
-    const isSuccess = correctChor && correctDakat;
+    
+    let isSuccess = false;
+    if (currentTargetRole === 'Chor') {
+      isSuccess = correctChor;
+    } else if (currentTargetRole === 'Dakat') {
+      isSuccess = correctDakat;
+    } else {
+      isSuccess = correctChor && correctDakat;
+    }
 
     // 1. Setup outcome banner
     cdbpOutcomeBanner.className = `outcome-banner ${isSuccess ? 'success' : 'fail'}`;
     cdbpOutcomeTitle.textContent = isSuccess ? 'POLICE VICTORY' : 'CRIMINALS ESCAPED';
     cdbpOutcomeDesc.textContent = isSuccess 
-      ? 'The Police successfully arrested both the Chor and the Dakat!' 
-      : 'The criminals successfully bluffed and evaded arrest!';
+      ? (currentTargetRole === 'Chor' ? 'The Police successfully arrested the Chor!' : (currentTargetRole === 'Dakat' ? 'The Police successfully arrested the Dakat!' : 'The Police successfully arrested both the Chor and the Dakat!'))
+      : (currentTargetRole === 'Chor' ? 'The Chor successfully bluffed and evaded arrest!' : (currentTargetRole === 'Dakat' ? 'The Dakat successfully bluffed and evaded arrest!' : 'The criminals successfully bluffed and evaded arrest!'));
 
     // 2. Populate guesses
     cdbpRevealGuessChor.textContent = guesses.chor || 'None';
     cdbpRevealGuessChor.className = correctChor ? 'glow-cyan' : 'glow-pink';
     cdbpRevealGuessDakat.textContent = guesses.dakat || 'None';
     cdbpRevealGuessDakat.className = correctDakat ? 'glow-cyan' : 'glow-pink';
+
+    const revealChorRow = document.getElementById('cdbp-reveal-guess-chor-row');
+    const revealDakatRow = document.getElementById('cdbp-reveal-guess-dakat-row');
+    const revealDivider = document.getElementById('cdbp-reveal-guess-divider');
+
+    if (revealChorRow && revealDakatRow && revealDivider) {
+      if (currentTargetRole === 'Chor') {
+        revealChorRow.classList.remove('hidden');
+        revealDakatRow.classList.add('hidden');
+        revealDivider.classList.add('hidden');
+      } else if (currentTargetRole === 'Dakat') {
+        revealChorRow.classList.add('hidden');
+        revealDakatRow.classList.remove('hidden');
+        revealDivider.classList.add('hidden');
+      } else {
+        revealChorRow.classList.remove('hidden');
+        revealDakatRow.classList.remove('hidden');
+        revealDivider.classList.remove('hidden');
+      }
+    }
 
     // 3. Populate swaps
     if (swapLogs && swapLogs.length > 0) {
@@ -3483,13 +3727,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const nhieSelectLives         = document.getElementById('nhie-select-lives');
   const nhieSelectStatementTime = document.getElementById('nhie-select-statement-time');
   const nhieSelectAnswerTime    = document.getElementById('nhie-select-answer-time');
-  const nhieSelectSource        = document.getElementById('nhie-select-source');
+  const nhieSelectSystemPrompts = document.getElementById('nhie-select-system-prompts');
   const nhieSelectStatementsPerPlayer = document.getElementById('nhie-select-statements-per-player');
-  const nhieSelectPremadeTotal  = document.getElementById('nhie-select-premade-total');
 
   const nhieLivesField          = document.getElementById('nhie-lives-field');
   const nhieCustomPerPlayerField= document.getElementById('nhie-custom-per-player-field');
-  const nhiePremadeTotalField   = document.getElementById('nhie-premade-total-field');
 
   // Timers
   const nhieSTimer           = document.getElementById('nhie-s-timer');
@@ -3652,16 +3894,30 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── Emit settings updates to server ──────────────────────────────────────
-  function nhieSendSettingsUpdate() {
+  function nhieSendSettingsUpdate(triggeringEl) {
     if (!nhieIsHost) return;
+    
+    let customCount = parseInt(nhieSelectStatementsPerPlayer.value);
+    let systemCount = parseInt(nhieSelectSystemPrompts.value);
+    
+    // Prevent configuring 0 total statements
+    if (customCount === 0 && systemCount === 0) {
+      if (triggeringEl === nhieSelectStatementsPerPlayer) {
+        systemCount = 10;
+        nhieSelectSystemPrompts.value = "10";
+      } else {
+        customCount = 2;
+        nhieSelectStatementsPerPlayer.value = "2";
+      }
+    }
+
     const settings = {
       scoreMode: nhieSelectScoreMode.value,
       startingLives: parseInt(nhieSelectLives.value),
       statementTime: parseInt(nhieSelectStatementTime.value),
       answerTime: parseInt(nhieSelectAnswerTime.value),
-      statementSource: nhieSelectSource.value,
-      statementsPerPlayer: parseInt(nhieSelectStatementsPerPlayer.value),
-      totalPremadeStatements: parseInt(nhieSelectPremadeTotal.value),
+      statementsPerPlayer: customCount,
+      systemStatementsCount: systemCount,
     };
     socket.emit('nhie-update-settings', settings);
   }
@@ -3673,23 +3929,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       nhieLivesField.classList.add('hidden');
     }
-
-    if (settings.statementSource === 'PREMADE_ONLY') {
-      nhieCustomPerPlayerField.classList.add('hidden');
-      nhiePremadeTotalField.classList.remove('hidden');
-    } else if (settings.statementSource === 'CUSTOM_ONLY') {
-      nhieCustomPerPlayerField.classList.remove('hidden');
-      nhiePremadeTotalField.classList.add('hidden');
-    } else {
-      nhieCustomPerPlayerField.classList.remove('hidden');
-      nhiePremadeTotalField.classList.add('hidden');
-    }
   }
 
   // Listeners for setting adjustments (Host only)
-  [nhieSelectScoreMode, nhieSelectLives, nhieSelectStatementTime, nhieSelectAnswerTime, nhieSelectSource, nhieSelectStatementsPerPlayer, nhieSelectPremadeTotal].forEach(el => {
+  [nhieSelectScoreMode, nhieSelectLives, nhieSelectStatementTime, nhieSelectAnswerTime, nhieSelectSystemPrompts, nhieSelectStatementsPerPlayer].forEach(el => {
     el.addEventListener('change', () => {
-      nhieSendSettingsUpdate();
+      nhieSendSettingsUpdate(el);
     });
   });
 
@@ -3871,6 +4116,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Submit custom statements ──────────────────────────────────────────────
   btnNhieSubmitStatements.addEventListener('click', () => {
     const inputs = nhieStatementInputsContainer.querySelectorAll('input');
+    
+    // Check if any statements are empty first to avoid partial submissions
+    for (let i = 0; i < inputs.length; i++) {
+      if (!inputs[i].value.trim()) {
+        showModalAlert('Statements cannot be empty!', 'Required Field', 'warning');
+        return;
+      }
+    }
+
+    btnNhieSubmitStatements.disabled = true;
+    btnNhieSubmitStatements.textContent = 'Submitting...';
     let index = 0;
 
     function submitNext() {
@@ -3880,14 +4136,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       const val = inputs[index].value.trim();
-      if (!val) {
-        showModalAlert('Statements cannot be empty!', 'Required Field', 'warning');
-        return;
-      }
 
       socket.emit('nhie-submit-statement', { statementText: val }, (res) => {
         if (res.error) {
           showModalAlert(res.error, 'Error submitting statement', 'danger');
+          btnNhieSubmitStatements.disabled = false;
+          btnNhieSubmitStatements.textContent = 'Submit Statements';
           return;
         }
         index++;
@@ -3906,15 +4160,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const ans = btn.getAttribute('data-answer');
       const hasDone = (ans === 'have');
 
+      // Hide answer choices immediately to block double click/submissions
+      nhieAnswerButtons.classList.add('hidden');
+      nhieAnsweredWaiting.classList.remove('hidden');
+
       socket.emit('nhie-submit-answer', { hasDone }, (res) => {
         if (res.error) {
+          // Re-enable/re-show buttons in case of error so they can try again
+          nhieAnswerButtons.classList.remove('hidden');
+          nhieAnsweredWaiting.classList.add('hidden');
           showModalAlert(res.error, 'Error submitting answer', 'danger');
           return;
         }
-
-        // Hide buttons, show waiting confirmation
-        nhieAnswerButtons.classList.add('hidden');
-        nhieAnsweredWaiting.classList.remove('hidden');
       });
     });
   });
@@ -3950,15 +4207,21 @@ document.addEventListener('DOMContentLoaded', () => {
       nhieSelectLives.value = state.settings.startingLives;
       nhieSelectStatementTime.value = state.settings.statementTime;
       nhieSelectAnswerTime.value = state.settings.answerTime;
-      nhieSelectSource.value = state.settings.statementSource;
+      nhieSelectSystemPrompts.value = state.settings.systemStatementsCount;
       nhieSelectStatementsPerPlayer.value = state.settings.statementsPerPlayer;
-      nhieSelectPremadeTotal.value = state.settings.totalPremadeStatements;
     } else {
       nhieSettingsControls.classList.add('hidden');
       nhieSettingsReadonly.classList.remove('hidden');
       
-      const srcText = state.settings.statementSource === 'PREMADE_ONLY' ? 'Pre-made prompts only' : 
-                      state.settings.statementSource === 'CUSTOM_ONLY' ? 'Custom prompts only' : 'Mixed pool';
+      let srcText = '';
+      if (state.settings.statementsPerPlayer > 0 && state.settings.systemStatementsCount > 0) {
+        srcText = `Mixed (${state.settings.statementsPerPlayer} custom/player, ${state.settings.systemStatementsCount} system)`;
+      } else if (state.settings.statementsPerPlayer > 0) {
+        srcText = `Custom only (${state.settings.statementsPerPlayer}/player)`;
+      } else {
+        srcText = `System only (${state.settings.systemStatementsCount} prompts)`;
+      }
+      
       const scoreModeText = state.settings.scoreMode === 'SURVIVAL' ? `Survival Mode (${state.settings.startingLives} lives)` : 'Points Mode';
 
       nhieSettingsReadonly.innerHTML = `
@@ -4154,12 +4417,12 @@ document.addEventListener('DOMContentLoaded', () => {
           (state.settings.scoreMode === 'SURVIVAL' ? '<span style="color:var(--color-danger); margin-left:6px;">-1❤️</span>' : '<span style="color:var(--nhie-emerald); margin-left:6px;">+1 Pt</span>') : '';
 
         row.innerHTML = `
-          <div style="display:flex; align-items:center; gap:8px;">
-            <div class="nhie-avatar-mini" style="${nhieGetAvatarStyle(p.name)}">${p.name.substring(0,2).toUpperCase()}</div>
-            <span style="font-weight:600;">${p.name}</span>
-            ${diffText}
+          <div style="display:flex; align-items:center; gap:8px; min-width: 0; flex-shrink: 1;">
+            <div class="nhie-avatar-mini" style="flex-shrink:0; ${nhieGetAvatarStyle(p.name)}">${p.name.substring(0,2).toUpperCase()}</div>
+            <span style="font-weight:600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${p.name}</span>
+            <span style="flex-shrink: 0; white-space: nowrap;">${diffText}</span>
           </div>
-          ${scorePill}
+          <div style="flex-shrink: 0; margin-left: 8px;">${scorePill}</div>
         `;
         nhieResultScoresList.appendChild(row);
       });
@@ -4653,7 +4916,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="admin-table-title">${bm.title}</span>
           <span class="admin-table-url" title="${bm.url}">${bm.url}</span>
         </td>
-        <td><span class="category-tag category-tag-general" style="font-size: 11px; padding: 2px 6px;">${bm.category}</span></td>
+        <td><span class="category-tag ${getCategoryColorClass(bm.category)}" style="font-size: 11px; padding: 2px 6px;">${bm.category}</span></td>
         <td style="font-weight: 500;">${bm.addedBy || 'Owner'}</td>
         <td style="text-align: right;">
           <div class="admin-actions">
