@@ -507,8 +507,13 @@ module.exports = function initNhieGame(io) {
       const existing = room.players.find(p => p.name.toLowerCase() === name.toLowerCase());
       if (existing) {
         if (!existing.connected) {
+          const oldId = existing.id;
           existing.id = socket.id;
           existing.connected = true;
+          if (existing.isHost || room.hostId === oldId) {
+            room.hostId = socket.id;
+            existing.isHost = true;
+          }
           socket.join(code);
           log(room.roomId, `"${name}" reconnected.`);
           
@@ -638,9 +643,8 @@ module.exports = function initNhieGame(io) {
       broadcastRoomState(room);
       callback && callback({ ok: true, submitted: alreadySubmitted + 1, total: room.settings.statementsPerPlayer });
 
-      // Auto-advance if all connected players submitted
-      const activePlayers = room.players.filter(p => p.connected);
-      const totalExpected = room.settings.statementsPerPlayer * activePlayers.length;
+      // Auto-advance if all players submitted
+      const totalExpected = room.settings.statementsPerPlayer * room.players.length;
       if (room.statements.length >= totalExpected) {
         log(room.roomId, 'All statements submitted — advancing to ANSWERING_PHASE');
         if (room.timerId) clearInterval(room.timerId);
@@ -669,9 +673,8 @@ module.exports = function initNhieGame(io) {
       broadcastRoomState(room);
       callback && callback({ ok: true });
 
-      // Auto-advance if all connected players answered
-      const activePlayers = room.players.filter(p => p.connected);
-      const allAnswered = activePlayers.every(p => p.hasAnswered);
+      // Auto-advance if all players answered
+      const allAnswered = room.players.every(p => p.hasAnswered);
       if (allAnswered) {
         log(room.roomId, 'All players answered — advancing to STATEMENT_RESULTS');
         if (room.timerId) clearInterval(room.timerId);

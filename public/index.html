@@ -537,7 +537,24 @@
 
           <!-- ── SCREEN 1: LOBBY SETUP ── -->
           <div id="wtw-lobby-setup">
-            <div class="wtw-lobby-grid">
+            <!-- Rejoin Panel -->
+            <div id="wtw-rejoin-panel" class="glass-panel wtw-lobby-card" style="display: none; margin-bottom: 24px; text-align: center; max-width: 500px; margin-left: auto; margin-right: auto; padding: 24px;">
+              <div class="wtw-lobby-card-icon" style="color: var(--wtw-orange);"><i data-lucide="refresh-cw"></i></div>
+              <h3 style="color: var(--wtw-orange); margin-bottom: 12px;">Active Session Found</h3>
+              <p style="margin-bottom: 20px;">You have an active session in <strong>Room <span id="wtw-rejoin-room-code" style="color: var(--wtw-orange);"></span></strong> as <strong><span id="wtw-rejoin-player-name"></span></strong>.</p>
+              <div style="display: flex; gap: 12px; justify-content: center;">
+                <button class="btn-primary wtw-btn-orange" id="btn-wtw-rejoin" style="padding: 10px 20px;">
+                  <i data-lucide="play"></i>
+                  <span>Resume Game</span>
+                </button>
+                <button class="btn-secondary" id="btn-wtw-clear-session" style="padding: 10px 20px;">
+                  <i data-lucide="plus-circle"></i>
+                  <span>Start New Game</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="wtw-lobby-grid" id="wtw-lobby-forms">
               <!-- Create -->
               <div class="glass-panel wtw-lobby-card">
                 <div class="wtw-lobby-card-icon"><i data-lucide="plus-circle"></i></div>
@@ -800,7 +817,24 @@
 
           <!-- ── SCREEN 1: LOBBY SETUP (Create or Join) ── -->
           <div id="nhie-lobby-setup">
-            <div class="nhie-lobby-grid">
+            <!-- Rejoin Panel -->
+            <div id="nhie-rejoin-panel" class="glass-panel nhie-lobby-card" style="display: none; margin-bottom: 24px; text-align: center; max-width: 500px; margin-left: auto; margin-right: auto; padding: 24px;">
+              <div class="nhie-lobby-card-icon" style="color: var(--nhie-rose);"><i data-lucide="refresh-cw"></i></div>
+              <h3 style="color: var(--nhie-rose); margin-bottom: 12px;">Active Session Found</h3>
+              <p style="margin-bottom: 20px;">You have an active session in <strong>Room <span id="nhie-rejoin-room-code" style="color: var(--nhie-rose);"></span></strong> as <strong><span id="nhie-rejoin-player-name"></span></strong>.</p>
+              <div style="display: flex; gap: 12px; justify-content: center;">
+                <button class="btn-primary nhie-btn-rose" id="btn-nhie-rejoin" style="padding: 10px 20px;">
+                  <i data-lucide="play"></i>
+                  <span>Resume Game</span>
+                </button>
+                <button class="btn-secondary" id="btn-nhie-clear-session" style="padding: 10px 20px;">
+                  <i data-lucide="plus-circle"></i>
+                  <span>Start New Game</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="nhie-lobby-grid" id="nhie-lobby-forms">
               <!-- Create Card -->
               <div class="glass-panel nhie-lobby-card">
                 <div class="nhie-lobby-card-icon"><i data-lucide="plus-circle"></i></div>
@@ -1132,7 +1166,24 @@
 
           <!-- LOBBY SCREEN (Setup room / Join room) -->
           <div class="cdbp-setup-panel glass-panel" id="cdbp-lobby-setup">
-            <div class="setup-grid">
+            <!-- Rejoin Panel -->
+            <div id="cdbp-rejoin-panel" class="glass-panel" style="display: none; margin-bottom: 24px; text-align: center; max-width: 500px; margin-left: auto; margin-right: auto; padding: 24px; border: 1px solid rgba(255,255,255,0.1);">
+              <div style="font-size: 32px; color: var(--theme-blue, #3b82f6); margin-bottom: 12px;"><i data-lucide="refresh-cw"></i></div>
+              <h3 style="color: var(--theme-blue, #3b82f6); margin-bottom: 12px;">Active Session Found</h3>
+              <p style="margin-bottom: 20px;">You have an active session in <strong>Room <span id="cdbp-rejoin-room-code" style="color: var(--theme-blue, #3b82f6);"></span></strong> as <strong><span id="cdbp-rejoin-player-name"></span></strong>.</p>
+              <div style="display: flex; gap: 12px; justify-content: center;">
+                <button class="btn-primary" id="btn-cdbp-rejoin" style="padding: 10px 20px;">
+                  <i data-lucide="play"></i>
+                  <span>Resume Game</span>
+                </button>
+                <button class="btn-secondary" id="btn-cdbp-clear-session" style="padding: 10px 20px;">
+                  <i data-lucide="plus-circle"></i>
+                  <span>Start New Game</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="setup-grid" id="cdbp-lobby-forms">
               <div class="setup-section create-section">
                 <h3>Create New Lobby</h3>
                 <p>Create a game room and invite your friends. Supports 4 to 7 players.</p>

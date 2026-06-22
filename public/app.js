@@ -1754,6 +1754,66 @@ document.addEventListener('DOMContentLoaded', () => {
     cdbpGameView.classList.remove('hidden');
     localStorage.setItem('active_game', 'cdbp');
     resetCdbpUI();
+
+    const savedRoomId = localStorage.getItem('cdbp_saved_room_id');
+    const savedPlayerName = localStorage.getItem('cdbp_saved_player_name');
+    if (savedRoomId && savedPlayerName) {
+      document.getElementById('cdbp-rejoin-room-code').textContent = savedRoomId;
+      document.getElementById('cdbp-rejoin-player-name').textContent = savedPlayerName;
+      document.getElementById('cdbp-rejoin-panel').style.display = 'block';
+      document.getElementById('cdbp-lobby-forms').style.display = 'none';
+    } else {
+      document.getElementById('cdbp-rejoin-panel').style.display = 'none';
+      document.getElementById('cdbp-lobby-forms').style.display = 'grid';
+    }
+  });
+
+  // Resume / New Game for CDBP
+  document.getElementById('btn-cdbp-rejoin').addEventListener('click', () => {
+    const savedRoomId = localStorage.getItem('cdbp_saved_room_id');
+    const savedPlayerName = localStorage.getItem('cdbp_saved_player_name');
+    if (savedRoomId && savedPlayerName) {
+      socket.emit('cdbp-join', { roomId: savedRoomId, playerName: savedPlayerName }, (response) => {
+        if (response && response.success) {
+          cdbpMyName = savedPlayerName;
+          cdbpRoomId = response.roomId;
+          cdbpIsHost = response.roomState.players.find(p => p.name === savedPlayerName)?.isHost || false;
+
+          sessionStorage.setItem('cdbp_room_id', response.roomId);
+          sessionStorage.setItem('cdbp_player_name', savedPlayerName);
+          sessionStorage.setItem('cdbp_active', 'true');
+
+          localStorage.setItem('cdbp_saved_active', 'true');
+
+          document.getElementById('cdbp-rejoin-panel').style.display = 'none';
+          document.getElementById('cdbp-lobby-forms').style.display = 'grid';
+
+          transitionToLobby(response.roomState);
+        } else {
+          showModalAlert(response?.error || 'Failed to rejoin room', 'Rejoin Error', 'error');
+          localStorage.removeItem('cdbp_saved_room_id');
+          localStorage.removeItem('cdbp_saved_player_name');
+          localStorage.removeItem('cdbp_saved_active');
+          document.getElementById('cdbp-rejoin-panel').style.display = 'none';
+          document.getElementById('cdbp-lobby-forms').style.display = 'grid';
+          resetCdbpUI();
+        }
+      });
+    }
+  });
+
+  document.getElementById('btn-cdbp-clear-session').addEventListener('click', () => {
+    localStorage.removeItem('cdbp_saved_room_id');
+    localStorage.removeItem('cdbp_saved_player_name');
+    localStorage.removeItem('cdbp_saved_active');
+
+    sessionStorage.removeItem('cdbp_room_id');
+    sessionStorage.removeItem('cdbp_player_name');
+    sessionStorage.removeItem('cdbp_active');
+
+    document.getElementById('cdbp-rejoin-panel').style.display = 'none';
+    document.getElementById('cdbp-lobby-forms').style.display = 'grid';
+    resetCdbpUI();
   });
 
   btnCdbpBackToArcade.addEventListener('click', () => {
@@ -1784,6 +1844,11 @@ document.addEventListener('DOMContentLoaded', () => {
       sessionStorage.setItem('cdbp_room_id', response.roomId);
       sessionStorage.setItem('cdbp_player_name', name);
       sessionStorage.setItem('cdbp_active', 'true');
+
+      localStorage.setItem('cdbp_saved_room_id', response.roomId);
+      localStorage.setItem('cdbp_saved_player_name', name);
+      localStorage.setItem('cdbp_saved_active', 'true');
+
       transitionToLobby(response.roomState);
     });
   });
@@ -1813,6 +1878,11 @@ document.addEventListener('DOMContentLoaded', () => {
       sessionStorage.setItem('cdbp_room_id', response.roomId);
       sessionStorage.setItem('cdbp_player_name', name);
       sessionStorage.setItem('cdbp_active', 'true');
+
+      localStorage.setItem('cdbp_saved_room_id', response.roomId);
+      localStorage.setItem('cdbp_saved_player_name', name);
+      localStorage.setItem('cdbp_saved_active', 'true');
+
       transitionToLobby(response.roomState);
     });
   });
@@ -2926,8 +2996,69 @@ document.addEventListener('DOMContentLoaded', () => {
     wtwGameView.classList.remove('hidden');
     localStorage.setItem('active_game', 'wtw');
     wtwResetUI();
+
+    const savedRoomId = localStorage.getItem('wtw_saved_room_id');
+    const savedPlayerName = localStorage.getItem('wtw_saved_player_name');
+    if (savedRoomId && savedPlayerName) {
+      document.getElementById('wtw-rejoin-room-code').textContent = savedRoomId;
+      document.getElementById('wtw-rejoin-player-name').textContent = savedPlayerName;
+      document.getElementById('wtw-rejoin-panel').style.display = 'block';
+      document.getElementById('wtw-lobby-forms').style.display = 'none';
+    } else {
+      document.getElementById('wtw-rejoin-panel').style.display = 'none';
+      document.getElementById('wtw-lobby-forms').style.display = 'grid';
+    }
     wtwLoadHistory();
     lucide.createIcons();
+  });
+
+  // Resume / New Game for WTW
+  document.getElementById('btn-wtw-rejoin').addEventListener('click', () => {
+    const savedRoomId = localStorage.getItem('wtw_saved_room_id');
+    const savedPlayerName = localStorage.getItem('wtw_saved_player_name');
+    if (savedRoomId && savedPlayerName) {
+      socket.emit('wtw-join', { roomId: savedRoomId, playerName: savedPlayerName }, (res) => {
+        if (res && !res.error) {
+          wtwMyName = savedPlayerName;
+          wtwRoomId = savedRoomId;
+          wtwIsHost = (res.roomState.hostId === socket.id);
+          wtwMyId = socket.id;
+
+          sessionStorage.setItem('wtw_room_id', savedRoomId);
+          sessionStorage.setItem('wtw_player_name', savedPlayerName);
+          sessionStorage.setItem('wtw_active', 'true');
+
+          localStorage.setItem('wtw_saved_active', 'true');
+
+          document.getElementById('wtw-rejoin-panel').style.display = 'none';
+          document.getElementById('wtw-lobby-forms').style.display = 'grid';
+
+          wtwRouteState(res.roomState);
+        } else {
+          showModalAlert(res?.error || 'Failed to rejoin room', 'Rejoin Error', 'error');
+          localStorage.removeItem('wtw_saved_room_id');
+          localStorage.removeItem('wtw_saved_player_name');
+          localStorage.removeItem('wtw_saved_active');
+          document.getElementById('wtw-rejoin-panel').style.display = 'none';
+          document.getElementById('wtw-lobby-forms').style.display = 'grid';
+          wtwResetUI();
+        }
+      });
+    }
+  });
+
+  document.getElementById('btn-wtw-clear-session').addEventListener('click', () => {
+    localStorage.removeItem('wtw_saved_room_id');
+    localStorage.removeItem('wtw_saved_player_name');
+    localStorage.removeItem('wtw_saved_active');
+
+    sessionStorage.removeItem('wtw_room_id');
+    sessionStorage.removeItem('wtw_player_name');
+    sessionStorage.removeItem('wtw_active');
+
+    document.getElementById('wtw-rejoin-panel').style.display = 'none';
+    document.getElementById('wtw-lobby-forms').style.display = 'grid';
+    wtwResetUI();
   });
 
   btnWtwBack.addEventListener('click', () => {
@@ -2962,6 +3093,11 @@ document.addEventListener('DOMContentLoaded', () => {
       sessionStorage.setItem('wtw_player_name', name);
       sessionStorage.setItem('wtw_active', 'true');
 
+      // Save to localStorage
+      localStorage.setItem('wtw_saved_room_id', res.roomId);
+      localStorage.setItem('wtw_saved_player_name', name);
+      localStorage.setItem('wtw_saved_active', 'true');
+
       wtwRouteState(res.roomState);
     });
   });
@@ -2992,6 +3128,11 @@ document.addEventListener('DOMContentLoaded', () => {
       sessionStorage.setItem('wtw_room_id', code);
       sessionStorage.setItem('wtw_player_name', name);
       sessionStorage.setItem('wtw_active', 'true');
+
+      // Save to localStorage
+      localStorage.setItem('wtw_saved_room_id', code);
+      localStorage.setItem('wtw_saved_player_name', name);
+      localStorage.setItem('wtw_saved_active', 'true');
 
       wtwRouteState(res.roomState);
     });
@@ -3558,8 +3699,69 @@ document.addEventListener('DOMContentLoaded', () => {
     nhieGameView.classList.remove('hidden');
     localStorage.setItem('active_game', 'nhie');
     nhieResetUI();
+
+    const savedRoomId = localStorage.getItem('nhie_saved_room_id');
+    const savedPlayerName = localStorage.getItem('nhie_saved_player_name');
+    if (savedRoomId && savedPlayerName) {
+      document.getElementById('nhie-rejoin-room-code').textContent = savedRoomId;
+      document.getElementById('nhie-rejoin-player-name').textContent = savedPlayerName;
+      document.getElementById('nhie-rejoin-panel').style.display = 'block';
+      document.getElementById('nhie-lobby-forms').style.display = 'none';
+    } else {
+      document.getElementById('nhie-rejoin-panel').style.display = 'none';
+      document.getElementById('nhie-lobby-forms').style.display = 'grid';
+    }
     nhieLoadHistory();
     lucide.createIcons();
+  });
+
+  // Resume / New Game for NHIE
+  document.getElementById('btn-nhie-rejoin').addEventListener('click', () => {
+    const savedRoomId = localStorage.getItem('nhie_saved_room_id');
+    const savedPlayerName = localStorage.getItem('nhie_saved_player_name');
+    if (savedRoomId && savedPlayerName) {
+      socket.emit('nhie-join', { roomId: savedRoomId, playerName: savedPlayerName }, (res) => {
+        if (res && !res.error) {
+          nhieMyName = savedPlayerName;
+          nhieRoomId = savedRoomId;
+          nhieIsHost = (res.roomState.hostId === socket.id);
+          nhieMyId = socket.id;
+
+          sessionStorage.setItem('nhie_room_id', savedRoomId);
+          sessionStorage.setItem('nhie_player_name', savedPlayerName);
+          sessionStorage.setItem('nhie_active', 'true');
+
+          localStorage.setItem('nhie_saved_active', 'true');
+
+          document.getElementById('nhie-rejoin-panel').style.display = 'none';
+          document.getElementById('nhie-lobby-forms').style.display = 'grid';
+
+          nhieRouteState(res.roomState);
+        } else {
+          showModalAlert(res?.error || 'Failed to rejoin room', 'Rejoin Error', 'error');
+          localStorage.removeItem('nhie_saved_room_id');
+          localStorage.removeItem('nhie_saved_player_name');
+          localStorage.removeItem('nhie_saved_active');
+          document.getElementById('nhie-rejoin-panel').style.display = 'none';
+          document.getElementById('nhie-lobby-forms').style.display = 'grid';
+          nhieResetUI();
+        }
+      });
+    }
+  });
+
+  document.getElementById('btn-nhie-clear-session').addEventListener('click', () => {
+    localStorage.removeItem('nhie_saved_room_id');
+    localStorage.removeItem('nhie_saved_player_name');
+    localStorage.removeItem('nhie_saved_active');
+
+    sessionStorage.removeItem('nhie_room_id');
+    sessionStorage.removeItem('nhie_player_name');
+    sessionStorage.removeItem('nhie_active');
+
+    document.getElementById('nhie-rejoin-panel').style.display = 'none';
+    document.getElementById('nhie-lobby-forms').style.display = 'grid';
+    nhieResetUI();
   });
 
   btnNhieBack.addEventListener('click', () => {
@@ -3595,6 +3797,11 @@ document.addEventListener('DOMContentLoaded', () => {
       sessionStorage.setItem('nhie_player_name', nhieMyName);
       sessionStorage.setItem('nhie_active', 'true');
 
+      // Save to localStorage
+      localStorage.setItem('nhie_saved_room_id', nhieRoomId);
+      localStorage.setItem('nhie_saved_player_name', nhieMyName);
+      localStorage.setItem('nhie_saved_active', 'true');
+
       nhieRouteState(res.roomState);
     });
   });
@@ -3627,6 +3834,11 @@ document.addEventListener('DOMContentLoaded', () => {
       sessionStorage.setItem('nhie_room_id', nhieRoomId);
       sessionStorage.setItem('nhie_player_name', nhieMyName);
       sessionStorage.setItem('nhie_active', 'true');
+
+      // Save to localStorage
+      localStorage.setItem('nhie_saved_room_id', code);
+      localStorage.setItem('nhie_saved_player_name', nhieMyName);
+      localStorage.setItem('nhie_saved_active', 'true');
 
       nhieRouteState(res.roomState);
     });

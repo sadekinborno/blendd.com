@@ -397,6 +397,10 @@ module.exports = function initWtwGame(io) {
         const oldId = existing.id;
         existing.id = socket.id;
         existing.connected = true;
+        if (existing.isHost || room.hostId === oldId) {
+          room.hostId = socket.id;
+          existing.isHost = true;
+        }
         
         // Update references in questions and votes
         room.questions.forEach(q => {
@@ -523,7 +527,7 @@ module.exports = function initWtwGame(io) {
       callback && callback({ ok: true, submitted: alreadySubmitted + 1, total: room.settings.questionsPerPlayer });
 
       // Auto-advance if all players submitted all questions
-      const totalExpected = room.settings.questionsPerPlayer * room.players.filter(p => p.connected).length;
+      const totalExpected = room.settings.questionsPerPlayer * room.players.length;
       if (room.questions.length >= totalExpected) {
         log(room.roomId, 'All questions submitted — advancing to VOTING');
         if (room.timerId) clearInterval(room.timerId);
@@ -567,9 +571,8 @@ module.exports = function initWtwGame(io) {
       broadcastRoomState(room);
       callback && callback({ ok: true });
 
-      // Auto-advance if all connected players voted
-      const activePlayers = room.players.filter(p => p.connected);
-      const allVoted = activePlayers.every(p => p.hasVoted);
+      // Auto-advance if all players voted
+      const allVoted = room.players.every(p => p.hasVoted);
       if (allVoted) {
         log(room.roomId, 'All players voted — advancing to QUESTION_RESULTS');
         if (room.timerId) clearInterval(room.timerId);

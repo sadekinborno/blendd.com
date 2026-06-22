@@ -102,8 +102,13 @@ module.exports = function initCDbpGame(io) {
       if (existingPlayer) {
         if (!existingPlayer.connected) {
           // Reconnect player slot
+          const oldId = existingPlayer.id;
           existingPlayer.id = socket.id;
           existingPlayer.connected = true;
+          if (existingPlayer.isHost || room.hostId === oldId) {
+            room.hostId = socket.id;
+            existingPlayer.isHost = true;
+          }
           socket.join(roomId);
           logRoom(roomId, `Player ${name} reconnected.`);
           
