@@ -112,44 +112,120 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Helper: Open Guest Login/Signup Modal
-  function showGuestAuthModal() {
+  // Helper: Open Unified account auth modal (Guest Login/Signup & Owner Login)
+  function showGlobalAuthModal(defaultTab = 'guest') {
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
       overlay.className = 'custom-modal-overlay active';
 
       overlay.innerHTML = `
-        <div class="custom-modal glass-panel popup-anim" style="max-width: 380px;">
+        <div class="custom-modal glass-panel popup-anim" style="max-width: 390px; width: 100%;">
           <div class="modal-header">
-            <i data-lucide="user-check" class="modal-icon info"></i>
-            <h3 id="auth-modal-title">Guest Login</h3>
+            <i data-lucide="shield-check" class="modal-icon info" style="color: var(--accent-cyan);"></i>
+            <h3 id="global-auth-title">Account Portal</h3>
           </div>
           <div class="modal-body">
-            <form id="modal-auth-form" style="display: flex; flex-direction: column; gap: 14px;">
-              <div class="auth-tabs">
-                <button type="button" class="auth-tab-btn active" id="auth-tab-login">Login</button>
-                <button type="button" class="auth-tab-btn" id="auth-tab-signup">Sign Up</button>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 4px;">
-                <label for="auth-username" style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Username</label>
-                <div class="input-glow-wrapper">
-                  <input type="text" id="auth-username" required placeholder="Enter name..." style="width: 100%; background: transparent; border: none; outline: none; color: var(--text-primary); padding: 8px 12px; font-size: 14px;">
+            <!-- Tabs -->
+            <div class="auth-portal-tabs">
+              <button type="button" class="auth-portal-tab-btn ${defaultTab === 'guest' ? 'active' : ''}" id="tab-btn-guest">
+                <i data-lucide="user" style="width: 14px; height: 14px;"></i> Guest Access
+              </button>
+              <button type="button" class="auth-portal-tab-btn ${defaultTab === 'owner' ? 'active' : ''}" id="tab-btn-owner">
+                <i data-lucide="shield" style="width: 14px; height: 14px;"></i> Owner Console
+              </button>
+            </div>
+
+            <!-- Guest Account Panel -->
+            <div id="panel-guest" class="auth-panel-content" style="display: ${defaultTab === 'guest' ? 'block' : 'none'};">
+              <!-- Subtabs (Login / Signup) -->
+              <div id="guest-credentials-area">
+                <div class="auth-tab-rail" style="margin-bottom: 16px;">
+                  <div class="auth-tab-indicator" id="guest-subtab-indicator"></div>
+                  <button type="button" class="auth-tab-btn active" id="btn-guest-subtab-login" style="padding: 6px 0;">Log In</button>
+                  <button type="button" class="auth-tab-btn" id="btn-guest-subtab-signup" style="padding: 6px 0;">Sign Up</button>
                 </div>
+
+                <form id="form-guest-auth" style="display: flex; flex-direction: column; gap: 14px;">
+                  <div class="auth-field-group">
+                    <i data-lucide="user" class="auth-field-icon"></i>
+                    <input type="text" id="guest-username" required placeholder="Username" autocomplete="username">
+                  </div>
+                  <div class="auth-field-group">
+                    <i data-lucide="lock" class="auth-field-icon"></i>
+                    <input type="password" id="guest-password" required placeholder="Password" autocomplete="current-password">
+                  </div>
+                  <div id="guest-auth-error" class="auth-error-msg" style="display:none; color: var(--accent-pink); font-size: 12px; margin-top: 2px;"></div>
+                  
+                  <button type="submit" class="auth-submit-btn" id="btn-guest-auth-submit" style="margin-top: 4px; padding: 10px;">
+                    <span id="guest-submit-text">Log In</span>
+                    <i data-lucide="arrow-right" class="auth-submit-icon"></i>
+                  </button>
+                  <button type="button" class="auth-forgot-link" id="btn-guest-forgot" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; margin-top: 6px; text-align: center; font-family: inherit;">
+                    Forgot password?
+                  </button>
+                </form>
               </div>
-              <div style="display: flex; flex-direction: column; gap: 4px;">
-                <label for="auth-password" style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Password</label>
-                <div class="input-glow-wrapper">
-                  <input type="password" id="auth-password" required placeholder="Enter password..." style="width: 100%; background: transparent; border: none; outline: none; color: var(--text-primary); padding: 8px 12px; font-size: 14px;">
+
+              <!-- Guest Reset Form (hidden by default) -->
+              <div id="panel-guest-reset" style="display: none; flex-direction: column; gap: 14px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                  <button type="button" id="btn-guest-reset-back" style="background: none; border: none; color: var(--accent-cyan); cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; padding: 0; font-family: inherit;">
+                    <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> Back to Login
+                  </button>
+                  <h4 style="margin: 0; font-size: 14px; color: var(--text-primary);">Reset Password</h4>
                 </div>
+                <form id="form-guest-reset" style="display: flex; flex-direction: column; gap: 14px;">
+                  <div class="auth-field-group">
+                    <i data-lucide="user" class="auth-field-icon"></i>
+                    <input type="text" id="reset-username" required placeholder="Your username" autocomplete="username">
+                  </div>
+                  <div class="auth-field-group">
+                    <i data-lucide="key" class="auth-field-icon"></i>
+                    <input type="text" id="reset-code" required placeholder="Recovery code (e.g. BORNO-XXXX-XXXX)" style="text-transform: uppercase;">
+                  </div>
+                  <div class="auth-field-group">
+                    <i data-lucide="lock" class="auth-field-icon"></i>
+                    <input type="password" id="reset-newpw" required placeholder="New password" autocomplete="new-password">
+                  </div>
+                  <div class="auth-field-group">
+                    <i data-lucide="shield-check" class="auth-field-icon"></i>
+                    <input type="password" id="reset-confirmpw" required placeholder="Confirm new password" autocomplete="new-password">
+                  </div>
+                  <div id="guest-reset-error" class="auth-error-msg" style="display:none; color: var(--accent-pink); font-size: 12px; margin-top: 2px;"></div>
+                  
+                  <button type="submit" class="auth-submit-btn" style="margin-top: 4px; padding: 10px;">
+                    <span>Reset Password</span>
+                    <i data-lucide="check" class="auth-submit-icon"></i>
+                  </button>
+                </form>
               </div>
-              <div id="auth-error-msg" style="color: var(--accent-pink); font-size: 12px; display: none;"></div>
-              <div class="modal-footer" style="margin-top: 8px; gap: 12px; display: flex; width: 100%;">
-                <button type="button" class="btn-secondary btn-modal-cancel" style="flex: 1; padding: 10px;">Cancel</button>
-                <button type="submit" class="btn-primary btn-modal-submit" style="flex: 1; padding: 10px;">
-                  <span id="auth-submit-text">Login</span>
+            </div>
+
+            <!-- Owner Console Panel -->
+            <div id="panel-owner" class="auth-panel-content" style="display: ${defaultTab === 'owner' ? 'block' : 'none'};">
+              <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 14px;">
+                Enter admin credentials to authorize Owner Mode.
+              </p>
+              <form id="form-owner-auth" style="display: flex; flex-direction: column; gap: 14px;">
+                <div class="auth-field-group">
+                  <i data-lucide="user" class="auth-field-icon"></i>
+                  <input type="text" id="owner-username" required placeholder="Admin Username" autocomplete="username">
+                </div>
+                <div class="auth-field-group">
+                  <i data-lucide="lock" class="auth-field-icon"></i>
+                  <input type="password" id="owner-password" required placeholder="Password" autocomplete="current-password">
+                </div>
+                <div id="owner-auth-error" class="auth-error-msg" style="display:none; color: var(--accent-pink); font-size: 12px; margin-top: 2px;"></div>
+                
+                <button type="submit" class="auth-submit-btn" style="margin-top: 4px; padding: 10px;">
+                  <span>Authenticate Owner</span>
+                  <i data-lucide="shield-check" class="auth-submit-icon"></i>
                 </button>
-              </div>
-            </form>
+              </form>
+            </div>
+          </div>
+          <div class="modal-footer" style="padding-top: 8px;">
+            <button class="btn-secondary btn-modal-close" style="width: 100%; padding: 10px;">Cancel</button>
           </div>
         </div>
       `;
@@ -157,39 +233,30 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.appendChild(overlay);
       lucide.createIcons();
 
-      const form = overlay.querySelector('#modal-auth-form');
-      const tabLogin = overlay.querySelector('#auth-tab-login');
-      const tabSignup = overlay.querySelector('#auth-tab-signup');
-      const title = overlay.querySelector('#auth-modal-title');
-      const submitText = overlay.querySelector('#auth-submit-text');
-      const usernameInput = overlay.querySelector('#auth-username');
-      const passwordInput = overlay.querySelector('#auth-password');
-      const errorMsg = overlay.querySelector('#auth-error-msg');
-      const btnCancel = overlay.querySelector('.btn-modal-cancel');
+      const btnClose = overlay.querySelector('.btn-modal-close');
+      const tabBtnGuest = overlay.querySelector('#tab-btn-guest');
+      const tabBtnOwner = overlay.querySelector('#tab-btn-owner');
+      const panelGuest = overlay.querySelector('#panel-guest');
+      const panelOwner = overlay.querySelector('#panel-owner');
 
-      let currentTab = 'login';
+      const btnGuestSubtabLogin = overlay.querySelector('#btn-guest-subtab-login');
+      const btnGuestSubtabSignup = overlay.querySelector('#btn-guest-subtab-signup');
+      const guestSubtabIndicator = overlay.querySelector('#guest-subtab-indicator');
+      const guestSubmitText = overlay.querySelector('#guest-submit-text');
+      const guestUsernameInput = overlay.querySelector('#guest-username');
 
-      usernameInput.focus();
+      const guestCredentialsArea = overlay.querySelector('#guest-credentials-area');
+      const panelGuestReset = overlay.querySelector('#panel-guest-reset');
+      const btnGuestForgot = overlay.querySelector('#btn-guest-forgot');
+      const btnGuestResetBack = overlay.querySelector('#btn-guest-reset-back');
 
-      tabLogin.addEventListener('click', () => {
-        currentTab = 'login';
-        tabLogin.classList.add('active');
-        tabSignup.classList.remove('active');
-        title.textContent = 'Guest Login';
-        submitText.textContent = 'Login';
-        errorMsg.style.display = 'none';
-      });
+      let currentPortalTab = defaultTab;
+      let currentGuestTab = 'login'; // login or signup
 
-      tabSignup.addEventListener('click', () => {
-        currentTab = 'signup';
-        tabSignup.classList.add('active');
-        tabLogin.classList.remove('active');
-        title.textContent = 'Guest Sign Up';
-        submitText.textContent = 'Sign Up';
-        errorMsg.style.display = 'none';
-      });
+      guestUsernameInput.focus();
 
-      const closeModal = (username) => {
+      // Close modal logic
+      const closeModal = (successValue) => {
         overlay.classList.remove('active');
         const modal = overlay.querySelector('.custom-modal');
         if (modal) {
@@ -198,23 +265,79 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setTimeout(() => {
           overlay.remove();
-          resolve(username);
+          resolve(successValue);
         }, 150);
       };
 
-      btnCancel.addEventListener('click', () => closeModal(null));
+      btnClose.addEventListener('click', () => closeModal(null));
       overlay.addEventListener('click', (e) => {
         if (e.target === overlay) closeModal(null);
       });
 
-      form.addEventListener('submit', async (e) => {
+      // Switch Main Portal Tabs (Guest vs Owner)
+      tabBtnGuest.addEventListener('click', () => {
+        currentPortalTab = 'guest';
+        tabBtnGuest.classList.add('active');
+        tabBtnOwner.classList.remove('active');
+        panelGuest.style.display = 'block';
+        panelOwner.style.display = 'none';
+        guestUsernameInput.focus();
+      });
+
+      tabBtnOwner.addEventListener('click', () => {
+        currentPortalTab = 'owner';
+        tabBtnOwner.classList.add('active');
+        tabBtnGuest.classList.remove('active');
+        panelOwner.style.display = 'block';
+        panelGuest.style.display = 'none';
+        overlay.querySelector('#owner-username').focus();
+      });
+
+      // Guest Sub-tabs Login/Signup
+      btnGuestSubtabLogin.addEventListener('click', () => {
+        currentGuestTab = 'login';
+        btnGuestSubtabLogin.classList.add('active');
+        btnGuestSubtabSignup.classList.remove('active');
+        guestSubtabIndicator.classList.remove('right');
+        guestSubmitText.textContent = 'Log In';
+        overlay.querySelector('#guest-auth-error').style.display = 'none';
+      });
+
+      btnGuestSubtabSignup.addEventListener('click', () => {
+        currentGuestTab = 'signup';
+        btnGuestSubtabSignup.classList.add('active');
+        btnGuestSubtabLogin.classList.remove('active');
+        guestSubtabIndicator.classList.add('right');
+        guestSubmitText.textContent = 'Sign Up';
+        overlay.querySelector('#guest-auth-error').style.display = 'none';
+      });
+
+      // Guest Forgot password panel toggle
+      btnGuestForgot.addEventListener('click', () => {
+        guestCredentialsArea.style.display = 'none';
+        panelGuestReset.style.display = 'flex';
+        overlay.querySelector('#reset-username').focus();
+      });
+
+      btnGuestResetBack.addEventListener('click', () => {
+        panelGuestReset.style.display = 'none';
+        guestCredentialsArea.style.display = 'block';
+        guestUsernameInput.focus();
+      });
+
+      // Form Guest Submission
+      const formGuestAuth = overlay.querySelector('#form-guest-auth');
+      formGuestAuth.addEventListener('submit', async (e) => {
         e.preventDefault();
-        errorMsg.style.display = 'none';
+        const errEl = overlay.querySelector('#guest-auth-error');
+        errEl.style.display = 'none';
 
-        const uVal = usernameInput.value.trim();
-        const pVal = passwordInput.value;
+        const uVal = guestUsernameInput.value.trim();
+        const pVal = overlay.querySelector('#guest-password').value;
+        const submitBtn = overlay.querySelector('#btn-guest-auth-submit');
+        submitBtn.disabled = true;
 
-        const endpoint = currentTab === 'login' ? '/api/auth/login' : '/api/auth/signup';
+        const endpoint = currentGuestTab === 'login' ? '/api/auth/login' : '/api/auth/signup';
         try {
           const res = await fetch(endpoint, {
             method: 'POST',
@@ -224,97 +347,88 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const data = await res.json();
           if (res.ok) {
+            guestUser = data.username;
+            localStorage.setItem('guest_user', data.username);
+            setAppMode('guest');
+
+            // Fetch user profile access status immediately on login
+            await fetchUserProfile();
+
             closeModal(data.username);
+
+            if (currentGuestTab === 'signup' && data.recoveryCode) {
+              showRecoveryCodeModal(data.recoveryCode, false);
+            }
           } else {
-            errorMsg.textContent = data.error || 'Authentication failed.';
-            errorMsg.style.display = 'block';
+            submitBtn.disabled = false;
+            errEl.textContent = data.error || 'Authentication failed.';
+            errEl.style.display = 'block';
           }
         } catch (err) {
-          errorMsg.textContent = 'Network error. Please try again.';
-          errorMsg.style.display = 'block';
+          submitBtn.disabled = false;
+          errEl.textContent = 'Network error. Please try again.';
+          errEl.style.display = 'block';
         }
       });
-    });
-  }
 
-  // Helper: Open Owner/Admin Login Modal
-  function showOwnerAuthModal() {
-    return new Promise((resolve) => {
-      const overlay = document.createElement('div');
-      overlay.className = 'custom-modal-overlay active';
-
-      overlay.innerHTML = `
-        <div class="custom-modal glass-panel popup-anim" style="max-width: 380px;">
-          <div class="modal-header">
-            <i data-lucide="shield-check" class="modal-icon info" style="color: var(--accent-cyan);"></i>
-            <h3 id="owner-modal-title">Admin Authentication</h3>
-          </div>
-          <div class="modal-body">
-            <form id="modal-owner-form" style="display: flex; flex-direction: column; gap: 14px;">
-              <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Please enter admin credentials to access Owner Mode.</p>
-              
-              <div style="display: flex; flex-direction: column; gap: 4px;">
-                <label for="owner-username" style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Username</label>
-                <div class="input-glow-wrapper">
-                  <input type="text" id="owner-username" required placeholder="Enter admin username..." style="width: 100%; background: transparent; border: none; outline: none; color: var(--text-primary); padding: 8px 12px; font-size: 14px;">
-                </div>
-              </div>
-              
-              <div style="display: flex; flex-direction: column; gap: 4px;">
-                <label for="owner-password" style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Password</label>
-                <div class="input-glow-wrapper">
-                  <input type="password" id="owner-password" required placeholder="Enter password..." style="width: 100%; background: transparent; border: none; outline: none; color: var(--text-primary); padding: 8px 12px; font-size: 14px;">
-                </div>
-              </div>
-              
-              <div id="owner-error-msg" style="color: var(--accent-pink); font-size: 12px; display: none;"></div>
-              
-              <div class="modal-footer" style="margin-top: 8px; gap: 12px; display: flex; width: 100%;">
-                <button type="button" class="btn-secondary btn-modal-cancel" style="flex: 1; padding: 10px;">Cancel</button>
-                <button type="submit" class="btn-primary btn-modal-submit" style="flex: 1; padding: 10px;">
-                  <span>Authenticate</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      `;
-
-      document.body.appendChild(overlay);
-      lucide.createIcons();
-
-      const form = overlay.querySelector('#modal-owner-form');
-      const usernameInput = overlay.querySelector('#owner-username');
-      const passwordInput = overlay.querySelector('#owner-password');
-      const errorMsg = overlay.querySelector('#owner-error-msg');
-      const btnCancel = overlay.querySelector('.btn-modal-cancel');
-
-      usernameInput.focus();
-
-      const closeModal = (successResult) => {
-        overlay.classList.remove('active');
-        const modal = overlay.querySelector('.custom-modal');
-        if (modal) {
-          modal.classList.remove('popup-anim');
-          modal.classList.add('popout-anim');
-        }
-        setTimeout(() => {
-          overlay.remove();
-          resolve(successResult);
-        }, 150);
-      };
-
-      btnCancel.addEventListener('click', () => closeModal(false));
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) closeModal(false);
-      });
-
-      form.addEventListener('submit', async (e) => {
+      // Form Guest Reset Submission
+      const formGuestReset = overlay.querySelector('#form-guest-reset');
+      formGuestReset.addEventListener('submit', async (e) => {
         e.preventDefault();
-        errorMsg.style.display = 'none';
+        const errEl = overlay.querySelector('#guest-reset-error');
+        errEl.style.display = 'none';
 
-        const uVal = usernameInput.value.trim();
-        const pVal = passwordInput.value;
+        const uVal = overlay.querySelector('#reset-username').value.trim();
+        const cVal = overlay.querySelector('#reset-code').value.trim().toUpperCase();
+        const newPwVal = overlay.querySelector('#reset-newpw').value;
+        const confirmPwVal = overlay.querySelector('#reset-confirmpw').value;
+
+        if (newPwVal !== confirmPwVal) {
+          errEl.textContent = 'Passwords do not match.';
+          errEl.style.display = 'block';
+          return;
+        }
+
+        const submitBtn = formGuestReset.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+
+        try {
+          const res = await fetch('/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: uVal, recoveryCode: cVal, newPassword: newPwVal })
+          });
+          const data = await res.json();
+
+          if (res.ok && data.success) {
+            formGuestReset.reset();
+            panelGuestReset.style.display = 'none';
+            guestCredentialsArea.style.display = 'block';
+            closeModal(null);
+            showRecoveryCodeModal(data.newRecoveryCode, true);
+          } else {
+            submitBtn.disabled = false;
+            errEl.textContent = data.error || 'Reset failed.';
+            errEl.style.display = 'block';
+          }
+        } catch (err) {
+          submitBtn.disabled = false;
+          errEl.textContent = 'Network error. Please try again.';
+          errEl.style.display = 'block';
+        }
+      });
+
+      // Form Owner Submission
+      const formOwnerAuth = overlay.querySelector('#form-owner-auth');
+      formOwnerAuth.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = overlay.querySelector('#owner-auth-error');
+        errEl.style.display = 'none';
+
+        const uVal = overlay.querySelector('#owner-username').value.trim();
+        const pVal = overlay.querySelector('#owner-password').value;
+        const submitBtn = formOwnerAuth.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
 
         try {
           const res = await fetch('/api/auth/owner', {
@@ -326,22 +440,218 @@ document.addEventListener('DOMContentLoaded', () => {
           const data = await res.json();
           if (res.ok && data.success) {
             localStorage.setItem('owner_token', data.token);
-            closeModal(true);
+            setAppMode('owner');
+            closeModal('owner');
           } else {
-            errorMsg.textContent = data.error || 'Authentication failed.';
-            errorMsg.style.display = 'block';
+            submitBtn.disabled = false;
+            errEl.textContent = data.error || 'Authentication failed.';
+            errEl.style.display = 'block';
           }
         } catch (err) {
-          errorMsg.textContent = 'Network error. Please try again.';
-          errorMsg.style.display = 'block';
+          submitBtn.disabled = false;
+          errEl.textContent = 'Network error. Please try again.';
+          errEl.style.display = 'block';
         }
       });
+    });
+  }
+
+  // Helper: Open Profile and Access status modal
+  function showProfileModal() {
+    return new Promise(async (resolve) => {
+      const isOwner = localStorage.getItem('nexus_mode') === 'owner';
+      const overlay = document.createElement('div');
+      overlay.className = 'custom-modal-overlay active';
+      
+      let modalBodyHtml = '';
+      
+      if (isOwner) {
+        modalBodyHtml = `
+          <div class="profile-modal-details">
+            <div class="profile-item">
+              <span class="profile-label">Username</span>
+              <span class="profile-value">Borno (Admin)</span>
+            </div>
+            <div class="profile-item">
+              <span class="profile-label">Role</span>
+              <span class="profile-value" style="color: var(--accent-cyan); display: flex; align-items: center; gap: 4px;">
+                <i data-lucide="crown" style="width: 14px; height: 14px;"></i> Node Owner
+              </span>
+            </div>
+            
+            <div class="profile-access-card" style="border-color: rgba(6, 182, 212, 0.2);">
+              <div class="access-badge approved" style="margin-bottom: 8px;">
+                <i data-lucide="shield" style="width: 12px; height: 12px;"></i> Full Admin Mode
+              </div>
+              <p class="profile-access-desc">
+                You have full administrative access to all tools, user management, and bookmarks.
+              </p>
+            </div>
+          </div>
+        `;
+      } else {
+        let badgeClass = 'none';
+        let badgeText = 'No Access';
+        let badgeIcon = 'lock';
+        let statusDescription = 'You currently do not have access to Brian AI.';
+        let showRequestButton = true;
+        let isPending = false;
+        
+        if (guestUserBrianAccess === 'approved') {
+          badgeClass = 'approved';
+          badgeText = 'Bro Mode Active';
+          badgeIcon = 'check-circle';
+          statusDescription = 'Access approved! You can now chat with Brian and share memories.';
+          showRequestButton = false;
+        } else if (guestUserBrianAccess === 'pending') {
+          badgeClass = 'pending';
+          badgeText = 'Request Pending';
+          badgeIcon = 'clock';
+          statusDescription = 'Your access request has been submitted and is awaiting administrator approval.';
+          showRequestButton = false;
+          isPending = true;
+        } else if (guestUserBrianAccess === 'rejected') {
+          badgeClass = 'rejected';
+          badgeText = 'Access Rejected';
+          badgeIcon = 'x-circle';
+          statusDescription = 'Your access request was not approved. You can request again if this was an error.';
+          showRequestButton = true;
+        }
+        
+        modalBodyHtml = `
+          <div class="profile-modal-details">
+            <div class="profile-item">
+              <span class="profile-label">Username</span>
+              <span class="profile-value">${guestUser}</span>
+            </div>
+            <div class="profile-item">
+              <span class="profile-label">Role</span>
+              <span class="profile-value">Guest Node</span>
+            </div>
+            
+            <div class="profile-access-card">
+              <div class="access-badge ${badgeClass}" style="margin-bottom: 8px;">
+                <i data-lucide="${badgeIcon}" style="width: 12px; height: 12px;"></i> ${badgeText}
+              </div>
+              <p class="profile-access-desc">
+                ${statusDescription}
+              </p>
+              ${showRequestButton ? `
+                <button type="button" class="btn-glow" id="btn-request-brian-access" style="width: 100%; justify-content: center; gap: 8px; margin-top: 4px;">
+                  <i data-lucide="key"></i> Request Brian AI Access
+                </button>
+              ` : ''}
+              ${isPending ? `
+                <div style="font-size: 11px; color: var(--accent-cyan); display: flex; align-items: center; gap: 4px; margin-top: 4px; justify-content: center;">
+                  <span class="pulse-dot"></span> Waiting for Borno to approve
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+      
+      overlay.innerHTML = `
+        <div class="custom-modal glass-panel popup-anim" style="max-width: 380px; width: 100%;">
+          <div class="modal-header">
+            <i data-lucide="user-cog" class="modal-icon info"></i>
+            <h3>Account Settings</h3>
+          </div>
+          <div class="modal-body">
+            ${modalBodyHtml}
+          </div>
+          <div class="modal-footer" style="flex-direction: column; gap: 10px; padding-top: 12px;">
+            <button class="btn-identity-logout" id="btn-profile-logout" style="width: 100%;">
+              <i data-lucide="log-out" style="width: 14px; height: 14px;"></i> Log Out Account
+            </button>
+            <button class="btn-secondary btn-modal-close" style="width: 100%; padding: 10px;">Close</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(overlay);
+      lucide.createIcons();
+      
+      const btnClose = overlay.querySelector('.btn-modal-close');
+      const btnLogout = overlay.querySelector('#btn-profile-logout');
+      const btnRequest = overlay.querySelector('#btn-request-brian-access');
+      
+      const closeModal = () => {
+        overlay.classList.remove('active');
+        const modal = overlay.querySelector('.custom-modal');
+        if (modal) {
+          modal.classList.remove('popup-anim');
+          modal.classList.add('popout-anim');
+        }
+        setTimeout(() => {
+          overlay.remove();
+          resolve();
+        }, 150);
+      };
+      
+      btnClose.addEventListener('click', closeModal);
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal();
+      });
+      
+      btnLogout.addEventListener('click', async () => {
+        const confirmLogout = await showModalConfirm('Are you sure you want to log out of your session?', 'Confirm Log Out');
+        if (!confirmLogout) return;
+        
+        if (isOwner) {
+          localStorage.removeItem('owner_token');
+        } else {
+          guestUser = null;
+          localStorage.removeItem('guest_user');
+        }
+        localStorage.removeItem('guest_user'); // force clear
+        guestUserBrianAccess = 'none';
+        
+        setAppMode('guest');
+        closeModal();
+        
+        showModalAlert('You have successfully logged out.', 'Logged Out', 'success');
+      });
+      
+      if (btnRequest) {
+        btnRequest.addEventListener('click', async () => {
+          btnRequest.disabled = true;
+          btnRequest.textContent = 'Submitting Request...';
+          
+          try {
+            const res = await fetch('/api/auth/request-access', {
+              method: 'POST',
+              headers: { 'x-user-name': guestUser }
+            });
+            const data = await res.json();
+            
+            if (res.ok && data.success) {
+              guestUserBrianAccess = 'pending';
+              closeModal();
+              showModalAlert('Your request for Brian AI access has been submitted successfully.', 'Request Submitted', 'success');
+              await fetchUserProfile();
+              setAppMode('guest');
+            } else {
+              btnRequest.disabled = false;
+              btnRequest.innerHTML = '<i data-lucide="key"></i> Request Brian AI Access';
+              lucide.createIcons();
+              showModalAlert(data.error || 'Failed to submit request.', 'Request Error', 'error');
+            }
+          } catch (err) {
+            btnRequest.disabled = false;
+            btnRequest.innerHTML = '<i data-lucide="key"></i> Request Brian AI Access';
+            lucide.createIcons();
+            showModalAlert('Network error. Please try again.', 'Request Error', 'error');
+          }
+        });
+      }
     });
   }
 
   // --- State Variables ---
   let savedLinks = [];
   let currentFilter = 'all';
+  let bookmarkExpandedStates = {};
   let activeMediaInfo = null;
 
   // --- Clock Logic ---
@@ -360,9 +670,122 @@ document.addEventListener('DOMContentLoaded', () => {
   const userRoleMode = document.getElementById('user-role-mode');
   const btnLockMode = document.getElementById('btn-lock-mode');
 
+  // Brian AI elements initialized early to prevent TDZ errors
+  let brianAuthLandingView = document.getElementById('brian-auth-landing-view');
+  let brianChatWrapperPanel = document.getElementById('brian-chat-wrapper-panel');
+  let brianSessionsList = document.getElementById('brian-sessions-list');
+  // Identity display is now a <div>, not an <input> — read-only, locked to authenticated user
+  let brianIdentityName = document.getElementById('brian-identity-name');
+
   let guestUser = localStorage.getItem('guest_user') || null;
+  let guestUserBrianAccess = 'none';
+
+  async function fetchUserProfile() {
+    if (!guestUser) {
+      guestUserBrianAccess = 'none';
+      updateBrianNavigation();
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/profile', {
+        headers: { 'x-user-name': guestUser }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        guestUserBrianAccess = data.brian_access || 'none';
+      } else if (res.status === 404 || res.status === 401) {
+        guestUser = null;
+        guestUserBrianAccess = 'none';
+        localStorage.removeItem('guest_user');
+        setAppMode('guest');
+      }
+    } catch (err) {
+      console.error('Failed to fetch user profile:', err);
+    }
+
+    updateBrianNavigation();
+  }
+
+  async function populateAdminChatFilter() {
+    const isOwner = localStorage.getItem('nexus_mode') === 'owner';
+    const filterSelect = document.getElementById('brian-admin-chat-filter');
+    if (!isOwner || !filterSelect) return;
+
+    try {
+      const response = await fetch('/api/admin/users', {
+        headers: { 'x-owner-token': localStorage.getItem('owner_token') }
+      });
+      if (response.ok) {
+        const users = await response.json();
+        const currentValue = filterSelect.value || 'all';
+        
+        // Reset to default options first
+        filterSelect.innerHTML = `
+          <option value="all">Show All Chats</option>
+          <option value="owner">Show My Chats Only</option>
+        `;
+        
+        users.forEach(u => {
+          if (u.username.toLowerCase() !== 'owner') {
+            const opt = document.createElement('option');
+            opt.value = u.username;
+            opt.textContent = `Chats by ${u.username}`;
+            filterSelect.appendChild(opt);
+          }
+        });
+
+        // Restore value if it still exists
+        const optionExists = Array.from(filterSelect.options).some(opt => opt.value === currentValue);
+        if (optionExists) {
+          filterSelect.value = currentValue;
+        } else {
+          filterSelect.value = 'all';
+        }
+      }
+    } catch (e) {
+      console.error('Failed to populate chat filter:', e);
+    }
+  }
+
+  function updateBrianNavigation() {
+    const brianBtn = document.querySelector('.nav-item[data-view="brian"]');
+    const mbnBrianBtn = document.getElementById('mbn-brian');
+    const isOwner = localStorage.getItem('nexus_mode') === 'owner';
+    const hasAccess = isOwner || (guestUser && guestUserBrianAccess === 'approved');
+
+    if (brianBtn) {
+      if (hasAccess) {
+        brianBtn.style.display = 'flex';
+      } else {
+        brianBtn.style.display = 'none';
+        // If active view is brian and we don't have access, redirect to dashboard
+        const activeView = document.querySelector('.content-view.active');
+        if (activeView && activeView.id === 'view-brian') {
+          switchView('dashboard');
+        }
+      }
+    }
+
+    // Sync mobile bottom nav Brian button visibility
+    if (mbnBrianBtn) {
+      mbnBrianBtn.style.display = hasAccess ? 'flex' : 'none';
+    }
+    
+    // Sync Brian UI auth states (will hide/show the wrapper panels)
+    if (typeof checkBrianAuth === 'function') {
+      checkBrianAuth();
+    }
+
+    if (isOwner) {
+      populateAdminChatFilter();
+    }
+  }
 
   function setAppMode(mode) {
+    const mbnAvatarText = document.getElementById('mbn-avatar-text');
+    const mbnModeLabel = document.getElementById('mbn-mode-label');
+
     if (mode === 'owner') {
       document.body.classList.remove('mode-guest', 'mode-guest-auth');
       document.body.classList.add('mode-owner');
@@ -372,6 +795,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (btnLockMode) {
         btnLockMode.innerHTML = '<i data-lucide="unlock" style="width: 16px; height: 16px;"></i>';
       }
+      if (mbnAvatarText) mbnAvatarText.textContent = 'OW';
+      if (mbnModeLabel) mbnModeLabel.textContent = 'Owner';
       localStorage.setItem('nexus_mode', 'owner');
       document.querySelectorAll('.owner-only').forEach(el => {
         if (el.tagName === 'BUTTON' || el.classList.contains('nav-item')) {
@@ -388,7 +813,19 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.add('mode-guest-auth');
         if (avatarTextMode) avatarTextMode.textContent = guestUser.substring(0, 2).toUpperCase();
         if (userNameMode) userNameMode.textContent = guestUser;
-        if (userRoleMode) userRoleMode.textContent = 'Guest (Logged In)';
+        if (mbnAvatarText) mbnAvatarText.textContent = guestUser.substring(0, 2).toUpperCase();
+        if (userRoleMode) {
+          if (guestUserBrianAccess === 'approved') {
+            userRoleMode.textContent = 'Bro Mode';
+            if (mbnModeLabel) mbnModeLabel.textContent = 'Bro';
+          } else if (guestUserBrianAccess === 'pending') {
+            userRoleMode.textContent = 'Guest (Pending)';
+            if (mbnModeLabel) mbnModeLabel.textContent = 'Guest';
+          } else {
+            userRoleMode.textContent = 'Guest Mode';
+            if (mbnModeLabel) mbnModeLabel.textContent = 'Guest';
+          }
+        }
         if (btnLockMode) {
           btnLockMode.innerHTML = '<i data-lucide="lock" style="width: 16px; height: 16px;"></i>';
         }
@@ -400,6 +837,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btnLockMode) {
           btnLockMode.innerHTML = '<i data-lucide="lock" style="width: 16px; height: 16px;"></i>';
         }
+        if (mbnAvatarText) mbnAvatarText.textContent = 'G';
+        if (mbnModeLabel) mbnModeLabel.textContent = 'Guest';
       }
       localStorage.setItem('nexus_mode', 'guest');
       document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'none');
@@ -444,6 +883,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof renderBookmarks === 'function') {
       renderBookmarks();
     }
+    
+    // Sync Brian AI navigation and state
+    if (typeof updateBrianNavigation === 'function') {
+      updateBrianNavigation();
+    }
   }
 
   // Global Fetch Interceptor to handle Session Expiration
@@ -463,28 +907,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // (app mode initialized later in DOMContentLoaded to prevent TDZ error)
 
-  // Toggle Mode Click Listener
+  // Toggle Mode Click Listener (Sidebar)
   if (modeSwitcherFooter) {
     modeSwitcherFooter.addEventListener('click', async (e) => {
       const currentMode = localStorage.getItem('nexus_mode') || 'guest';
-      if (currentMode === 'guest') {
-        if (guestUser) {
-          const action = await showModalConfirm(`Logged in as Guest: "${guestUser}". Do you want to log out?`, 'Guest Logout');
-          if (action) {
-            guestUser = null;
-            localStorage.removeItem('guest_user');
-            setAppMode('guest');
-            return;
-          }
-        }
+      const isLoggedIn = currentMode === 'owner' || !!guestUser;
 
-        const authSuccess = await showOwnerAuthModal();
-        if (authSuccess) {
-          setAppMode('owner');
-        }
+      if (isLoggedIn) {
+        showProfileModal();
       } else {
-        localStorage.removeItem('owner_token');
-        setAppMode('guest');
+        await showGlobalAuthModal();
+      }
+    });
+  }
+
+  // Toggle Mode Click Listener (Mobile Bottom Nav Profile Button)
+  const mbnProfileBtn = document.getElementById('mbn-profile-btn');
+  if (mbnProfileBtn) {
+    mbnProfileBtn.addEventListener('click', async (e) => {
+      const currentMode = localStorage.getItem('nexus_mode') || 'guest';
+      const isLoggedIn = currentMode === 'owner' || !!guestUser;
+
+      if (isLoggedIn) {
+        showProfileModal();
+      } else {
+        await showGlobalAuthModal();
       }
     });
   }
@@ -524,6 +971,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (viewId === 'downloader' && localStorage.getItem('nexus_mode') !== 'owner') {
       showModalAlert('The Media Downloader is locked in Guest Mode. Please switch to Owner Mode (bottom left) to use this feature.', 'Feature Locked', 'warning');
       return;
+    }
+    if (viewId === 'brian') {
+      const isOwner = localStorage.getItem('nexus_mode') === 'owner';
+      const hasAccess = isOwner || (guestUser && guestUserBrianAccess === 'approved');
+      if (!hasAccess) {
+        showModalAlert('Access Restricted: You need to request access and be approved to interact with Brian AI.', 'Access Required', 'warning');
+        return;
+      }
     }
     if (viewId === 'admin') {
       const isOwner = localStorage.getItem('nexus_mode') === 'owner';
@@ -569,6 +1024,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    // Sync mobile bottom nav active state
+    document.querySelectorAll('.mbn-item[data-view]').forEach(btn => {
+      btn.classList.remove('active');
+      if (btn.getAttribute('data-view') === viewId) {
+        btn.classList.add('active');
+      }
+    });
+
     // Save active view in localStorage
     localStorage.setItem('active_view', viewId);
 
@@ -577,6 +1040,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   navButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const viewId = button.getAttribute('data-view');
+      switchView(viewId);
+    });
+  });
+
+  // Mobile bottom nav click listeners
+  document.querySelectorAll('.mbn-item[data-view]').forEach(button => {
     button.addEventListener('click', () => {
       const viewId = button.getAttribute('data-view');
       switchView(viewId);
@@ -1246,8 +1717,115 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
+    adjustBookmarkCollapsing();
+
     lucide.createIcons();
   }
+
+  function adjustBookmarkCollapsing() {
+    const isAllTab = (currentFilter === 'all');
+    const searchVal = linksSearch.value.trim();
+    const shouldCollapse = isAllTab && !searchVal;
+
+    document.querySelectorAll('.genre-section').forEach(section => {
+      const grid = section.querySelector('.bookmarks-grid');
+      if (!grid) return;
+      const cat = grid.getAttribute('data-category');
+      const cards = grid.querySelectorAll('.bookmark-card');
+      
+      // Remove any existing show-more wrapper in this section to avoid duplicates
+      const existingWrapper = section.querySelector('.show-more-wrapper');
+      if (existingWrapper) {
+        existingWrapper.remove();
+      }
+
+      if (cards.length === 0) return;
+
+      const firstCard = cards[0];
+      const firstCardOffsetTop = firstCard.offsetTop;
+      let hasMultipleRows = false;
+
+      // Check if any card is on a different row
+      for (let i = 1; i < cards.length; i++) {
+        if (cards[i].offsetTop > firstCardOffsetTop + 10) {
+          hasMultipleRows = true;
+          break;
+        }
+      }
+
+      if (hasMultipleRows && shouldCollapse) {
+        const isExpanded = !!bookmarkExpandedStates[cat];
+
+        // Create the Show More/Less button wrapper
+        const wrapper = document.createElement('div');
+        wrapper.className = 'show-more-wrapper';
+        wrapper.innerHTML = `
+          <button class="btn-show-more" data-category="${cat}">
+            <span>${isExpanded ? 'Show Less' : 'Show More'}</span>
+            <i data-lucide="${isExpanded ? 'chevron-up' : 'chevron-down'}"></i>
+          </button>
+        `;
+
+        section.appendChild(wrapper);
+
+        // Apply grid styling based on state (initial render or resize state)
+        if (isExpanded) {
+          grid.classList.remove('collapsed');
+          grid.style.maxHeight = '';
+        } else {
+          grid.classList.add('collapsed');
+          const firstCardHeight = firstCard.offsetHeight;
+          grid.style.maxHeight = `${firstCardHeight}px`;
+        }
+
+        // Add event listener to the button for smooth transitions
+        const btn = wrapper.querySelector('.btn-show-more');
+        btn.addEventListener('click', () => {
+          const currentlyExpanded = !!bookmarkExpandedStates[cat];
+          bookmarkExpandedStates[cat] = !currentlyExpanded;
+
+          if (!currentlyExpanded) {
+            // We are expanding: transition to scrollHeight
+            grid.classList.remove('collapsed');
+            grid.style.maxHeight = `${grid.scrollHeight}px`;
+            
+            // Clean up max-height inline style once transition completes so it resizes dynamically
+            const onTransitionEnd = (e) => {
+              if (e.propertyName === 'max-height') {
+                grid.style.maxHeight = '';
+                grid.removeEventListener('transitionend', onTransitionEnd);
+              }
+            };
+            grid.addEventListener('transitionend', onTransitionEnd);
+          } else {
+            // We are collapsing: transition to firstCard height
+            const firstCardHeight = firstCard.offsetHeight;
+            grid.style.maxHeight = `${grid.scrollHeight}px`; // ensure starting height is set
+            grid.offsetHeight; // force reflow
+            grid.classList.add('collapsed');
+            grid.style.maxHeight = `${firstCardHeight}px`;
+          }
+
+          // Toggle button text and icons
+          btn.querySelector('span').textContent = bookmarkExpandedStates[cat] ? 'Show Less' : 'Show More';
+          const icon = btn.querySelector('i');
+          if (icon) {
+            icon.setAttribute('data-lucide', bookmarkExpandedStates[cat] ? 'chevron-up' : 'chevron-down');
+          }
+          lucide.createIcons();
+        });
+      } else {
+        // No multiple rows, or shouldn't collapse (specific tab/searching)
+        grid.classList.remove('collapsed');
+        grid.style.maxHeight = '';
+      }
+    });
+  }
+
+  window.addEventListener('resize', () => {
+    adjustBookmarkCollapsing();
+  });
+
 
   // Render recent bookmarks preview on Dashboard
   function renderRecentBookmarks() {
@@ -1326,7 +1904,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const isOwner = document.body.classList.contains('mode-owner');
     if (!isOwner && !guestUser) {
-      const username = await showGuestAuthModal();
+      const username = await showGlobalAuthModal('guest');
       if (!username) {
         return;
       }
@@ -3613,6 +4191,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // 1. Restore Mode on page load
   const initialMode = localStorage.getItem('nexus_mode') || 'guest';
   setAppMode(initialMode);
+  if (initialMode === 'guest' && guestUser) {
+    fetchUserProfile();
+  }
 
   // 2. Initial load of bookmarks
   fetchBookmarks();
@@ -4742,6 +5323,8 @@ document.addEventListener('DOMContentLoaded', () => {
       await loadAdminBookmarks(token);
     } else if (tabName === 'analytics') {
       await loadAdminAnalytics(token);
+    } else if (tabName === 'brian') {
+      await loadAdminBrianData(token);
     }
   };
 
@@ -4792,7 +5375,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const listBody = document.getElementById('admin-users-list');
     listBody.innerHTML = '';
     if (!users || users.length === 0) {
-      listBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 20px;">No guest user accounts found.</td></tr>';
+      listBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">No guest user accounts found.</td></tr>';
       return;
     }
 
@@ -4800,11 +5383,38 @@ document.addEventListener('DOMContentLoaded', () => {
       const tr = document.createElement('tr');
       const regDate = u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A';
       
+      const status = u.brian_access || 'none';
+      let badgeClass = 'none';
+      let badgeText = 'No Request';
+      
+      if (status === 'approved') {
+        badgeClass = 'approved';
+        badgeText = 'Bro / Approved';
+      } else if (status === 'pending') {
+        badgeClass = 'pending';
+        badgeText = 'Pending';
+      } else if (status === 'rejected') {
+        badgeClass = 'rejected';
+        badgeText = 'Rejected';
+      }
+
       tr.innerHTML = `
         <td style="font-weight: 600; color: var(--text-primary);">${u.username}</td>
         <td>${regDate}</td>
+        <td>
+          <span class="access-badge ${badgeClass}">${badgeText}</span>
+        </td>
         <td style="text-align: right;">
           <div class="admin-actions">
+            ${status !== 'approved' ? `
+              <button class="btn-admin-action approve-bro" title="Approve Bro Access">
+                <i data-lucide="user-check"></i>
+              </button>
+            ` : `
+              <button class="btn-admin-action revoke-bro" title="Revoke Bro Access">
+                <i data-lucide="user-x"></i>
+              </button>
+            `}
             <button class="btn-admin-action reset-pw" title="Reset Password">
               <i data-lucide="key-round"></i>
             </button>
@@ -4815,6 +5425,63 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
       `;
       
+      // Approve Handler
+      const approveBtn = tr.querySelector('.approve-bro');
+      if (approveBtn) {
+        approveBtn.addEventListener('click', async () => {
+          const username = u.username;
+          try {
+            const res = await fetch(`/api/admin/users/${username}/brian-access`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-owner-token': localStorage.getItem('owner_token')
+              },
+              body: JSON.stringify({ status: 'approved' })
+            });
+            const result = await res.json();
+            if (res.ok) {
+              await showModalAlert(`Approved "${username}" for Brian AI (Bro Mode).`, 'Success', 'success');
+              loadAdminUsers(localStorage.getItem('owner_token'));
+            } else {
+              await showModalAlert(result.error || 'Failed to approve user.', 'Error', 'error');
+            }
+          } catch (e) {
+            await showModalAlert('Failed to update access.', 'Error', 'error');
+          }
+        });
+      }
+
+      // Revoke Handler
+      const revokeBtn = tr.querySelector('.revoke-bro');
+      if (revokeBtn) {
+        revokeBtn.addEventListener('click', async () => {
+          const username = u.username;
+          const confirmed = await showModalConfirm(`Are you sure you want to revoke Brian AI access for "${username}"?`, 'Revoke Access');
+          if (!confirmed) return;
+
+          try {
+            const res = await fetch(`/api/admin/users/${username}/brian-access`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-owner-token': localStorage.getItem('owner_token')
+              },
+              body: JSON.stringify({ status: 'none' })
+            });
+            const result = await res.json();
+            if (res.ok) {
+              await showModalAlert(`Revoked Brian AI access for "${username}".`, 'Success', 'success');
+              loadAdminUsers(localStorage.getItem('owner_token'));
+            } else {
+              await showModalAlert(result.error || 'Failed to revoke access.', 'Error', 'error');
+            }
+          } catch (e) {
+            await showModalAlert('Failed to update access.', 'Error', 'error');
+          }
+        });
+      }
+
       // Reset Password Handler
       tr.querySelector('.reset-pw').addEventListener('click', async () => {
         const username = u.username;
@@ -5003,6 +5670,452 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAdminBookmarks(filtered);
   });
 
+  // --- Brian AI Data Management (Layer 2 & 3) ---
+
+  async function loadAdminBrianData(token) {
+    try {
+      // Load People
+      const peopleRes = await fetch('/api/brian/people', {
+        headers: { 'x-owner-token': token }
+      });
+      if (peopleRes.ok) {
+        const pData = await peopleRes.json();
+        renderAdminPeople(pData.people);
+      }
+
+      // Load Stories
+      const storiesRes = await fetch('/api/brian/stories', {
+        headers: { 'x-owner-token': token }
+      });
+      if (storiesRes.ok) {
+        const sData = await storiesRes.json();
+        renderAdminStories(sData.stories);
+      }
+    } catch (err) {
+      console.error('Failed to load Brian admin data:', err);
+    }
+  }
+
+  function renderAdminPeople(people) {
+    const listBody = document.getElementById('admin-people-list');
+    if (!listBody) return;
+    listBody.innerHTML = '';
+
+    if (!people || people.length === 0) {
+      listBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">No relationship profiles registered.</td></tr>';
+      return;
+    }
+
+    people.forEach(p => {
+      const tr = document.createElement('tr');
+      const aliasesList = Array.isArray(p.aliases) ? p.aliases.join(', ') : (p.aliases || '');
+      
+      tr.innerHTML = `
+        <td style="font-weight: 600; color: var(--text-primary);">${escapeHTML(p.real_name)}</td>
+        <td style="font-size: 12px; color: var(--text-secondary);">${escapeHTML(aliasesList || 'None')}</td>
+        <td><span class="category-tag cyan" style="font-size: 11px; padding: 2px 6px;">${escapeHTML(p.relationship || 'Friend')}</span></td>
+        <td style="font-size: 12px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHTML(p.opinion || '')}">${escapeHTML(p.opinion || '')}</td>
+        <td style="font-size: 12px; color: var(--text-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHTML(p.notes || '')}">${escapeHTML(p.notes || '')}</td>
+        <td style="text-align: right; padding-right: 20px;">
+          <div class="admin-actions">
+            <button class="btn-admin-action edit" title="Edit Profile">
+              <i data-lucide="edit-2"></i>
+            </button>
+            <button class="btn-admin-action delete" title="Delete Profile">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+        </td>
+      `;
+
+      // Edit Person Hook
+      tr.querySelector('.edit').addEventListener('click', async () => {
+        const updated = await showAddPersonModal(p);
+        if (updated) {
+          await showModalAlert('Person relationship profile updated successfully.', 'Profile Updated', 'success');
+          loadAdminBrianData(localStorage.getItem('owner_token'));
+        }
+      });
+
+      // Delete Person Hook
+      tr.querySelector('.delete').addEventListener('click', async () => {
+        const confirmed = await showModalConfirm(`Are you sure you want to delete the relationship profile for "${p.real_name}"?`, 'Delete Profile');
+        if (!confirmed) return;
+
+        try {
+          const response = await fetch(`/api/brian/people/${p.id}`, {
+            method: 'DELETE',
+            headers: {
+              'x-owner-token': localStorage.getItem('owner_token')
+            }
+          });
+          const result = await response.json();
+          if (response.ok && result.success) {
+            await showModalAlert(result.message || 'Profile deleted successfully.', 'Profile Deleted', 'success');
+            loadAdminBrianData(localStorage.getItem('owner_token'));
+          } else {
+            await showModalAlert(result.error || 'Failed to delete profile.', 'Error', 'error');
+          }
+        } catch (e) {
+          console.error(e);
+          await showModalAlert('Network error occurred.', 'Error', 'error');
+        }
+      });
+
+      listBody.appendChild(tr);
+    });
+
+    lucide.createIcons();
+  }
+
+  function renderAdminStories(stories) {
+    const listBody = document.getElementById('admin-stories-list');
+    if (!listBody) return;
+    listBody.innerHTML = '';
+
+    if (!stories || stories.length === 0) {
+      listBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">No global story records found.</td></tr>';
+      return;
+    }
+
+    stories.forEach(s => {
+      const tr = document.createElement('tr');
+      const dateStr = s.date ? new Date(s.date).toLocaleDateString() : 'N/A';
+      const charList = Array.isArray(s.people) ? s.people.join(', ') : (s.people || '');
+
+      tr.innerHTML = `
+        <td style="font-weight: 600; color: var(--text-primary); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHTML(s.title)}">${escapeHTML(s.title)}</td>
+        <td style="font-size: 12px; color: var(--text-secondary); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHTML(s.summary || '')}">${escapeHTML(s.summary || '')}</td>
+        <td style="font-size: 12px; color: var(--text-muted);">${escapeHTML(charList || 'None')}</td>
+        <td><span class="category-tag purple" style="font-size: 11px; padding: 2px 6px;">${escapeHTML(s.emotion || 'neutral')}</span></td>
+        <td style="font-size: 12px; color: var(--text-muted);">${dateStr}</td>
+        <td style="text-align: right; padding-right: 20px;">
+          <div class="admin-actions">
+            <button class="btn-admin-action edit" title="Edit Story">
+              <i data-lucide="edit-2"></i>
+            </button>
+            <button class="btn-admin-action delete" title="Delete Story">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+        </td>
+      `;
+
+      // Edit Story Hook
+      tr.querySelector('.edit').addEventListener('click', async () => {
+        const updated = await showAddStoryModal(s);
+        if (updated) {
+          await showModalAlert('Story record updated and vector embedding regenerated successfully.', 'Story Updated', 'success');
+          loadAdminBrianData(localStorage.getItem('owner_token'));
+        }
+      });
+
+      // Delete Story Hook
+      tr.querySelector('.delete').addEventListener('click', async () => {
+        const confirmed = await showModalConfirm(`Are you sure you want to delete the story record "${s.title}"?`, 'Delete Story');
+        if (!confirmed) return;
+
+        try {
+          const response = await fetch(`/api/brian/stories/${s.id}`, {
+            method: 'DELETE',
+            headers: {
+              'x-owner-token': localStorage.getItem('owner_token')
+            }
+          });
+          const result = await response.json();
+          if (response.ok && result.success) {
+            await showModalAlert(result.message || 'Story deleted successfully.', 'Story Deleted', 'success');
+            loadAdminBrianData(localStorage.getItem('owner_token'));
+          } else {
+            await showModalAlert(result.error || 'Failed to delete story.', 'Error', 'error');
+          }
+        } catch (e) {
+          console.error(e);
+          await showModalAlert('Network error occurred.', 'Error', 'error');
+        }
+      });
+
+      listBody.appendChild(tr);
+    });
+
+    lucide.createIcons();
+  }
+
+  function showAddPersonModal(existingPerson = null) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'custom-modal-overlay active';
+
+      const isEdit = !!existingPerson;
+      const titleText = isEdit ? 'Edit Relationship Profile' : 'Add Relationship Profile';
+      const iconName = isEdit ? 'edit-2' : 'user-plus';
+      const submitText = isEdit ? 'Update Profile' : 'Save Profile';
+      const nameVal = isEdit ? escapeHTML(existingPerson.real_name) : '';
+      const aliasesVal = isEdit ? escapeHTML(Array.isArray(existingPerson.aliases) ? existingPerson.aliases.join(', ') : (existingPerson.aliases || '')) : '';
+      const relationshipVal = isEdit ? escapeHTML(existingPerson.relationship || '') : '';
+      const opinionVal = isEdit ? escapeHTML(existingPerson.opinion || '') : '';
+      const notesVal = isEdit ? escapeHTML(existingPerson.notes || '') : '';
+
+      overlay.innerHTML = `
+        <div class="custom-modal glass-panel popup-anim" style="max-width: 420px; width: 100%;">
+          <div class="modal-header">
+            <i data-lucide="${iconName}" class="modal-icon info" style="color: var(--accent-cyan);"></i>
+            <h3>${titleText}</h3>
+          </div>
+          <div class="modal-body">
+            <form id="form-admin-add-person" style="display: flex; flex-direction: column; gap: 14px;">
+              <div class="auth-field-group">
+                <i data-lucide="user" class="auth-field-icon"></i>
+                <input type="text" id="add-person-name" required placeholder="Real Name (e.g. Ena)" value="${nameVal}">
+              </div>
+              <div class="auth-field-group">
+                <i data-lucide="tag" class="auth-field-icon"></i>
+                <input type="text" id="add-person-aliases" placeholder="Aliases (comma-separated, e.g. Enu, En)" value="${aliasesVal}">
+              </div>
+              <div class="auth-field-group">
+                <i data-lucide="heart" class="auth-field-icon"></i>
+                <input type="text" id="add-person-relationship" placeholder="Relationship to Borno (e.g. Friend)" value="${relationshipVal}">
+              </div>
+              <div class="auth-field-group" style="align-items: flex-start; height: auto;">
+                <i data-lucide="message-circle" class="auth-field-icon" style="margin-top: 10px;"></i>
+                <textarea id="add-person-opinion" required placeholder="Brian's opinion of them (what Brian thinks of them)" style="width: 100%; height: 80px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); color: var(--text-primary); border-radius: var(--border-radius-sm); padding: 8px 10px 8px 36px; font-family: inherit; font-size: 13px; outline: none; resize: none;">${opinionVal}</textarea>
+              </div>
+              <div class="auth-field-group" style="align-items: flex-start; height: auto;">
+                <i data-lucide="sticky-note" class="auth-field-icon" style="margin-top: 10px;"></i>
+                <textarea id="add-person-notes" placeholder="General notes / context" style="width: 100%; height: 60px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); color: var(--text-primary); border-radius: var(--border-radius-sm); padding: 8px 10px 8px 36px; font-family: inherit; font-size: 13px; outline: none; resize: none;">${notesVal}</textarea>
+              </div>
+              
+              <div id="add-person-error" class="auth-error-msg" style="display:none; color: var(--accent-pink); font-size: 12px;"></div>
+              
+              <button type="submit" class="auth-submit-btn" style="margin-top: 4px; padding: 10px;">
+                <span>${submitText}</span>
+                <i data-lucide="check" class="auth-submit-icon"></i>
+              </button>
+            </form>
+          </div>
+          <div class="modal-footer" style="padding-top: 8px;">
+            <button class="btn-secondary btn-modal-close" style="width: 100%; padding: 10px;">Cancel</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+      lucide.createIcons();
+
+      const btnClose = overlay.querySelector('.btn-modal-close');
+      const form = overlay.querySelector('#form-admin-add-person');
+      const errEl = overlay.querySelector('#add-person-error');
+
+      const closeModal = () => {
+        overlay.classList.remove('active');
+        setTimeout(() => {
+          overlay.remove();
+          resolve(false);
+        }, 150);
+      };
+
+      btnClose.addEventListener('click', closeModal);
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal();
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errEl.style.display = 'none';
+
+        const name = overlay.querySelector('#add-person-name').value.trim();
+        const aliases = overlay.querySelector('#add-person-aliases').value.trim();
+        const relationship = overlay.querySelector('#add-person-relationship').value.trim();
+        const opinion = overlay.querySelector('#add-person-opinion').value.trim();
+        const notes = overlay.querySelector('#add-person-notes').value.trim();
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+
+        try {
+          const res = await fetch(isEdit ? `/api/brian/people/${existingPerson.id}` : '/api/brian/people', {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-owner-token': localStorage.getItem('owner_token')
+            },
+            body: JSON.stringify({ realName: name, aliases, relationship, opinion, notes })
+          });
+
+          let data;
+          try {
+            data = await res.json();
+          } catch (e) {
+            data = { error: `Server error: ${res.status} ${res.statusText}` };
+          }
+
+          if (res.ok && data.success) {
+            closeModal();
+            resolve(true);
+          } else {
+            submitBtn.disabled = false;
+            errEl.textContent = data.error || 'Failed to save profile.';
+            errEl.style.display = 'block';
+          }
+        } catch (err) {
+          console.error('[Admin Person Submit Error]', err);
+          submitBtn.disabled = false;
+          errEl.textContent = err.message || 'Network error occurred.';
+          errEl.style.display = 'block';
+        }
+      });
+    });
+  }
+
+  function showAddStoryModal(existingStory = null) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'custom-modal-overlay active';
+
+      const isEdit = !!existingStory;
+      const titleText = isEdit ? 'Edit Story Record' : 'Add Story Record';
+      const iconName = isEdit ? 'edit-2' : 'book-open';
+      const submitText = isEdit ? 'Update Story' : 'Save Story';
+      const titleVal = isEdit ? escapeHTML(existingStory.title) : '';
+      const summaryVal = isEdit ? escapeHTML(existingStory.summary || '') : '';
+      const peopleVal = isEdit ? escapeHTML(Array.isArray(existingStory.people) ? existingStory.people.join(', ') : (existingStory.people || '')) : '';
+      const emotionVal = isEdit ? escapeHTML(existingStory.emotion || '') : '';
+      const fullTextVal = isEdit ? escapeHTML(existingStory.full_text || '') : '';
+
+      overlay.innerHTML = `
+        <div class="custom-modal glass-panel popup-anim" style="max-width: 440px; width: 100%;">
+          <div class="modal-header">
+            <i data-lucide="${iconName}" class="modal-icon info" style="color: var(--accent-purple);"></i>
+            <h3>${titleText}</h3>
+          </div>
+          <div class="modal-body">
+            <form id="form-admin-add-story" style="display: flex; flex-direction: column; gap: 14px;">
+              <div class="auth-field-group">
+                <i data-lucide="heading" class="auth-field-icon"></i>
+                <input type="text" id="add-story-title" required placeholder="Story Title (e.g. Kitten Rescue)" value="${titleVal}">
+              </div>
+              <div class="auth-field-group">
+                <i data-lucide="align-left" class="auth-field-icon"></i>
+                <input type="text" id="add-story-summary" required placeholder="Short Summary (one-line overview)" value="${summaryVal}">
+              </div>
+              <div class="auth-field-group">
+                <i data-lucide="users" class="auth-field-icon"></i>
+                <input type="text" id="add-story-people" placeholder="People Involved (comma-separated, e.g. Ena, Borno)" value="${peopleVal}">
+              </div>
+              <div class="auth-field-group">
+                <i data-lucide="smile" class="auth-field-icon"></i>
+                <input type="text" id="add-story-emotion" placeholder="Emotional Tone (e.g. funny, proud, grateful)" value="${emotionVal}">
+              </div>
+              <div class="auth-field-group" style="align-items: flex-start; height: auto;">
+                <i data-lucide="text" class="auth-field-icon" style="margin-top: 10px;"></i>
+                <textarea id="add-story-fulltext" required placeholder="Full Story Text (the details that Brian will use to answer)" style="width: 100%; height: 110px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); color: var(--text-primary); border-radius: var(--border-radius-sm); padding: 8px 10px 8px 36px; font-family: inherit; font-size: 13px; outline: none; resize: none;">${fullTextVal}</textarea>
+              </div>
+              
+              <div id="add-story-error" class="auth-error-msg" style="display:none; color: var(--accent-pink); font-size: 12px;"></div>
+              
+              <button type="submit" class="auth-submit-btn" style="margin-top: 4px; padding: 10px;">
+                <span>${submitText}</span>
+                <i data-lucide="check" class="auth-submit-icon"></i>
+              </button>
+            </form>
+          </div>
+          <div class="modal-footer" style="padding-top: 8px;">
+            <button class="btn-secondary btn-modal-close" style="width: 100%; padding: 10px;">Cancel</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+      lucide.createIcons();
+
+      const btnClose = overlay.querySelector('.btn-modal-close');
+      const form = overlay.querySelector('#form-admin-add-story');
+      const errEl = overlay.querySelector('#add-story-error');
+
+      const closeModal = () => {
+        overlay.classList.remove('active');
+        setTimeout(() => {
+          overlay.remove();
+          resolve(false);
+        }, 150);
+      };
+
+      btnClose.addEventListener('click', closeModal);
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal();
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errEl.style.display = 'none';
+
+        const title = overlay.querySelector('#add-story-title').value.trim();
+        const summary = overlay.querySelector('#add-story-summary').value.trim();
+        const people = overlay.querySelector('#add-story-people').value.trim();
+        const emotion = overlay.querySelector('#add-story-emotion').value.trim();
+        const fullText = overlay.querySelector('#add-story-fulltext').value.trim();
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+
+        try {
+          const res = await fetch(isEdit ? `/api/brian/stories/${existingStory.id}` : '/api/brian/stories', {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-owner-token': localStorage.getItem('owner_token')
+            },
+            body: JSON.stringify({ title, summary, people, emotion, fullText })
+          });
+
+          let data;
+          try {
+            data = await res.json();
+          } catch (e) {
+            data = { error: `Server error: ${res.status} ${res.statusText}` };
+          }
+
+          if (res.ok && data.success) {
+            closeModal();
+            resolve(true);
+          } else {
+            submitBtn.disabled = false;
+            errEl.textContent = data.error || 'Failed to save story.';
+            errEl.style.display = 'block';
+          }
+        } catch (err) {
+          console.error('[Admin Story Submit Error]', err);
+          submitBtn.disabled = false;
+          errEl.textContent = err.message || 'Network error occurred.';
+          errEl.style.display = 'block';
+        }
+      });
+    });
+  }
+
+  // Click listeners for Add actions
+  const btnAddPerson = document.getElementById('btn-admin-add-person');
+  if (btnAddPerson) {
+    btnAddPerson.addEventListener('click', async () => {
+      const added = await showAddPersonModal();
+      if (added) {
+        await showModalAlert('Person relationship profile added successfully.', 'Profile Added', 'success');
+        loadAdminBrianData(localStorage.getItem('owner_token'));
+      }
+    });
+  }
+
+  const btnAddStory = document.getElementById('btn-admin-add-story');
+  if (btnAddStory) {
+    btnAddStory.addEventListener('click', async () => {
+      const added = await showAddStoryModal();
+      if (added) {
+        await showModalAlert('Story record saved and vector embedding generated successfully.', 'Story Added', 'success');
+        loadAdminBrianData(localStorage.getItem('owner_token'));
+      }
+    });
+  }
+
   // Change owner password handler
   document.getElementById('owner-password-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -5178,6 +6291,700 @@ document.addEventListener('DOMContentLoaded', () => {
     );
     renderAdminAuditLog(filtered);
   });
+
+  // --- Project Brian AI Controller ---
+  const brianChatHistory = document.getElementById('brian-chat-history');
+  const brianChatInputField = document.getElementById('brian-chat-input-field');
+  const btnSendBrianMsg = document.getElementById('btn-send-brian-msg');
+  brianIdentityName = document.getElementById('brian-identity-name');
+  const btnApplyBrianIdentity = document.getElementById('btn-apply-brian-identity');
+  
+  // New chat history elements
+  brianSessionsList = document.getElementById('brian-sessions-list');
+  const btnBrianNewChat = document.getElementById('btn-brian-new-chat');
+  const brianSearchChats = document.getElementById('brian-search-chats');
+
+  // Initialize session ID from localStorage or generate new
+  let brianSessionId = localStorage.getItem('brian_session_id');
+
+  // Sync identity display: always locked to the authenticated username
+  function syncBrianIdentity() {
+    const currentMode = localStorage.getItem('nexus_mode') || 'guest';
+    const activeUser = currentMode === 'owner' ? 'Owner' : (guestUser || 'Guest');
+    if (brianIdentityName) {
+      // brianIdentityName is now a div (read-only display), not an input
+      brianIdentityName.textContent = activeUser;
+    }
+  }
+
+  // Call sync initial identity
+  syncBrianIdentity();
+
+  // Identity is read-only — no Apply Name button handler needed
+
+
+  // Load conversations list from backend
+  async function loadConversationsList(autoSelectMostRecent = false) {
+    if (!brianSessionsList) return;
+
+    try {
+      const searchQuery = brianSearchChats ? brianSearchChats.value.trim() : '';
+      const filterSelect = document.getElementById('brian-admin-chat-filter');
+      const userFilter = filterSelect ? filterSelect.value : 'all';
+
+      const response = await fetch(`/api/brian/conversations?search=${encodeURIComponent(searchQuery)}&userFilter=${encodeURIComponent(userFilter)}`, {
+        headers: {
+          'x-user-name': guestUser || 'Guest',
+          'x-owner-token': localStorage.getItem('owner_token') || ''
+        }
+      });
+      const data = await response.json();
+
+      if (data.success && data.conversations) {
+        const list = data.conversations;
+        
+        if (list.length === 0) {
+          brianSessionsList.innerHTML = `<div class="chat-list-empty" style="text-align: center; color: var(--text-muted); font-size: 11px; padding: 12px;">No chats found</div>`;
+          if (autoSelectMostRecent && !brianSessionId) {
+            startNewChat();
+          }
+          return;
+        }
+
+        brianSessionsList.innerHTML = '';
+        list.forEach(item => {
+          const itemEl = document.createElement('div');
+          itemEl.className = `chat-session-item ${item.sessionId === brianSessionId ? 'active' : ''}`;
+          itemEl.dataset.sessionId = item.sessionId;
+
+          // Format Date
+          const dateObj = new Date(item.updatedAt);
+          const displayDate = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+          // Truncate title (first message)
+          let displayTitle = item.firstMessage || 'New Chat';
+          if (displayTitle.length > 25) {
+            displayTitle = displayTitle.substring(0, 22) + '...';
+          }
+
+          itemEl.innerHTML = `
+            <div class="chat-session-content">
+              <div class="chat-session-icon">
+                <i data-lucide="message-square" style="width: 14px; height: 14px;"></i>
+              </div>
+              <div class="chat-session-info">
+                <span class="chat-session-title">${escapeHTML(displayTitle)}</span>
+                <span class="chat-session-preview">By ${escapeHTML(item.userName)}</span>
+              </div>
+            </div>
+            <span class="chat-session-date">${displayDate}</span>
+            <button class="btn-delete-session" title="Delete Chat">
+              <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+            </button>
+          `;
+
+          // Add click event to load chat
+          itemEl.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-delete-session')) return;
+            loadConversationSession(item.sessionId);
+          });
+
+          // Add delete button click event
+          const btnDelete = itemEl.querySelector('.btn-delete-session');
+          btnDelete.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const confirmed = await showModalConfirm('Are you sure you want to permanently delete this chat history?', 'Delete Chat History');
+            if (confirmed) {
+              await deleteConversationSession(item.sessionId);
+            }
+          });
+
+          brianSessionsList.appendChild(itemEl);
+        });
+
+        // Initialize lucide icons in the generated list
+        lucide.createIcons();
+
+        // Auto select the first conversation if none is active or if we forced autoSelect
+        if (autoSelectMostRecent) {
+          if (!brianSessionId && list.length > 0) {
+            loadConversationSession(list[0].sessionId);
+          } else if (brianSessionId) {
+            const exists = list.some(item => item.sessionId === brianSessionId);
+            if (exists) {
+              loadConversationSession(brianSessionId);
+            } else {
+              loadConversationSession(list[0].sessionId);
+            }
+          } else {
+            startNewChat();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    }
+  }
+
+  // Load a single conversation session and render its messages
+  async function loadConversationSession(sessionId) {
+    brianSessionId = sessionId;
+    localStorage.setItem('brian_session_id', brianSessionId);
+
+    // Update active visual state
+    const items = brianSessionsList.querySelectorAll('.chat-session-item');
+    items.forEach(item => {
+      if (item.dataset.sessionId === sessionId) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
+      }
+    });
+
+    if (!brianChatHistory) return;
+    brianChatHistory.innerHTML = '';
+
+    try {
+      const response = await fetch(`/api/brian/conversations/${sessionId}`, {
+        headers: {
+          'x-user-name': guestUser || 'Guest',
+          'x-owner-token': localStorage.getItem('owner_token') || ''
+        }
+      });
+      const data = await response.json();
+
+      if (data.success && data.conversation && data.conversation.messages) {
+        const messages = data.conversation.messages;
+        if (messages.length === 0) {
+          showDefaultGreeting();
+        } else {
+          messages.forEach(m => {
+            appendBrianChatMessage(m.sender.toLowerCase() === 'brian' ? 'brian' : 'user', m.text);
+          });
+        }
+      } else {
+        showDefaultGreeting();
+      }
+    } catch (error) {
+      console.error('Error loading conversation history:', error);
+      showDefaultGreeting();
+    }
+  }
+
+  // Start a new chat session locally (generate ID, clear view)
+  function startNewChat() {
+    brianSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    localStorage.setItem('brian_session_id', brianSessionId);
+
+    // Deselect list items
+    if (brianSessionsList) {
+      const items = brianSessionsList.querySelectorAll('.chat-session-item');
+      items.forEach(item => item.classList.remove('active'));
+    }
+
+    if (brianChatHistory) {
+      brianChatHistory.innerHTML = '';
+      showDefaultGreeting();
+    }
+  }
+
+  // Delete a conversation session from backend
+  async function deleteConversationSession(sessionId) {
+    try {
+      const response = await fetch(`/api/brian/conversations/${sessionId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-name': guestUser || 'Guest',
+          'x-owner-token': localStorage.getItem('owner_token') || ''
+        }
+      });
+      const data = await response.json();
+      if (data.success) {
+        // If the active session is deleted, start a new chat
+        if (brianSessionId === sessionId) {
+          startNewChat();
+        }
+        await loadConversationsList(false);
+      } else {
+        showModalAlert('Failed to delete chat session.', 'Error', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      showModalAlert('Error connecting to server.', 'Error', 'error');
+    }
+  }
+
+  // Helper to show greeting
+  function showDefaultGreeting() {
+    if (!brianChatHistory) return;
+    brianChatHistory.innerHTML = `
+      <div class="chat-row brian-row">
+        <div class="chat-avatar">B</div>
+        <div class="chat-bubble">
+          Hey! I'm Brian, Borno's younger brother. Who's this? Introduction time!
+        </div>
+      </div>
+    `;
+    brianChatHistory.scrollTop = brianChatHistory.scrollHeight;
+  }
+
+  // Helper to escape HTML characters
+  function escapeHTML(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // Function to append messages to the chat view
+  function appendBrianChatMessage(sender, text) {
+    if (!brianChatHistory) return;
+    
+    const row = document.createElement('div');
+    row.className = `chat-row ${sender === 'user' ? 'user-row' : 'brian-row'}`;
+    
+    const avatar = document.createElement('div');
+    avatar.className = 'chat-avatar';
+    avatar.textContent = sender === 'user'
+      ? ((guestUser || 'G').substring(0, 1).toUpperCase())
+      : 'B';
+    
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble';
+    
+    if (typeof marked !== 'undefined') {
+      marked.setOptions({ breaks: true, gfm: true });
+      bubble.innerHTML = marked.parse(text);
+    } else {
+      bubble.textContent = text;
+    }
+    
+    if (sender === 'brian') {
+      row.appendChild(avatar);
+      row.appendChild(bubble);
+    } else {
+      row.appendChild(bubble);
+    }
+    
+    brianChatHistory.appendChild(row);
+    brianChatHistory.scrollTop = brianChatHistory.scrollHeight;
+  }
+
+  // Function to send user message to Brian API
+  async function sendMsgToBrian() {
+    if (!brianChatInputField) return;
+    const message = brianChatInputField.value.trim();
+    if (!message) return;
+
+    // Always use the authenticated username — identity cannot be spoofed
+    const currentMode = localStorage.getItem('nexus_mode') || 'guest';
+    const userName = currentMode === 'owner' ? 'Owner' : (guestUser || 'Guest');
+
+    // Clear input field
+    brianChatInputField.value = '';
+
+    // Append user message
+    appendBrianChatMessage('user', message);
+
+    // Show typing placeholder
+    const typingRow = document.createElement('div');
+    typingRow.className = 'chat-row brian-row typing-indicator-row';
+    typingRow.innerHTML = `
+      <div class="chat-avatar">B</div>
+      <div class="chat-bubble typing-bubble">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+    `;
+    brianChatHistory.appendChild(typingRow);
+    brianChatHistory.scrollTop = brianChatHistory.scrollHeight;
+
+    try {
+      const response = await fetch('/api/brian/chat', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-name': guestUser || 'Guest',
+          'x-owner-token': localStorage.getItem('owner_token') || ''
+        },
+        body: JSON.stringify({
+          sessionId: brianSessionId,
+          userName: userName,
+          message: message
+        })
+      });
+
+      const data = await response.json();
+
+      // Remove typing placeholder
+      const indicator = brianChatHistory.querySelector('.typing-indicator-row');
+      if (indicator) {
+        indicator.remove();
+      }
+
+      if (data.reply) {
+        appendBrianChatMessage('brian', data.reply);
+        loadConversationsList(false); // Refresh sidebar list
+      } else {
+        appendBrianChatMessage('brian', 'Whoops, something went wrong. Try again?');
+      }
+    } catch (error) {
+      console.error('Error talking to Brian:', error);
+      const indicator = brianChatHistory.querySelector('.typing-indicator-row');
+      if (indicator) {
+        indicator.remove();
+      }
+      appendBrianChatMessage('brian', "Can't seem to connect right now. Is the server running?");
+    }
+  }
+
+  // Event listener for button click
+  if (btnSendBrianMsg) {
+    btnSendBrianMsg.addEventListener('click', sendMsgToBrian);
+  }
+
+  // Event listener for enter key
+  if (brianChatInputField) {
+    brianChatInputField.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (!e.shiftKey) {
+          e.preventDefault();
+          sendMsgToBrian();
+        }
+      }
+    });
+  }
+
+  // New Chat button event listener
+  if (btnBrianNewChat) {
+    btnBrianNewChat.addEventListener('click', startNewChat);
+  }
+
+  // Search input event listener (live filter)
+  if (brianSearchChats) {
+    brianSearchChats.addEventListener('input', () => {
+      loadConversationsList(false);
+    });
+  }
+
+  // Admin chat filter dropdown event listener
+  const filterSelect = document.getElementById('brian-admin-chat-filter');
+  if (filterSelect) {
+    filterSelect.addEventListener('change', () => {
+      loadConversationsList(false);
+    });
+  }
+
+  // Trigger sync identity and load conversations when view switches to Brian
+  const brianBtn = document.querySelector('.nav-item[data-view="brian"]');
+  if (brianBtn) {
+    brianBtn.addEventListener('click', () => {
+      syncBrianIdentity();
+      loadConversationsList(false);
+    });
+  }
+
+  // Same sync for mobile bottom nav Brian button
+  const mbnBrianBtn = document.getElementById('mbn-brian');
+  if (mbnBrianBtn) {
+    mbnBrianBtn.addEventListener('click', () => {
+      syncBrianIdentity();
+      loadConversationsList(false);
+    });
+  }
+
+  // Brian AI Auth Elements & Handlers
+  brianAuthLandingView = document.getElementById('brian-auth-landing-view');
+  brianChatWrapperPanel = document.getElementById('brian-chat-wrapper-panel');
+  const brianLandingTabLogin = document.getElementById('brian-landing-tab-login');
+  const brianLandingTabSignup = document.getElementById('brian-landing-tab-signup');
+  const brianLandingAuthForm = document.getElementById('brian-landing-auth-form');
+  const brianAuthUsername = document.getElementById('brian-auth-username');
+  const brianAuthPassword = document.getElementById('brian-auth-password');
+  const brianAuthErrorMsg = document.getElementById('brian-auth-error-msg');
+  const brianAuthSubmitText = document.getElementById('brian-auth-submit-text');
+  const btnBrianLogout = document.getElementById('btn-brian-logout');
+
+  let currentAuthTab = 'login';
+
+  function checkBrianAuth() {
+    const isOwner = document.body.classList.contains('mode-owner');
+    const hasAccess = isOwner || (guestUser && guestUserBrianAccess === 'approved');
+
+    if (hasAccess) {
+      if (brianAuthLandingView) brianAuthLandingView.style.display = 'none';
+      if (brianChatWrapperPanel) brianChatWrapperPanel.style.display = 'flex';
+      syncBrianIdentity();
+      loadConversationsList(false);
+    } else {
+      if (brianAuthLandingView) brianAuthLandingView.style.display = 'flex';
+      if (brianChatWrapperPanel) brianChatWrapperPanel.style.display = 'none';
+    }
+  }
+
+  // ── Animated Tab Indicator ──
+  const authTabIndicator = document.getElementById('auth-tab-indicator');
+
+  // Handle Tab switching on landing view
+  if (brianLandingTabLogin) {
+    brianLandingTabLogin.addEventListener('click', () => {
+      currentAuthTab = 'login';
+      brianLandingTabLogin.classList.add('active');
+      if (brianLandingTabSignup) brianLandingTabSignup.classList.remove('active');
+      if (authTabIndicator) authTabIndicator.classList.remove('right');
+      if (brianAuthSubmitText) brianAuthSubmitText.textContent = 'Log In';
+      if (brianAuthErrorMsg) brianAuthErrorMsg.style.display = 'none';
+    });
+  }
+
+  if (brianLandingTabSignup) {
+    brianLandingTabSignup.addEventListener('click', () => {
+      currentAuthTab = 'signup';
+      brianLandingTabSignup.classList.add('active');
+      if (brianLandingTabLogin) brianLandingTabLogin.classList.remove('active');
+      if (authTabIndicator) authTabIndicator.classList.add('right');
+      if (brianAuthSubmitText) brianAuthSubmitText.textContent = 'Sign Up';
+      if (brianAuthErrorMsg) brianAuthErrorMsg.style.display = 'none';
+    });
+  }
+
+  // ── Password visibility toggle ──
+  const brianPwToggle = document.getElementById('brian-pw-toggle');
+  if (brianPwToggle && brianAuthPassword) {
+    brianPwToggle.addEventListener('click', () => {
+      const isHidden = brianAuthPassword.type === 'password';
+      brianAuthPassword.type = isHidden ? 'text' : 'password';
+      brianPwToggle.querySelector('i').setAttribute('data-lucide', isHidden ? 'eye-off' : 'eye');
+      lucide.createIcons();
+    });
+  }
+
+  // ── Forgot Password Panel Toggle ──
+  const btnBrianForgot = document.getElementById('btn-brian-forgot');
+  const brianLoginPanel = document.getElementById('brian-login-panel');
+  const brianResetPanel = document.getElementById('brian-reset-panel');
+  const btnBrianResetBack = document.getElementById('btn-brian-reset-back');
+
+  if (btnBrianForgot) {
+    btnBrianForgot.addEventListener('click', () => {
+      if (brianLoginPanel) brianLoginPanel.style.display = 'none';
+      if (brianResetPanel) brianResetPanel.style.display = 'block';
+      if (brianAuthErrorMsg) brianAuthErrorMsg.style.display = 'none';
+    });
+  }
+
+  if (btnBrianResetBack) {
+    btnBrianResetBack.addEventListener('click', () => {
+      if (brianResetPanel) brianResetPanel.style.display = 'none';
+      if (brianLoginPanel) brianLoginPanel.style.display = 'block';
+      const resetErr = document.getElementById('brian-reset-error-msg');
+      if (resetErr) resetErr.style.display = 'none';
+    });
+  }
+
+  // ── Password Reset Form Submission ──
+  const brianResetForm = document.getElementById('brian-reset-form');
+  if (brianResetForm) {
+    brianResetForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const resetErr = document.getElementById('brian-reset-error-msg');
+      if (resetErr) resetErr.style.display = 'none';
+
+      const usernameVal = document.getElementById('brian-reset-username')?.value.trim();
+      const codeVal = document.getElementById('brian-reset-code')?.value.trim().toUpperCase();
+      const newPwVal = document.getElementById('brian-reset-newpw')?.value;
+      const confirmPwVal = document.getElementById('brian-reset-confirmpw')?.value;
+      const submitBtn = document.getElementById('btn-brian-reset-submit');
+
+      if (newPwVal !== confirmPwVal) {
+        if (resetErr) {
+          resetErr.textContent = 'Passwords do not match.';
+          resetErr.style.display = 'block';
+        }
+        return;
+      }
+
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        const res = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: usernameVal, recoveryCode: codeVal, newPassword: newPwVal })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          // Show new recovery code modal
+          brianResetForm.reset();
+          if (brianResetPanel) brianResetPanel.style.display = 'none';
+          if (brianLoginPanel) brianLoginPanel.style.display = 'block';
+          showRecoveryCodeModal(data.newRecoveryCode, true);
+        } else {
+          if (resetErr) {
+            resetErr.textContent = data.error || 'Reset failed. Check your recovery code.';
+            resetErr.style.display = 'block';
+          }
+        }
+      } catch (err) {
+        if (resetErr) {
+          resetErr.textContent = 'Network error. Please try again.';
+          resetErr.style.display = 'block';
+        }
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+
+
+  // ── Landing page auth form submission ──
+  if (brianLandingAuthForm) {
+    brianLandingAuthForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (brianAuthErrorMsg) brianAuthErrorMsg.style.display = 'none';
+
+      const uVal = brianAuthUsername.value.trim();
+      const pVal = brianAuthPassword.value;
+      const submitBtn = document.getElementById('btn-brian-auth-submit');
+      const submitTextEl = brianAuthSubmitText;
+      const originalText = submitTextEl ? submitTextEl.textContent : '';
+
+      if (submitBtn) submitBtn.disabled = true;
+      if (submitTextEl) submitTextEl.textContent = 'Please wait...';
+
+      const endpoint = currentAuthTab === 'login' ? '/api/auth/login' : '/api/auth/signup';
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: uVal, password: pVal })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          // Success — log user in globally
+          guestUser = data.username;
+          localStorage.setItem('guest_user', data.username);
+          setAppMode('guest');
+
+          // Clear form fields
+          brianAuthUsername.value = '';
+          brianAuthPassword.value = '';
+
+          checkBrianAuth();
+
+          // On signup: show the one-time recovery code
+          if (currentAuthTab === 'signup' && data.recoveryCode) {
+            showRecoveryCodeModal(data.recoveryCode, false);
+          }
+        } else {
+          if (brianAuthErrorMsg) {
+            brianAuthErrorMsg.textContent = data.error || 'Authentication failed.';
+            brianAuthErrorMsg.style.display = 'block';
+          }
+        }
+      } catch (err) {
+        if (brianAuthErrorMsg) {
+          brianAuthErrorMsg.textContent = 'Network error. Please try again.';
+          brianAuthErrorMsg.style.display = 'block';
+        }
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+        if (submitTextEl) submitTextEl.textContent = originalText;
+      }
+    });
+  }
+
+  // ── Recovery Code Modal: shown once after signup or after password reset ──
+  function showRecoveryCodeModal(code, isReset) {
+    const overlay = document.createElement('div');
+    overlay.className = 'custom-modal-overlay active';
+
+    const title = isReset ? 'New Recovery Code' : 'Save Your Recovery Code';
+    const message = isReset
+      ? 'Your password was reset. Here is your new recovery code — save it somewhere safe. The old code is now invalid.'
+      : 'Account created! Save this recovery code in a safe place. You will need it if you forget your password. It cannot be shown again.';
+
+    overlay.innerHTML = `
+      <div class="custom-modal glass-panel popup-anim" style="max-width: 440px;">
+        <div class="modal-header">
+          <i data-lucide="shield-check" class="modal-icon success"></i>
+          <h3>${title}</h3>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 14px;">${message}</p>
+          <div class="recovery-code-box">
+            <span id="recovery-code-text">${code}</span>
+            <button type="button" class="recovery-copy-btn" id="btn-copy-recovery" title="Copy code">
+              <i data-lucide="copy" style="width:15px;height:15px;"></i>
+            </button>
+          </div>
+          <p style="font-size: 11px; color: var(--text-muted); margin-top: 10px;">
+            ⚠️ Store this in a password manager, notes app, or write it down. It will not be shown again.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary btn-modal-ok" style="min-width: 140px;">I've Saved It</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+    lucide.createIcons();
+
+    const btnCopy = overlay.querySelector('#btn-copy-recovery');
+    if (btnCopy) {
+      btnCopy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(code);
+          btnCopy.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i>';
+          lucide.createIcons();
+          setTimeout(() => {
+            btnCopy.innerHTML = '<i data-lucide="copy" style="width:15px;height:15px;"></i>';
+            lucide.createIcons();
+          }, 2000);
+        } catch (_) {
+          // Clipboard API may not be available in some contexts
+        }
+      });
+    }
+
+    const btnOk = overlay.querySelector('.btn-modal-ok');
+    if (btnOk) {
+      btnOk.focus();
+      btnOk.addEventListener('click', () => {
+        overlay.classList.remove('active');
+        const modal = overlay.querySelector('.custom-modal');
+        if (modal) { modal.classList.remove('popup-anim'); modal.classList.add('popout-anim'); }
+        setTimeout(() => overlay.remove(), 150);
+      });
+    }
+    overlay.addEventListener('click', (ev) => {
+      if (ev.target === overlay) btnOk && btnOk.click();
+    });
+  }
+
+
+  // Handle Log Out from settings card
+  if (btnBrianLogout) {
+    btnBrianLogout.addEventListener('click', async () => {
+      const confirmed = await showModalConfirm('Are you sure you want to log out of your guest account?', 'Confirm Logout');
+      if (confirmed) {
+        guestUser = null;
+        localStorage.removeItem('guest_user');
+        setAppMode('guest');
+        checkBrianAuth();
+      }
+    });
+  }
+
+  // Initial load
+  checkBrianAuth();
+  loadConversationsList(true);
 
 });
 

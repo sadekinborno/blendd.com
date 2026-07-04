@@ -8,7 +8,20 @@ const { spawn } = require('child_process');
 const { v4: uuidv4 } = require('uuid');
 const https = require('https');
 const url = require('url');
+const crypto = require('crypto');
 const supabase = require('./db');
+
+// Utility: Hash password using SHA-256
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+// Utility: Generate a human-readable recovery code like BORNO-A3F9-X7Q2
+function generateRecoveryCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I,O,0,1 to avoid confusion
+  const seg = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return `BORNO-${seg()}-${seg()}`;
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -63,9 +76,8 @@ if (!fs.existsSync(USAGE_LOGS_FILE)) {
   fs.writeFileSync(USAGE_LOGS_FILE, JSON.stringify([], null, 2));
 }
 
-function trackUsage(username, action, req) {
+async function trackUsage(username, action, req) {
   try {
-    const logs = JSON.parse(fs.readFileSync(USAGE_LOGS_FILE, 'utf8') || '[]');
     let ip = 'N/A';
     if (req) {
       ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
@@ -73,20 +85,39 @@ function trackUsage(username, action, req) {
         ip = ip.replace('::ffff:', '');
       }
     }
-    logs.unshift({
-      timestamp: new Date().toISOString(),
-      username: username || 'Guest',
-      action: action,
-      ip: ip
-    });
-    if (logs.length > 1000) {
-      logs.pop();
+
+    let dbSuccess = false;
+    try {
+      const { error: insertError } = await supabase.from('usage_logs').insert({
+        username: username || 'Guest',
+        action: action,
+        ip: ip
+      });
+      if (!insertError) {
+        dbSuccess = true;
+      }
+    } catch (dbErr) {
+      // Catch database errors gracefully (e.g. table not created yet)
     }
-    fs.writeFileSync(USAGE_LOGS_FILE, JSON.stringify(logs, null, 2));
+
+    if (!dbSuccess) {
+      const logs = JSON.parse(fs.readFileSync(USAGE_LOGS_FILE, 'utf8') || '[]');
+      logs.unshift({
+        timestamp: new Date().toISOString(),
+        username: username || 'Guest',
+        action: action,
+        ip: ip
+      });
+      if (logs.length > 1000) {
+        logs.pop();
+      }
+      fs.writeFileSync(USAGE_LOGS_FILE, JSON.stringify(logs, null, 2));
+    }
   } catch (e) {
     console.error('Error tracking usage:', e);
   }
 }
+
 
 // Owner Mode Security Configuration
 const OWNER_CONFIG_FILE = path.join(DATA_DIR, 'owner_config.json');
@@ -157,6 +188,48 @@ detectDownloader();
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Project Brian AI Router
+const brianRouter = require('./brian_router');
+
+// Middleware to restrict access to Brian AI (Bro Mode or Owner Only)
+async function requireBrianAccess(req, res, next) {
+  const ownerToken = req.headers['x-owner-token'];
+  // Check if owner
+  if (ownerToken && ownerToken === ownerSessionToken) {
+    req.isOwner = true;
+    return next();
+  }
+
+  // Check if approved guest
+  const userName = req.headers['x-user-name'];
+  if (!userName || userName.toLowerCase() === 'guest') {
+    return res.status(401).json({ error: 'Unauthorized: Guest login required' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('brian_access')
+      .ilike('username', userName.trim());
+
+    if (error) {
+      console.error('[Auth Middleware] Database error:', error.message);
+      return res.status(500).json({ error: 'Database authentication error' });
+    }
+
+    if (data && data.length > 0 && data[0].brian_access === 'approved') {
+      return next();
+    }
+
+    return res.status(403).json({ error: 'Forbidden: Brian AI access is pending or not approved' });
+  } catch (err) {
+    console.error('[Auth Middleware] Error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+app.use('/api/brian', requireBrianAccess, brianRouter);
 
 // Cleanup temp files on server startup
 fs.readdir(TEMP_DIR, (err, files) => {
@@ -869,18 +942,31 @@ app.post('/api/auth/signup', async (req, res) => {
       return res.status(400).json({ error: 'Username already exists' });
     }
 
-    // Insert new user
+    // Hash the password securely using SHA-256 before inserting
+    const hashedPasswordStr = hashPassword(cleanPassword);
+
+    // Generate a recovery code (shown once to user, stored hashed)
+    const rawRecoveryCode = generateRecoveryCode();
+    const hashedRecoveryCode = hashPassword(rawRecoveryCode);
+
+    // Insert new user with hashed password and hashed recovery code
     const { error: insertError } = await supabase
       .from('users')
-      .insert([{ username: cleanUsername, password: cleanPassword }]);
+      .insert([{ username: cleanUsername, password: hashedPasswordStr, recovery_code: hashedRecoveryCode }]);
 
     if (insertError) {
       console.error('Signup Insert Error:', insertError.message);
+      // Postgres unique constraint violation code is 23505
+      if (insertError.code === '23505' || insertError.message?.toLowerCase().includes('unique')) {
+        return res.status(400).json({ error: 'Username already taken. Please choose a different one.' });
+      }
       return res.status(500).json({ error: 'Could not register user' });
     }
 
+
     trackUsage(cleanUsername, 'Registered a new guest account', req);
-    res.status(201).json({ message: 'User registered successfully', username: cleanUsername });
+    // Return the raw recovery code ONCE — never stored in plaintext
+    res.status(201).json({ message: 'User registered successfully', username: cleanUsername, recoveryCode: rawRecoveryCode });
   } catch (err) {
     console.error('Signup Error:', err);
     res.status(500).json({ error: 'Internal server error during signup' });
@@ -898,11 +984,11 @@ app.post('/api/auth/login', async (req, res) => {
   const cleanPassword = password.trim();
 
   try {
+    // Fetch user by username (case-insensitive)
     const { data, error } = await supabase
       .from('users')
       .select('username, password')
-      .ilike('username', cleanUsername)
-      .eq('password', cleanPassword);
+      .ilike('username', cleanUsername);
 
     if (error) {
       console.error('Login Query Error:', error.message);
@@ -913,11 +999,92 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
-    trackUsage(data[0].username, 'Logged into guest account', req);
-    res.json({ success: true, username: data[0].username });
+    const user = data[0];
+    const hashedPasswordStr = hashPassword(cleanPassword);
+
+    // Verify password: matches hashed OR matches legacy plaintext
+    const isValid = (user.password === hashedPasswordStr) || (user.password === cleanPassword);
+
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    trackUsage(user.username, 'Logged into guest account', req);
+    res.json({ success: true, username: user.username });
   } catch (err) {
     console.error('Login Error:', err);
     res.status(500).json({ error: 'Internal server error during login' });
+  }
+});
+
+// REST API: Get Guest User Profile & Access Status
+app.get('/api/auth/profile', async (req, res) => {
+  const userName = req.headers['x-user-name'];
+  if (!userName || userName.toLowerCase() === 'guest') {
+    return res.status(401).json({ error: 'Not logged in' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('username, created_at, brian_access')
+      .ilike('username', userName.trim());
+
+    if (error) {
+      console.error('Fetch profile error:', error.message);
+      return res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(data[0]);
+  } catch (err) {
+    console.error('Fetch profile error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// REST API: Guest User Requests Access to Brian AI
+app.post('/api/auth/request-access', async (req, res) => {
+  const userName = req.headers['x-user-name'];
+  if (!userName || userName.toLowerCase() === 'guest') {
+    return res.status(401).json({ error: 'Username is required to request access' });
+  }
+
+  try {
+    // Check if user exists
+    const { data, error: fetchError } = await supabase
+      .from('users')
+      .select('username, brian_access')
+      .ilike('username', userName.trim());
+
+    if (fetchError || !data || data.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = data[0];
+    if (user.brian_access === 'approved') {
+      return res.json({ success: true, status: 'approved', message: 'Access already approved' });
+    }
+
+    // Update status to pending
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ brian_access: 'pending' })
+      .ilike('username', userName.trim());
+
+    if (updateError) {
+      console.error('Request access error:', updateError.message);
+      return res.status(500).json({ error: 'Failed to request access' });
+    }
+
+    trackUsage(user.username, 'Requested access to Brian AI', req);
+    res.json({ success: true, status: 'pending', message: 'Access request submitted successfully' });
+  } catch (err) {
+    console.error('Request access error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -1143,7 +1310,7 @@ app.get('/api/admin/users', requireOwner, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('username, created_at')
+      .select('username, created_at, brian_access')
       .order('username', { ascending: true });
 
     if (error) {
@@ -1186,9 +1353,11 @@ app.post('/api/admin/users/:username/reset-password', requireOwner, async (req, 
     return res.status(400).json({ error: 'Password must be at least 4 characters long' });
   }
   try {
+    // BUG FIX: Always hash the new password before storing (was stored as plaintext before)
+    const hashedNew = hashPassword(newPassword.trim());
     const { error } = await supabase
       .from('users')
-      .update({ password: newPassword.trim() })
+      .update({ password: hashedNew })
       .ilike('username', username);
 
     if (error) {
@@ -1201,6 +1370,99 @@ app.post('/api/admin/users/:username/reset-password', requireOwner, async (req, 
   } catch (err) {
     console.error('Reset password API Error:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/admin/users/:username/brian-access', requireOwner, async (req, res) => {
+  const username = req.params.username;
+  const { status } = req.body;
+  
+  if (!['approved', 'rejected', 'none', 'pending'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid access status' });
+  }
+
+  try {
+    const { error } = await supabase
+      .from('users')
+      .update({ brian_access: status })
+      .ilike('username', username);
+
+    if (error) {
+      console.error('Update brian access error:', error.message);
+      return res.status(500).json({ error: 'Failed to update user access' });
+    }
+
+    trackUsage('Owner', `Updated Brian access for user "${username}" to "${status}"`, req);
+    res.json({ message: `User "${username}" access status updated to "${status}" successfully` });
+  } catch (err) {
+    console.error('Update access API Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// REST API: Self-serve password reset via recovery code
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { username, recoveryCode, newPassword } = req.body;
+  if (!username || !recoveryCode || !newPassword) {
+    return res.status(400).json({ error: 'Username, recovery code, and new password are required' });
+  }
+  if (newPassword.trim().length < 4) {
+    return res.status(400).json({ error: 'New password must be at least 4 characters long' });
+  }
+
+  const cleanUsername = username.trim();
+  const cleanCode = recoveryCode.trim().toUpperCase();
+  const cleanPassword = newPassword.trim();
+
+  try {
+    // Fetch user
+    const { data, error } = await supabase
+      .from('users')
+      .select('username, recovery_code')
+      .ilike('username', cleanUsername);
+
+    if (error) {
+      console.error('Reset-password query error:', error.message);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = data[0];
+    if (!user.recovery_code) {
+      return res.status(400).json({ error: 'No recovery code set for this account. Please contact the site owner to reset your password.' });
+    }
+
+    // Verify recovery code against its stored hash
+    const hashedInputCode = hashPassword(cleanCode);
+    if (hashedInputCode !== user.recovery_code) {
+      return res.status(401).json({ error: 'Invalid recovery code' });
+    }
+
+    // Generate a brand new recovery code (invalidates the old one)
+    const newRawCode = generateRecoveryCode();
+    const newHashedCode = hashPassword(newRawCode);
+    const newHashedPassword = hashPassword(cleanPassword);
+
+    // Update password + regenerate recovery code atomically
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ password: newHashedPassword, recovery_code: newHashedCode })
+      .ilike('username', cleanUsername);
+
+    if (updateError) {
+      console.error('Reset-password update error:', updateError.message);
+      return res.status(500).json({ error: 'Failed to update password' });
+    }
+
+    trackUsage(user.username, 'Reset password via recovery code', req);
+    // Return the new raw recovery code so the user can save it
+    res.json({ success: true, message: 'Password reset successfully', newRecoveryCode: newRawCode });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1250,7 +1512,7 @@ app.get('/api/admin/export', requireOwner, async (req, res) => {
       .select('*');
     const { data: users, error: usrError } = await supabase
       .from('users')
-      .select('username, created_at');
+      .select('username, created_at, brian_access');
 
     trackUsage('Owner', 'Exported database backup', req);
     res.json({
@@ -1265,14 +1527,45 @@ app.get('/api/admin/export', requireOwner, async (req, res) => {
 });
 
 // New Analytics Tracking Endpoints
-app.post('/api/track/view', (req, res) => {
+app.post('/api/track/view', async (req, res) => {
   const { viewId, username } = req.body;
   if (!viewId) return res.status(400).json({ error: 'viewId is required' });
 
   try {
-    const counts = JSON.parse(fs.readFileSync(VIEW_COUNTS_FILE, 'utf8') || '{}');
-    counts[viewId] = (counts[viewId] || 0) + 1;
-    fs.writeFileSync(VIEW_COUNTS_FILE, JSON.stringify(counts, null, 2));
+    let updatedCounts = null;
+    try {
+      const { data: existing, error: selectError } = await supabase
+        .from('view_counts')
+        .select('count')
+        .eq('view_id', viewId)
+        .maybeSingle();
+
+      if (!selectError) {
+        const currentCount = existing ? existing.count : 0;
+        const { error: upsertError } = await supabase
+          .from('view_counts')
+          .upsert({ view_id: viewId, count: currentCount + 1, updated_at: new Date().toISOString() });
+
+        if (!upsertError) {
+          const { data: countRows } = await supabase.from('view_counts').select('view_id, count');
+          if (countRows) {
+            updatedCounts = { dashboard: 0, downloader: 0, linksaver: 0, games: 0, admin: 0 };
+            countRows.forEach(row => {
+              updatedCounts[row.view_id] = row.count;
+            });
+          }
+        }
+      }
+    } catch (dbErr) {
+      console.warn('[Supabase] DB view tracking error, falling back to local file:', dbErr.message);
+    }
+
+    if (!updatedCounts) {
+      const counts = JSON.parse(fs.readFileSync(VIEW_COUNTS_FILE, 'utf8') || '{}');
+      counts[viewId] = (counts[viewId] || 0) + 1;
+      fs.writeFileSync(VIEW_COUNTS_FILE, JSON.stringify(counts, null, 2));
+      updatedCounts = counts;
+    }
 
     const cleanName = username || 'Guest';
     let sectionName = viewId;
@@ -1282,24 +1575,66 @@ app.post('/api/track/view', (req, res) => {
     else if (viewId === 'games') sectionName = 'Arcade Zone';
     else if (viewId === 'admin') sectionName = 'Admin Portal';
 
-    trackUsage(cleanName, `Viewed section: ${sectionName}`, req);
-    res.json({ success: true, counts });
+    await trackUsage(cleanName, `Viewed section: ${sectionName}`, req);
+    res.json({ success: true, counts: updatedCounts });
   } catch (err) {
     console.error('Track view error:', err);
     res.status(500).json({ error: 'Failed to record section view' });
   }
 });
 
-app.get('/api/admin/analytics', requireOwner, (req, res) => {
+app.get('/api/admin/analytics', requireOwner, async (req, res) => {
   try {
-    const counts = JSON.parse(fs.readFileSync(VIEW_COUNTS_FILE, 'utf8') || '{}');
-    const logs = JSON.parse(fs.readFileSync(USAGE_LOGS_FILE, 'utf8') || '[]');
+    let counts = { dashboard: 0, downloader: 0, linksaver: 0, games: 0, admin: 0 };
+    let countsFromDb = false;
+    try {
+      const { data: countRows, error: dbError } = await supabase.from('view_counts').select('view_id, count');
+      if (!dbError && countRows && countRows.length > 0) {
+        countRows.forEach(row => {
+          counts[row.view_id] = row.count;
+        });
+        countsFromDb = true;
+      }
+    } catch (e) {
+      // Fall back silently to JSON file
+    }
+
+    if (!countsFromDb) {
+      counts = JSON.parse(fs.readFileSync(VIEW_COUNTS_FILE, 'utf8') || '{}');
+    }
+
+    let logs = [];
+    let logsFromDb = false;
+    try {
+      const { data: dbLogs, error: dbError } = await supabase
+        .from('usage_logs')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(1000);
+      if (!dbError && dbLogs) {
+        logs = dbLogs.map(log => ({
+          timestamp: log.timestamp,
+          username: log.username,
+          action: log.action,
+          ip: log.ip
+        }));
+        logsFromDb = true;
+      }
+    } catch (e) {
+      // Fall back silently to JSON file
+    }
+
+    if (!logsFromDb) {
+      logs = JSON.parse(fs.readFileSync(USAGE_LOGS_FILE, 'utf8') || '[]');
+    }
+
     res.json({ counts, logs });
   } catch (err) {
     console.error('Fetch analytics error:', err);
     res.status(500).json({ error: 'Failed to retrieve analytics data' });
   }
 });
+
 
 // Check if WTW tables exist on startup
 async function verifyWtwTables() {
@@ -1348,6 +1683,39 @@ async function verifyNhieTables() {
   }
 }
 verifyNhieTables();
+
+// Check if Analytics tables exist on startup
+async function verifyAnalyticsTables() {
+  try {
+    const { error: viewCountError } = await supabase
+      .from('view_counts')
+      .select('view_id')
+      .limit(1);
+
+    const { error: usageLogError } = await supabase
+      .from('usage_logs')
+      .select('id')
+      .limit(1);
+
+    if (viewCountError || usageLogError) {
+      if (
+        (viewCountError && (viewCountError.code === 'P0001' || viewCountError.message.includes('does not exist') || viewCountError.message.includes('undefined_table') || viewCountError.message.includes('schema cache') || viewCountError.message.includes('Could not find'))) ||
+        (usageLogError && (usageLogError.code === 'P0001' || usageLogError.message.includes('does not exist') || usageLogError.message.includes('undefined_table') || usageLogError.message.includes('schema cache') || usageLogError.message.includes('Could not find')))
+      ) {
+        console.warn('\n[Supabase] ⚠️ WARNING: Analytics tables ("view_counts" or "usage_logs") not found in database.');
+        console.warn('[Supabase] ⚠️ Please execute the SQL queries in "analytics_schema.sql" via the Supabase SQL Editor to enable all-time analytics tracking.\n');
+      } else {
+        console.error('[Supabase] Error verifying analytics tables on boot:', (viewCountError || usageLogError).message);
+      }
+    } else {
+      console.log('[Supabase] Analytics tables verified successfully. All-time analytics tracking is active.');
+    }
+  } catch (err) {
+    console.error('[Supabase] Unexpected error verifying analytics tables on boot:', err);
+  }
+}
+verifyAnalyticsTables();
+
 
 // WTW Game History API: Get list of games
 app.get('/api/wtw/history', async (req, res) => {

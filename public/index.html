@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>blendd.com | Media Tool & Game Portal</title>
   <link rel="icon" type="image/png" href="blend_icon.png">
   <!-- Google Fonts -->
@@ -11,10 +11,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <!-- SortableJS -->
   <script src="Sortable.min.js"></script>
   <!-- Styling -->
-  <link rel="stylesheet" href="style.css?v=1.0.2">
+  <link rel="stylesheet" href="style.css?v=1.0.6">
 </head>
 <body>
   
@@ -49,6 +50,10 @@
         <button class="nav-item" data-view="games">
           <i data-lucide="gamepad-2"></i>
           <span>Arcade Zone</span>
+        </button>
+        <button class="nav-item" data-view="brian">
+          <i data-lucide="message-square"></i>
+          <span>Brian AI</span>
         </button>
         <button class="nav-item owner-only" data-view="admin" style="display: none;">
           <i data-lucide="shield-check"></i>
@@ -1536,6 +1541,113 @@
         </div>
       </section>
 
+      <!-- VIEW: BRIAN AI -->
+      <section id="view-brian" class="content-view">
+
+        <!-- AUTH LANDING VIEW (Shown when logged out) -->
+        <div id="brian-auth-landing-view" class="brian-auth-landing-card glass-panel" style="display: none;">
+          <div class="auth-brand-section">
+            <div class="auth-avatar-ring">
+              <div class="brian-avatar-glow large">B</div>
+            </div>
+            <h2>Access Restricted</h2>
+            <p>Brian AI is private and only accessible to approved friends. Sign in with your account and request access through your profile.</p>
+          </div>
+        </div>
+
+        <!-- CHAT WORKSPACE (Shown when logged in) -->
+        <div class="chat-wrapper-panel" id="brian-chat-wrapper-panel" style="display: none;">
+
+          <!-- LEFT SIDEBAR -->
+          <div class="chat-sidebar-panel">
+
+            <!-- Compact Brian Header -->
+            <div class="chat-sidebar-header">
+              <div class="chat-sidebar-brian-avatar">B</div>
+              <div class="chat-sidebar-brian-meta">
+                <span class="chat-sidebar-brian-name">Brian</span>
+                <div class="chat-sidebar-brian-status">
+                  <span class="status-dot online"></span>
+                  <span>Online</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="chat-sidebar-controls">
+              <button class="btn-new-chat" id="btn-brian-new-chat">
+                <i data-lucide="plus" style="width: 15px; height: 15px;"></i>
+                <span>New Chat</span>
+              </button>
+              <div class="chat-search-wrapper">
+                <i data-lucide="search" class="search-icon"></i>
+                <input type="text" id="brian-search-chats" placeholder="Search chats...">
+              </div>
+              <div class="owner-only" id="brian-admin-filter-wrapper" style="display: none; width: 100%;">
+                <select id="brian-admin-chat-filter" style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); color: var(--text-secondary); border-radius: var(--border-radius-sm); padding: 8px 10px; font-size: 12px; outline: none; cursor: pointer; font-family: inherit;">
+                  <option value="all">Show All Chats</option>
+                  <option value="owner">Show My Chats Only</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Sessions -->
+            <div class="chat-sessions-list" id="brian-sessions-list"></div>
+
+            <!-- Signed-in Footer -->
+            <div class="brian-identity-box">
+              <div class="brian-identity-user-row">
+                <div class="brian-identity-user-avatar" id="brian-id-avatar-letter">S</div>
+                <div class="brian-identity-user-info">
+                  <span class="brian-identity-label">Signed in as</span>
+                  <span class="identity-display" id="brian-identity-name">Guest</span>
+                </div>
+              </div>
+              <button type="button" id="btn-brian-logout" class="btn-identity-logout">
+                <i data-lucide="log-out" style="width:13px;height:13px;"></i>
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- RIGHT: Chat Workspace -->
+          <div class="chat-workspace-panel">
+
+            <!-- Chat Header Bar -->
+            <div class="chat-workspace-topbar">
+              <div class="chat-topbar-avatar">B</div>
+              <div class="chat-topbar-info">
+                <span class="chat-topbar-name">Brian</span>
+                <span class="chat-topbar-sub">
+                  <span class="status-dot online"></span>
+                  Always online
+                </span>
+              </div>
+            </div>
+
+            <!-- Messages -->
+            <div class="chat-history-log" id="brian-chat-history">
+              <div class="chat-row brian-row">
+                <div class="chat-avatar">B</div>
+                <div class="chat-bubble">
+                  Hey! I'm Brian, Borno's younger brother. Who's this? Introduction time!
+                </div>
+              </div>
+            </div>
+
+            <!-- Input Bar -->
+            <div class="chat-input-panel">
+              <textarea id="brian-chat-input-field" placeholder="Message Brian..." autocomplete="off" rows="1"></textarea>
+              <button id="btn-send-brian-msg" aria-label="Send message">
+                <i data-lucide="send"></i>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+
       <!-- VIEW: ADMIN PORTAL -->
       <section id="view-admin" class="content-view">
         <div class="view-header">
@@ -1563,6 +1675,10 @@
           <button class="admin-tab-btn" data-admin-tab="analytics">
             <i data-lucide="activity"></i>
             <span>Usage & Analytics</span>
+          </button>
+          <button class="admin-tab-btn" data-admin-tab="brian">
+            <i data-lucide="brain"></i>
+            <span>Brian's Brain</span>
           </button>
         </div>
 
@@ -1676,6 +1792,7 @@
                   <tr>
                     <th>Username</th>
                     <th>Registered Date</th>
+                    <th>Brian Access</th>
                     <th style="text-align: right;">Actions</th>
                   </tr>
                 </thead>
@@ -1774,7 +1891,7 @@
               </div>
               <span class="stat-card-title" style="font-size: 14px;">Total Section Views</span>
               <span class="stat-card-value" id="analytics-total-views" style="font-size: 48px; margin-top: 8px;">0</span>
-              <p style="font-size: 13px; color: var(--text-muted); margin-top: 12px; max-width: 250px;">Tracking dashboard visits, tool launches, and admin session activities since server initialization.</p>
+              <p style="font-size: 13px; color: var(--text-muted); margin-top: 12px; max-width: 250px;">Tracking dashboard visits, tool launches, and admin session activities of all time (persisted via database).</p>
             </div>
           </div>
 
@@ -1794,14 +1911,102 @@
             </div>
           </div>
         </div>
+
+        <!-- TAB: BRIAN'S BRAIN -->
+        <div class="admin-tab-content" id="admin-tab-brian">
+          <div class="admin-layout-grid" style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+            
+            <!-- People Profiles (Layer 2) -->
+            <div class="glass-panel">
+              <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px;">
+                <h2><i data-lucide="users-2" class="panel-header-icon" style="color: var(--accent-cyan);"></i> Relationship Profiles (Layer 2)</h2>
+                <button type="button" class="btn-primary" id="btn-admin-add-person" style="padding: 8px 14px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                  <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Person
+                </button>
+              </div>
+              <div class="panel-body" style="padding: 0; overflow-x: auto;">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 15%;">Real Name</th>
+                      <th style="width: 15%;">Aliases</th>
+                      <th style="width: 15%;">Relationship</th>
+                      <th style="width: 25%;">Opinion</th>
+                      <th style="width: 20%;">Notes</th>
+                      <th style="width: 10%; text-align: right; padding-right: 20px;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-people-list">
+                    <!-- Dynamically loaded -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Global Stories (Layer 3) -->
+            <div class="glass-panel">
+              <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px;">
+                <h2><i data-lucide="book-open" class="panel-header-icon" style="color: var(--accent-purple);"></i> Global Stories & Blogs (Layer 3)</h2>
+                <button type="button" class="btn-primary" id="btn-admin-add-story" style="padding: 8px 14px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                  <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Story
+                </button>
+              </div>
+              <div class="panel-body" style="padding: 0; overflow-x: auto;">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 20%;">Title</th>
+                      <th style="width: 30%;">Summary</th>
+                      <th style="width: 15%;">Characters</th>
+                      <th style="width: 12%;">Emotion</th>
+                      <th style="width: 13%;">Date Added</th>
+                      <th style="width: 10%; text-align: right; padding-right: 20px;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-stories-list">
+                    <!-- Dynamically loaded -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
       </section>
 
     </main>
+
+    <!-- Mobile Bottom Navigation Bar (visible only on mobile ≤768px) -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Mobile Navigation">
+      <button class="mbn-item active" data-view="dashboard" id="mbn-dashboard">
+        <i data-lucide="layout-dashboard"></i>
+        <span>Home</span>
+      </button>
+      <button class="mbn-item" data-view="linksaver" id="mbn-linksaver">
+        <i data-lucide="folder-heart"></i>
+        <span>Bookmarks</span>
+      </button>
+      <button class="mbn-item" data-view="games" id="mbn-games">
+        <i data-lucide="gamepad-2"></i>
+        <span>Arcade</span>
+      </button>
+      <button class="mbn-item" data-view="brian" id="mbn-brian" style="display:none;">
+        <i data-lucide="message-square"></i>
+        <span>Brian AI</span>
+      </button>
+      <button class="mbn-item mbn-profile-btn" id="mbn-profile-btn" aria-label="Profile & Mode Switcher">
+        <div class="mbn-avatar-ring">
+          <span class="mbn-avatar-text" id="mbn-avatar-text">G</span>
+        </div>
+        <span id="mbn-mode-label">Guest</span>
+      </button>
+    </nav>
+
   </div>
 
   <!-- Socket.io client JS -->
   <script src="/socket.io/socket.io.js"></script>
   <!-- Main Frontend App Logic -->
-  <script src="app.js?v=1.0.2"></script>
+  <script src="app.js?v=1.0.4"></script>
 </body>
 </html>
