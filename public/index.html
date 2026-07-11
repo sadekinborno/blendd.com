@@ -122,10 +122,10 @@
           <div class="dash-card link-vault" id="dash-card-vault">
             <div class="dash-card-folder-preview">
               <div class="mini-app-grid">
-                <div class="mini-app-icon icon-dl"><i data-lucide="download-cloud"></i></div>
                 <div class="mini-app-icon icon-qr"><i data-lucide="qr-code"></i></div>
                 <div class="mini-app-icon icon-img"><i data-lucide="image"></i></div>
                 <div class="mini-app-icon icon-pw"><i data-lucide="key-round"></i></div>
+                <div class="mini-app-icon icon-dl"><i data-lucide="download-cloud"></i></div>
               </div>
             </div>
             <h3>Tool Vault</h3>
@@ -288,16 +288,6 @@
         </div>
         <div class="vault-page-container glass-panel">
           <div class="tool-vault-grid-standalone">
-            <div class="standalone-app-card" data-app="downloader">
-              <div class="standalone-app-icon gradient-downloader">
-                <i data-lucide="download-cloud"></i>
-              </div>
-              <div class="standalone-app-details">
-                <h3>Media Downloader</h3>
-                <p>Download video and audio streams from popular websites.</p>
-                <span class="btn-launch-tool">Launch <i data-lucide="arrow-right"></i></span>
-              </div>
-            </div>
             <div class="standalone-app-card" data-app="qrcode">
               <div class="standalone-app-icon gradient-qrcode">
                 <i data-lucide="qr-code"></i>
@@ -335,6 +325,16 @@
               <div class="standalone-app-details">
                 <h3>Object Remover</h3>
                 <p>Erase watermarks, logos, or objects locally using AI.</p>
+                <span class="btn-launch-tool">Launch <i data-lucide="arrow-right"></i></span>
+              </div>
+            </div>
+            <div class="standalone-app-card" data-app="downloader">
+              <div class="standalone-app-icon gradient-downloader">
+                <i data-lucide="download-cloud"></i>
+              </div>
+              <div class="standalone-app-details">
+                <h3>Media Downloader</h3>
+                <p>Download video and audio streams from popular websites.</p>
                 <span class="btn-launch-tool">Launch <i data-lucide="arrow-right"></i></span>
               </div>
             </div>
@@ -2907,14 +2907,6 @@
         </button>
       </div>
       <div class="tool-vault-grid">
-        <!-- Media Downloader -->
-        <div class="vault-app-item" data-app="downloader">
-          <div class="vault-app-icon gradient-downloader">
-            <i data-lucide="download-cloud"></i>
-            <div class="app-lock-badge hidden"><i data-lucide="lock"></i></div>
-          </div>
-          <span class="vault-app-label">Downloader</span>
-        </div>
         <!-- QR Code Tool -->
         <div class="vault-app-item" data-app="qrcode">
           <div class="vault-app-icon gradient-qrcode">
@@ -2942,6 +2934,13 @@
             <i data-lucide="sparkles"></i>
           </div>
           <span class="vault-app-label">Object Remover</span>
+        </div>
+        <!-- Media Downloader -->
+        <div class="vault-app-item" data-app="downloader">
+          <div class="vault-app-icon gradient-downloader">
+            <i data-lucide="download-cloud"></i>
+          </div>
+          <span class="vault-app-label">Downloader</span>
         </div>
       </div>
     </div>

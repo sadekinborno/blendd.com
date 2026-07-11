@@ -7949,17 +7949,33 @@ body.mode-guest-auth #btn-lock-mode {
 }
 
 .mini-app-icon {
-  border-radius: 5px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15), inset 0 0.5px 0.5px rgba(255, 255, 255, 0.25);
+  transition: transform 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.mini-app-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0));
+  pointer-events: none;
 }
 
 .mini-app-icon i {
   width: 12px;
   height: 12px;
   stroke-width: 2.5px;
+  z-index: 2;
 }
 
 .icon-dl { background: linear-gradient(135deg, #06b6d4, #3b82f6); }
@@ -8080,9 +8096,36 @@ body.mode-guest-auth #btn-lock-mode {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
   position: relative;
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+
+.vault-app-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0));
+  pointer-events: none;
+  z-index: 1;
+}
+
+.vault-app-icon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  transform: skewX(-25deg);
+  transition: 0.75s;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .vault-app-icon i {
@@ -8091,21 +8134,52 @@ body.mode-guest-auth #btn-lock-mode {
   color: white;
   stroke-width: 2px;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+  z-index: 3;
 }
 
-.vault-app-icon:hover {
-  transform: translateY(-4px) scale(1.05);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+.vault-app-item:hover .vault-app-icon {
+  transform: translateY(-5px) scale(1.08) rotate(3deg);
+}
+
+.vault-app-item:hover .vault-app-icon::before {
+  left: 150%;
 }
 
 .vault-app-icon:active {
   transform: scale(0.95);
 }
 
-.gradient-downloader { background: linear-gradient(135deg, #06b6d4, #3b82f6); }
-.gradient-qrcode { background: linear-gradient(135deg, #8b5cf6, #ec4899); }
-.gradient-image { background: linear-gradient(135deg, #10b981, #06b6d4); }
-.gradient-password { background: linear-gradient(135deg, #f97316, #f59e0b); }
+.gradient-downloader { 
+  background: linear-gradient(135deg, #06b6d4, #3b82f6); 
+  box-shadow: 0 8px 20px rgba(6, 182, 212, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+.vault-app-item:hover .gradient-downloader {
+  box-shadow: 0 12px 28px rgba(6, 182, 212, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+}
+
+.gradient-qrcode { 
+  background: linear-gradient(135deg, #8b5cf6, #ec4899); 
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+.vault-app-item:hover .gradient-qrcode {
+  box-shadow: 0 12px 28px rgba(139, 92, 246, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+}
+
+.gradient-image { 
+  background: linear-gradient(135deg, #10b981, #06b6d4); 
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+.vault-app-item:hover .gradient-image {
+  box-shadow: 0 12px 28px rgba(16, 185, 129, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+}
+
+.gradient-password { 
+  background: linear-gradient(135deg, #f97316, #f59e0b); 
+  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+.vault-app-item:hover .gradient-password {
+  box-shadow: 0 12px 28px rgba(249, 115, 22, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+}
 
 .vault-app-label {
   font-size: 12px;
@@ -8185,14 +8259,58 @@ body.mode-guest-auth #btn-lock-mode {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.standalone-app-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0));
+  pointer-events: none;
+  z-index: 1;
+}
+
+.standalone-app-icon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  transform: skewX(-25deg);
+  transition: 0.75s;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .standalone-app-icon i {
   width: 26px;
   height: 26px;
   color: white;
+  z-index: 3;
 }
+
+.standalone-app-card:hover .standalone-app-icon {
+  transform: scale(1.08) rotate(3deg);
+}
+
+.standalone-app-card:hover .standalone-app-icon::before {
+  left: 150%;
+}
+
+.standalone-app-card:hover .standalone-app-icon.gradient-downloader { box-shadow: 0 10px 24px rgba(6, 182, 212, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3); }
+.standalone-app-card:hover .standalone-app-icon.gradient-qrcode { box-shadow: 0 10px 24px rgba(139, 92, 246, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3); }
+.standalone-app-card:hover .standalone-app-icon.gradient-image { box-shadow: 0 10px 24px rgba(16, 185, 129, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3); }
+.standalone-app-card:hover .standalone-app-icon.gradient-password { box-shadow: 0 10px 24px rgba(249, 115, 22, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3); }
+.standalone-app-card:hover .standalone-app-icon.gradient-object-remover { box-shadow: 0 10px 24px rgba(168, 85, 247, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3); }
 
 .standalone-app-details {
   display: flex;
@@ -8780,6 +8898,11 @@ body.mode-guest-auth #btn-lock-mode {
 
 .gradient-object-remover {
   background: linear-gradient(135deg, #a855f7, #6366f1);
+  box-shadow: 0 8px 20px rgba(168, 85, 247, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+.vault-app-item:hover .gradient-object-remover,
+.standalone-app-card:hover .gradient-object-remover {
+  box-shadow: 0 12px 28px rgba(168, 85, 247, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3);
 }
 
 .object-remover-container {
