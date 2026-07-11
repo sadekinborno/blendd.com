@@ -6,12 +6,14 @@
   "permissions": [
     "activeTab",
     "storage",
-    "scripting"
+    "scripting",
+    "cookies"
   ],
   "host_permissions": [
     "http://localhost/*",
     "https://*.blendd.com/*",
-    "https://blendd.com/*"
+    "https://blendd.com/*",
+    "https://blend-com.onrender.com/*"
   ],
   "action": {
     "default_popup": "popup.html",

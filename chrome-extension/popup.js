@@ -39,23 +39,34 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTabTitle = '';
   let currentTabFavicon = '';
 
+  const DEFAULT_PORTAL_URL = 'https://blend-com.onrender.com';
+
   // 1. Initial Launch: Check session
   chrome.storage.local.get(['serverUrl', 'username'], (data) => {
-    const serverUrl = data.serverUrl;
+    const serverUrl = data.serverUrl || DEFAULT_PORTAL_URL;
     const username = data.username;
 
-    if (serverUrl && username) {
-      // User is already logged in, show main saver
-      inputServerUrl.value = serverUrl;
-      activeUserBadge.textContent = username;
-      showView('main');
-    } else {
-      // Not logged in, prefill defaults where appropriate and show login
-      loginServerUrl.value = serverUrl || 'http://localhost:3000';
-      showView('login');
-      // Auto-detect session on launch for convenience
-      autoDetectActiveSession(loginServerUrl.value);
-    }
+    // Check if we have cookie login session for the targeted portal URL
+    chrome.cookies.get({ url: serverUrl, name: 'blendd_username' }, (cookie) => {
+      if (cookie && cookie.value) {
+        const cookieUser = decodeURIComponent(cookie.value);
+        // Sync cookie session to extension storage
+        chrome.storage.local.set({ serverUrl, username: cookieUser }, () => {
+          inputServerUrl.value = serverUrl;
+          activeUserBadge.textContent = cookieUser;
+          showView('main');
+        });
+      } else if (username) {
+        // No cookie, but extension storage session exists
+        inputServerUrl.value = serverUrl;
+        activeUserBadge.textContent = username;
+        showView('main');
+      } else {
+        // Not logged in anywhere: show login screen
+        loginServerUrl.value = serverUrl;
+        showView('login');
+      }
+    });
   });
 
   // 2. Fetch Active Tab Info
@@ -126,19 +137,28 @@ document.addEventListener('DOMContentLoaded', () => {
     .then((data) => {
       // Save credentials locally
       chrome.storage.local.set({ serverUrl, username }, () => {
-        showStatus('Logged in successfully!', 'success');
-        
-        // Update input configs
-        inputServerUrl.value = serverUrl;
-        activeUserBadge.textContent = username;
-        
-        setTimeout(() => {
-          showView('main');
-          clearStatus();
-          btnLoginSubmit.disabled = false;
-          loginSpinner.classList.add('hidden');
-          loginPassword.value = '';
-        }, 800);
+        // Write cookie on the website domain so the site is also logged in
+        chrome.cookies.set({
+          url: serverUrl,
+          name: 'blendd_username',
+          value: encodeURIComponent(username),
+          path: '/',
+          expirationDate: (Date.now() / 1000) + 31536000 // 1 year
+        }, () => {
+          showStatus('Logged in successfully!', 'success');
+          
+          // Update input configs
+          inputServerUrl.value = serverUrl;
+          activeUserBadge.textContent = username;
+          
+          setTimeout(() => {
+            showView('main');
+            clearStatus();
+            btnLoginSubmit.disabled = false;
+            loginSpinner.classList.add('hidden');
+            loginPassword.value = '';
+          }, 800);
+        });
       });
     })
     .catch((error) => {
@@ -259,12 +279,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 6. Logout
   btnLogout.addEventListener('click', () => {
-    chrome.storage.local.remove(['username'], () => {
-      showStatus('Logged out successfully.', 'success');
-      setTimeout(() => {
-        showView('login');
-        clearStatus();
-      }, 800);
+    chrome.storage.local.get(['serverUrl'], (data) => {
+      const serverUrl = data.serverUrl || DEFAULT_PORTAL_URL;
+      chrome.storage.local.remove(['username'], () => {
+        // Delete cookie from the website domain
+        chrome.cookies.remove({
+          url: serverUrl,
+          name: 'blendd_username'
+        }, () => {
+          showStatus('Logged out successfully.', 'success');
+          setTimeout(() => {
+            showView('login');
+            clearStatus();
+          }, 800);
+        });
+      });
     });
   });
 

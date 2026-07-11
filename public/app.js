@@ -6,6 +6,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Initialize Lucide Icons ---
   lucide.createIcons();
 
+  // --- Sync local session to cookie for browser extension support ---
+  function syncSessionToCookies() {
+    const guestUser = localStorage.getItem('guest_user');
+    const cookieMatch = document.cookie.match(/(?:^|; )blendd_username=([^;]*)/);
+    const currentCookieVal = cookieMatch ? decodeURIComponent(cookieMatch[1]) : null;
+    const isSecure = window.location.protocol === 'https:' ? '; Secure' : '';
+
+    if (guestUser) {
+      if (currentCookieVal !== guestUser) {
+        document.cookie = `blendd_username=${encodeURIComponent(guestUser)}; path=/; max-age=31536000; SameSite=Lax${isSecure}`;
+      }
+    } else {
+      if (currentCookieVal !== null) {
+        document.cookie = `blendd_username=; path=/; max-age=0; SameSite=Lax${isSecure}`;
+      }
+    }
+  }
+  setInterval(syncSessionToCookies, 1000);
+  syncSessionToCookies();
+
   // --- Sidebar Collapse functionality ---
   const sidebar = document.querySelector('.sidebar');
   const btnSidebarToggle = document.getElementById('btn-sidebar-toggle');
