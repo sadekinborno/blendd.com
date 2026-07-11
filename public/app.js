@@ -6,6 +6,34 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Initialize Lucide Icons ---
   lucide.createIcons();
 
+  // --- Sidebar Collapse functionality ---
+  const sidebar = document.querySelector('.sidebar');
+  const btnSidebarToggle = document.getElementById('btn-sidebar-toggle');
+  
+  if (btnSidebarToggle && sidebar) {
+    const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+    if (isCollapsed) {
+      sidebar.classList.add('collapsed');
+      const icon = btnSidebarToggle.querySelector('i');
+      if (icon) {
+        icon.setAttribute('data-lucide', 'chevron-right');
+      }
+      lucide.createIcons();
+    }
+
+    btnSidebarToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+      const nowCollapsed = sidebar.classList.contains('collapsed');
+      localStorage.setItem('sidebar-collapsed', nowCollapsed);
+      
+      const icon = btnSidebarToggle.querySelector('i');
+      if (icon) {
+        icon.setAttribute('data-lucide', nowCollapsed ? 'chevron-right' : 'chevron-left');
+        lucide.createIcons();
+      }
+    });
+  }
+
   // --- Socket.io Setup ---
   const socket = io();
 
@@ -1382,7 +1410,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const bookmarksContainer = document.getElementById('bookmarks-container');
   const dashboardRecentLinks = document.getElementById('dashboard-recent-links');
   const linksSearch = document.getElementById('links-search');
-  const tabButtons = document.querySelectorAll('.tab-btn');
+  const tabButtons = document.querySelectorAll('.filter-tabs .tab-btn');
   let editingLinkId = null;
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
 
@@ -1851,18 +1879,27 @@ document.addEventListener('DOMContentLoaded', () => {
           `;
         } else {
           folderItems.forEach(item => {
+            const isSelected = window.collectModeActive && window.selectedLinkIds.includes(item.id);
             const isSelectedForDelete = state.deleteMode && state.selectedForDelete.includes(item.id);
             const card = document.createElement('div');
             card.className = 'bookmark-card'
               + (item.hiddenByAdmin ? ' admin-hidden' : '')
               + (state.deleteMode ? ' delete-selecting' : '')
-              + (isSelectedForDelete ? ' delete-selected' : '');
+              + (isSelectedForDelete ? ' delete-selected' : '')
+              + (window.collectModeActive ? ' collecting' : '')
+              + (isSelected ? ' selected' : '');
             card.setAttribute('data-id', item.id);
             
             const categoryClass = getCategoryColorClass(item.category);
             const faviconHtml = getFaviconHtml(item.favicon, item.title);
             const itemOwner = (item.ownerUsername || 'Owner').toLowerCase();
             const isOwnBookmark = isOwner || itemOwner === currentUser.toLowerCase() || itemOwner === 'owner' || itemOwner === 'guest';
+
+            const collectIndicatorHtml = window.collectModeActive ? `
+              <div class="collect-indicator">
+                ${isSelected ? '<i data-lucide="check" style="width:12px;height:12px;"></i>' : ''}
+              </div>
+            ` : '';
 
             card.innerHTML = `
               ${state.deleteMode ? `
@@ -1876,11 +1913,12 @@ document.addEventListener('DOMContentLoaded', () => {
                   <span class="bookmark-domain">${item.domain || 'External Link'}</span>
                   <span class="bookmark-added-by">${item.addedBy || 'Owner'}</span>
                 </div>
+                ${collectIndicatorHtml}
               </div>
               <div class="bookmark-mid">
                 <span class="category-tag ${categoryClass}">${item.category}</span>
                 <div class="bookmark-actions">
-                  ${!state.deleteMode ? `
+                  ${(!state.deleteMode && !window.collectModeActive) ? `
                   <button class="btn-bookmark-action btn-copy" data-url="${item.url}" title="Copy Link">
                     <i data-lucide="copy"></i>
                   </button>
@@ -1890,12 +1928,44 @@ document.addEventListener('DOMContentLoaded', () => {
                   <button class="btn-bookmark-action delete" data-id="${item.id}" data-own="${isOwnBookmark}" title="${isOwnBookmark ? 'Delete Bookmark' : 'Remove from my space'}">
                     <i data-lucide="trash-2"></i>
                   </button>
-                  ` : ''}
+                  ` : (window.collectModeActive ? `
+                  <button class="btn-bookmark-action btn-copy" data-url="${item.url}" title="Copy Link">
+                    <i data-lucide="copy"></i>
+                  </button>
+                  ` : '')}
                 </div>
               </div>
             `;
 
             card.addEventListener('click', (e) => {
+              if (window.collectModeActive) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const idx = window.selectedLinkIds.indexOf(item.id);
+                if (idx === -1) {
+                  window.selectedLinkIds.push(item.id);
+                  card.classList.add('selected');
+                  const indicator = card.querySelector('.collect-indicator');
+                  if (indicator) {
+                    indicator.innerHTML = '<i data-lucide="check" style="width:12px;height:12px;"></i>';
+                    lucide.createIcons();
+                  }
+                  animateLinkToBucket(card);
+                } else {
+                  window.selectedLinkIds.splice(idx, 1);
+                  card.classList.remove('selected');
+                  const indicator = card.querySelector('.collect-indicator');
+                  if (indicator) {
+                    indicator.innerHTML = '';
+                  }
+                }
+                const bucketCountEl = document.getElementById('bucket-count');
+                if (bucketCountEl) {
+                  bucketCountEl.textContent = window.selectedLinkIds.length;
+                }
+                return;
+              }
               if (state.deleteMode) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -2716,15 +2786,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnCollectToggle = document.getElementById('btn-vault-collect-toggle');
     if (btnCollectToggle) {
-      btnCollectToggle.style.display = mode === 'private' ? 'flex' : 'none';
-      if (mode !== 'private' && window.collectModeActive) {
+      btnCollectToggle.style.display = 'flex'; // show in both spaces
+      if (window.collectModeActive) {
         exitCollectMode();
       }
-    }
-
-    const collectSourceTabs = document.getElementById('collect-source-tabs');
-    if (collectSourceTabs) {
-      collectSourceTabs.style.display = 'none';
     }
 
     const isOwner = document.body.classList.contains('mode-owner');
@@ -2823,10 +2888,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (bucketEl) {
       bucketEl.classList.add('hidden');
     }
-    const collectSourceTabs = document.getElementById('collect-source-tabs');
-    if (collectSourceTabs) {
-      collectSourceTabs.style.display = 'none';
-    }
     fetchBookmarks();
   }
 
@@ -2904,7 +2965,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         window.collectModeActive = true;
         window.selectedLinkIds = [];
-        window.collectSource = 'private'; // default to LinkFolder
+        window.collectSource = currentBookmarkMode === 'shared' ? 'public' : 'private';
         btnCollectToggle.innerHTML = '<i data-lucide="x" style="width: 14px; height: 14px;"></i><span>Exit Collect</span>';
         btnCollectToggle.style.background = 'var(--accent-cyan)';
         btnCollectToggle.style.borderColor = 'var(--accent-cyan)';
@@ -2921,42 +2982,9 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        const collectSourceTabs = document.getElementById('collect-source-tabs');
-        if (collectSourceTabs) {
-          collectSourceTabs.style.display = 'flex';
-          const btnPrivate = document.getElementById('btn-collect-src-private');
-          const btnPublic = document.getElementById('btn-collect-src-public');
-          if (btnPrivate) btnPrivate.classList.add('active');
-          if (btnPublic) btnPublic.classList.remove('active');
-        }
-
         renderBookmarks();
       }
       lucide.createIcons();
-    });
-  }
-
-  // Collect Source Tab Event Listeners
-  const btnCollectSrcPrivate = document.getElementById('btn-collect-src-private');
-  const btnCollectSrcPublic = document.getElementById('btn-collect-src-public');
-
-  if (btnCollectSrcPrivate) {
-    btnCollectSrcPrivate.addEventListener('click', () => {
-      if (!window.collectModeActive) return;
-      window.collectSource = 'private';
-      btnCollectSrcPrivate.classList.add('active');
-      if (btnCollectSrcPublic) btnCollectSrcPublic.classList.remove('active');
-      fetchBookmarks();
-    });
-  }
-
-  if (btnCollectSrcPublic) {
-    btnCollectSrcPublic.addEventListener('click', () => {
-      if (!window.collectModeActive) return;
-      window.collectSource = 'public';
-      btnCollectSrcPublic.classList.add('active');
-      if (btnCollectSrcPrivate) btnCollectSrcPrivate.classList.remove('active');
-      fetchBookmarks();
     });
   }
 

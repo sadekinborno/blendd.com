@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Blendd Link Saver",
+  "version": "1.0",
+  "description": "Instantly save any opened browser tab to your Blendd Private Space.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://localhost/*",
+    "https://*.blendd.com/*",
+    "https://blendd.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "blend_icon.png"
+  },
+  "icons": {
+    "16": "blend_icon.png",
+    "32": "blend_icon.png",
+    "48": "blend_icon.png",
+    "128": "blend_icon.png"
+  }
+}

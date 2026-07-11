@@ -2968,4 +2968,27 @@ app.get('/*splat', (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`blendd.com server running on http://localhost:${PORT}`);
+  
+  // Copy the site's blend_icon.png into the extension folder automatically
+  try {
+    const fs = require('fs');
+    fs.copyFileSync(
+      path.join(__dirname, 'public', 'blend_icon.png'),
+      path.join(__dirname, 'chrome-extension', 'blend_icon.png')
+    );
+  } catch (err) {
+    console.warn('[Extension Bundle] Failed to copy blend_icon.png to extension directory:', err.message);
+  }
+
+  // Auto-generate the downloadable extension zip on boot
+  const { exec } = require('child_process');
+  const zipPath = path.join(__dirname, 'public', 'extension.zip');
+  exec(`zip -r "${zipPath}" chrome-extension`, { cwd: __dirname }, (err) => {
+    if (err) {
+      console.warn('[Extension Bundle] "zip" command not available or failed. You can package chrome-extension/ manually.');
+    } else {
+      console.log('[Extension Bundle] Successfully auto-generated public/extension.zip');
+    }
+  });
 });
+

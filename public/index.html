@@ -30,6 +30,9 @@
     
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
+      <button id="btn-sidebar-toggle" class="btn-sidebar-toggle" title="Collapse Sidebar">
+        <i data-lucide="chevron-left"></i>
+      </button>
       <div class="sidebar-brand">
         <div class="brand-logo">
           <img src="blend_icon.png" alt="blendd.com" class="brand-icon-img">
@@ -110,7 +113,7 @@
               Welcome to 
               <span style="display: inline-flex; align-items: center; gap: 8px; vertical-align: middle;">
                 <img src="blend_icon.png" alt="blendd.com" style="width: 38px; height: 38px; border-radius: 50%; object-fit: contain; vertical-align: middle; background: rgba(255, 255, 255, 0.95); padding: 4px; box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);">
-                <span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; vertical-align: middle;">blendd.com</span>
+                <span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; background: linear-gradient(135deg, #ffffff, #a5f3fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; vertical-align: middle;">blendd.com</span>
               </span>
             </h1>
             <p>Your premium local media assistant, tool vault, and arcade gateway. Safe, private, and fast.</p>
@@ -774,6 +777,10 @@
                 <i data-lucide="folder-symlink" style="width: 16px; height: 16px;"></i>
                 <span>Access Shared Folder</span>
               </button>
+              <a href="/extension.zip" download="blendd-saver-extension.zip" class="btn-secondary flex-1" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; height: 42px;">
+                <i data-lucide="chrome" style="width: 16px; height: 16px;"></i>
+                <span>Get Extension</span>
+              </a>
             </div>
 
             <!-- Single Toggle Header for Shared Space / Admin (displayed only when actions are hidden) -->
@@ -850,10 +857,10 @@
           </form>
 
           <!-- Dropdown 2: Access Shared Folder Form (visible in Private mode) -->
-          <div id="access-folder-form" class="collapsible-content hidden" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 15px;">
+          <div id="access-folder-form" class="collapsible-content hidden" style="margin-top: 15px; border-top: 1px solid var(--panel-border); padding-top: 15px;">
             <div class="panel-header" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; border-bottom: none; padding-bottom: 0;">
               <i data-lucide="folder-symlink" class="panel-header-icon" style="color: var(--accent-cyan); width: 18px; height: 18px;"></i>
-              <h3 style="font-size: 1.1rem; margin: 0; font-weight: 600; color: #fff;">Access Shared Folder</h3>
+              <h3 style="font-size: 1.1rem; margin: 0; font-weight: 600; color: var(--text-primary);">Access Shared Folder</h3>
             </div>
             <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0; margin-bottom: 15px;">Input a linkKey shared by a friend to import their bookmark folder.</p>
             <div class="form-group" style="margin-bottom: 0;">
@@ -882,11 +889,7 @@
             <button class="tab-btn" data-filter="Development">Tools</button>
             <button class="tab-btn" data-filter="General">General</button>
           </div>
-          <!-- Collect Source Tabs (visible only in Private collect mode) -->
-          <div class="filter-tabs" id="collect-source-tabs" style="display: none;">
-            <button class="tab-btn active" id="btn-collect-src-private" data-src="private">LinkFolder</button>
-            <button class="tab-btn" id="btn-collect-src-public" data-src="public">Public Space</button>
-          </div>
+
           <div class="search-section-wrapper">
             <div class="search-box">
               <i data-lucide="search"></i>
@@ -910,31 +913,6 @@
           </div>
         </div>
 
-        <!-- Floating Collection Bucket -->
-        <div id="vault-collect-bucket" class="vault-collect-bucket glass-panel hidden">
-          <div class="bucket-info">
-            <i data-lucide="archive" class="bucket-icon"></i>
-            <div class="bucket-text">
-              <span class="bucket-count" id="bucket-count">0</span> links collected
-            </div>
-          </div>
-          <div class="bucket-destination">
-            <label for="bucket-folder-select">Target Folder:</label>
-            <div class="select-wrapper select-sm">
-              <select id="bucket-folder-select">
-                <option value="">General (No Folder)</option>
-              </select>
-              <i data-lucide="chevron-down" class="select-chevron"></i>
-            </div>
-          </div>
-          <div class="bucket-actions">
-            <button id="btn-bucket-done" class="btn-primary btn-sm">
-              <span>Sync to Vault</span>
-              <i data-lucide="check"></i>
-            </button>
-            <button id="btn-bucket-cancel" class="btn-secondary btn-sm">Cancel</button>
-          </div>
-        </div>
       </section>
 
       <!-- VIEW: MINI GAMES -->
@@ -2943,6 +2921,32 @@
           <span class="vault-app-label">Downloader</span>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Floating Collection Bucket -->
+  <div id="vault-collect-bucket" class="vault-collect-bucket glass-panel hidden">
+    <div class="bucket-info">
+      <i data-lucide="archive" class="bucket-icon"></i>
+      <div class="bucket-text">
+        <span class="bucket-count" id="bucket-count">0</span> links collected
+      </div>
+    </div>
+    <div class="bucket-destination">
+      <label for="bucket-folder-select">Target Folder:</label>
+      <div class="select-wrapper select-sm">
+        <select id="bucket-folder-select">
+          <option value="">General (No Folder)</option>
+        </select>
+        <i data-lucide="chevron-down" class="select-chevron"></i>
+      </div>
+    </div>
+    <div class="bucket-actions">
+      <button id="btn-bucket-done" class="btn-primary btn-sm">
+        <span>Sync</span>
+        <i data-lucide="check"></i>
+      </button>
+      <button id="btn-bucket-cancel" class="btn-secondary btn-sm">Cancel</button>
     </div>
   </div>
 
