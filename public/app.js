@@ -112,6 +112,66 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function showModalPrompt(message, title = 'Input Required', defaultValue = '') {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'custom-modal-overlay active';
+
+      overlay.innerHTML = `
+        <div class="custom-modal glass-panel popup-anim">
+          <div class="modal-header">
+            <i data-lucide="edit-3" class="modal-icon confirm"></i>
+            <h3>${title}</h3>
+          </div>
+          <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px;">
+            <p>${message}</p>
+            <input type="text" class="modal-input" value="${defaultValue}" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; outline: none; font-size: 14px;" />
+          </div>
+          <div class="modal-footer" style="gap: 12px; margin-top: 16px;">
+            <button class="btn-secondary btn-modal-cancel">Cancel</button>
+            <button class="btn-primary btn-modal-submit">Submit</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+      lucide.createIcons();
+
+      const modalInput = overlay.querySelector('.modal-input');
+      modalInput.focus();
+      modalInput.select();
+
+      const btnCancel = overlay.querySelector('.btn-modal-cancel');
+      const btnSubmit = overlay.querySelector('.btn-modal-submit');
+
+      const closeWithVal = (val) => {
+        overlay.classList.remove('active');
+        const modal = overlay.querySelector('.custom-modal');
+        if (modal) {
+          modal.classList.remove('popup-anim');
+          modal.classList.add('popout-anim');
+        }
+        setTimeout(() => {
+          overlay.remove();
+          resolve(val);
+        }, 150);
+      };
+
+      btnCancel.addEventListener('click', () => closeWithVal(null));
+      btnSubmit.addEventListener('click', () => closeWithVal(modalInput.value));
+      modalInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          closeWithVal(modalInput.value);
+        } else if (e.key === 'Escape') {
+          closeWithVal(null);
+        }
+      });
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeWithVal(null);
+      });
+    });
+  }
+
   // Helper: Open Unified account auth modal (Guest Login/Signup & Owner Login)
   function showGlobalAuthModal(defaultTab = 'guest') {
     return new Promise((resolve) => {
@@ -153,6 +213,20 @@ document.addEventListener('DOMContentLoaded', () => {
                   <div class="auth-field-group">
                     <i data-lucide="lock" class="auth-field-icon"></i>
                     <input type="password" id="guest-password" required placeholder="Password" autocomplete="current-password">
+                    <button type="button" class="auth-pw-toggle" id="toggle-guest-pw" tabindex="-1"><i data-lucide="eye"></i></button>
+                  </div>
+                  <!-- Signup-only: confirm password + strength -->
+                  <div id="signup-extra-fields" style="display:none; flex-direction:column; gap:10px;">
+                    <div class="auth-field-group">
+                      <i data-lucide="shield-check" class="auth-field-icon"></i>
+                      <input type="password" id="guest-confirm-password" placeholder="Confirm password" autocomplete="new-password">
+                      <button type="button" class="auth-pw-toggle" id="toggle-guest-confirm-pw" tabindex="-1"><i data-lucide="eye"></i></button>
+                    </div>
+                    <span id="guest-confirm-match" class="auth-signup-confirm-msg" style="display:none;"></span>
+                    <div class="pw-strength-bar-bg">
+                      <div id="guest-pw-strength-fill" class="strength-bar-fill" style="width:0%;"></div>
+                    </div>
+                    <span id="guest-pw-strength-label" style="font-size:11px;color:var(--text-muted);"></span>
                   </div>
                   <div id="guest-auth-error" class="auth-error-msg" style="display:none; color: var(--accent-pink); font-size: 12px; margin-top: 2px;"></div>
                   
@@ -244,6 +318,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const guestSubtabIndicator = overlay.querySelector('#guest-subtab-indicator');
       const guestSubmitText = overlay.querySelector('#guest-submit-text');
       const guestUsernameInput = overlay.querySelector('#guest-username');
+      const guestPasswordInput = overlay.querySelector('#guest-password');
+      const signupExtraFields = overlay.querySelector('#signup-extra-fields');
+      const guestConfirmPasswordInput = overlay.querySelector('#guest-confirm-password');
+      const guestConfirmMatch = overlay.querySelector('#guest-confirm-match');
+      const guestPwStrengthFill = overlay.querySelector('#guest-pw-strength-fill');
+      const guestPwStrengthLabel = overlay.querySelector('#guest-pw-strength-label');
 
       const guestCredentialsArea = overlay.querySelector('#guest-credentials-area');
       const panelGuestReset = overlay.querySelector('#panel-guest-reset');
@@ -252,6 +332,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let currentPortalTab = defaultTab;
       let currentGuestTab = 'login'; // login or signup
+
+      // Password strength helper
+      function getPasswordStrength(pw) {
+        let score = 0;
+        if (pw.length >= 6) score++;
+        if (pw.length >= 10) score++;
+        if (/[A-Z]/.test(pw)) score++;
+        if (/[0-9]/.test(pw)) score++;
+        if (/[^A-Za-z0-9]/.test(pw)) score++;
+        return score;
+      }
+
+      function updateStrengthBar(pw, fill, label) {
+        const score = getPasswordStrength(pw);
+        const widths = ['0%', '20%', '40%', '65%', '85%', '100%'];
+        const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#10b981', '#06b6d4'];
+        const labels = ['', 'Too Weak', 'Weak', 'Fair', 'Strong', 'Very Strong'];
+        fill.style.width = pw.length > 0 ? widths[score] : '0%';
+        fill.style.background = colors[score];
+        label.textContent = pw.length > 0 ? labels[score] : '';
+        label.style.color = colors[score];
+      }
+
+      // Pw toggle helper
+      function wireToggle(btn, input) {
+        if (!btn || !input) return;
+        btn.addEventListener('click', () => {
+          const isPassword = input.type === 'password';
+          input.type = isPassword ? 'text' : 'password';
+          btn.innerHTML = isPassword ? '<i data-lucide="eye-off"></i>' : '<i data-lucide="eye"></i>';
+          lucide.createIcons();
+        });
+      }
+
+      wireToggle(overlay.querySelector('#toggle-guest-pw'), guestPasswordInput);
+      wireToggle(overlay.querySelector('#toggle-guest-confirm-pw'), guestConfirmPasswordInput);
+
+      // Listen to password input for strength
+      if (guestPasswordInput && guestPwStrengthFill) {
+        guestPasswordInput.addEventListener('input', () => {
+          if (currentGuestTab === 'signup') {
+            updateStrengthBar(guestPasswordInput.value, guestPwStrengthFill, guestPwStrengthLabel);
+          }
+        });
+      }
+
+      // Confirm password validation
+      if (guestConfirmPasswordInput) {
+        guestConfirmPasswordInput.addEventListener('input', () => {
+          const match = guestPasswordInput.value === guestConfirmPasswordInput.value;
+          guestConfirmMatch.style.display = guestConfirmPasswordInput.value.length > 0 ? 'block' : 'none';
+          guestConfirmMatch.textContent = match ? '✓ Passwords match' : '✗ Passwords do not match';
+          guestConfirmMatch.style.color = match ? '#10b981' : '#ef4444';
+        });
+      }
 
       guestUsernameInput.focus();
 
@@ -301,6 +436,8 @@ document.addEventListener('DOMContentLoaded', () => {
         guestSubtabIndicator.classList.remove('right');
         guestSubmitText.textContent = 'Log In';
         overlay.querySelector('#guest-auth-error').style.display = 'none';
+        if (signupExtraFields) signupExtraFields.style.display = 'none';
+        guestPasswordInput.autocomplete = 'current-password';
       });
 
       btnGuestSubtabSignup.addEventListener('click', () => {
@@ -310,6 +447,8 @@ document.addEventListener('DOMContentLoaded', () => {
         guestSubtabIndicator.classList.add('right');
         guestSubmitText.textContent = 'Sign Up';
         overlay.querySelector('#guest-auth-error').style.display = 'none';
+        if (signupExtraFields) signupExtraFields.style.display = 'flex';
+        guestPasswordInput.autocomplete = 'new-password';
       });
 
       // Guest Forgot password panel toggle
@@ -338,6 +477,18 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.disabled = true;
 
         const endpoint = currentGuestTab === 'login' ? '/api/auth/login' : '/api/auth/signup';
+
+        // Confirm password check for signup
+        if (currentGuestTab === 'signup') {
+          const confirmVal = guestConfirmPasswordInput ? guestConfirmPasswordInput.value : '';
+          if (pVal !== confirmVal) {
+            errEl.textContent = 'Passwords do not match. Please re-enter.';
+            errEl.style.display = 'block';
+            submitBtn.disabled = false;
+            return;
+          }
+        }
+
         try {
           const res = await fetch(endpoint, {
             method: 'POST',
@@ -664,7 +815,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateClock();
 
   // --- Guest vs. Owner Mode Logic ---
-  const modeSwitcherFooter = document.getElementById('mode-switcher-footer');
+  const modeSwitcherFooter = document.getElementById('sidebar-account-btn');
   const avatarTextMode = document.getElementById('avatar-text-mode');
   const userNameMode = document.getElementById('user-name-mode');
   const userRoleMode = document.getElementById('user-role-mode');
@@ -850,38 +1001,31 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Dynamic lock indicators for downloader tool in Guest mode
-    const downloaderBtn = document.querySelector('.nav-item[data-view="downloader"]');
-    if (downloaderBtn) {
-      const existingLock = downloaderBtn.querySelector('.lock-indicator');
-      if (existingLock) existingLock.remove();
-
+    // Dynamic lock indicators for downloader tool in Guest mode inside the Vault
+    const appLockBadges = document.querySelectorAll('.app-lock-badge');
+    appLockBadges.forEach(badge => {
       if (mode !== 'owner') {
-        const lockIcon = document.createElement('i');
-        lockIcon.setAttribute('data-lucide', 'lock');
-        lockIcon.classList.add('lock-indicator');
-        lockIcon.style.cssText = 'margin-left: auto; width: 14px; height: 14px; opacity: 0.6;';
-        downloaderBtn.appendChild(lockIcon);
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
       }
-    }
+    });
 
-    const downloaderCard = document.querySelector('.dash-card[data-action="go-to-downloader"]');
-    if (downloaderCard) {
-      const actionText = downloaderCard.querySelector('.card-action-text');
+    const vaultCard = document.getElementById('dash-card-vault');
+    if (vaultCard) {
+      const actionText = vaultCard.querySelector('.card-action-text');
       if (actionText) {
-        if (mode !== 'owner') {
-          actionText.innerHTML = 'Locked <i data-lucide="lock" style="width: 14px; height: 14px; margin-left: 4px;"></i>';
-          downloaderCard.style.opacity = '0.75';
-        } else {
-          actionText.innerHTML = 'Launch Tool <i data-lucide="arrow-right"></i>';
-          downloaderCard.style.opacity = '1';
-        }
+        actionText.innerHTML = 'Open Vault <i data-lucide="arrow-right"></i>';
+        vaultCard.style.opacity = '1';
       }
     }
 
     lucide.createIcons();
     if (typeof renderBookmarks === 'function') {
       renderBookmarks();
+    }
+    if (typeof currentBookmarkMode !== 'undefined' && typeof updateBookmarkModeUI === 'function') {
+      updateBookmarkModeUI(currentBookmarkMode);
     }
     
     // Sync Brian AI navigation and state
@@ -907,34 +1051,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // (app mode initialized later in DOMContentLoaded to prevent TDZ error)
 
-  // Toggle Mode Click Listener (Sidebar)
+  // Toggle Mode Click Listener (Sidebar account button)
   if (modeSwitcherFooter) {
     modeSwitcherFooter.addEventListener('click', async (e) => {
-      const currentMode = localStorage.getItem('nexus_mode') || 'guest';
-      const isLoggedIn = currentMode === 'owner' || !!guestUser;
-
-      if (isLoggedIn) {
-        showProfileModal();
-      } else {
-        await showGlobalAuthModal();
-      }
+      switchView('account');
     });
   }
 
-  // Toggle Mode Click Listener (Mobile Bottom Nav Profile Button)
-  const mbnProfileBtn = document.getElementById('mbn-profile-btn');
-  if (mbnProfileBtn) {
-    mbnProfileBtn.addEventListener('click', async (e) => {
-      const currentMode = localStorage.getItem('nexus_mode') || 'guest';
-      const isLoggedIn = currentMode === 'owner' || !!guestUser;
-
-      if (isLoggedIn) {
-        showProfileModal();
-      } else {
-        await showGlobalAuthModal();
-      }
+  // Toggle Mode Click Listener (Mobile Bottom Nav Account Button)
+  const mbnAccountBtn = document.getElementById('mbn-account-btn');
+  if (mbnAccountBtn) {
+    mbnAccountBtn.addEventListener('click', async (e) => {
+      switchView('account');
     });
   }
+
 
   // --- Theme Toggle (Dark/Light Mode) ---
   const themeToggle = document.getElementById('theme-toggle');
@@ -1032,8 +1163,30 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    // Sync sidebar account button active state
+    const sidebarAccountBtn = document.getElementById('sidebar-account-btn');
+    if (sidebarAccountBtn) {
+      sidebarAccountBtn.classList.remove('active');
+      if (viewId === 'account') {
+        sidebarAccountBtn.classList.add('active');
+      }
+    }
+
     // Save active view in localStorage
     localStorage.setItem('active_view', viewId);
+
+    // Account page — init when navigating to it
+    if (viewId === 'account') {
+      // Reset to overview tab
+      document.querySelectorAll('.profile-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.profile-tab-content').forEach(c => { c.style.display = 'none'; c.classList.remove('active'); });
+      const overviewBtn = document.querySelector('.profile-tab-btn[data-profile-tab="overview"]');
+      if (overviewBtn) overviewBtn.classList.add('active');
+      const overviewTab = document.getElementById('profile-tab-overview');
+      if (overviewTab) { overviewTab.style.display = 'block'; overviewTab.classList.add('active'); }
+      // Use setTimeout to ensure the view is visible before init runs
+      setTimeout(() => { if (typeof initAccountPage === 'function') initAccountPage(); }, 0);
+    }
 
     // Refresh icons just in case
     lucide.createIcons();
@@ -1233,6 +1386,18 @@ document.addEventListener('DOMContentLoaded', () => {
   let editingLinkId = null;
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
 
+  let currentBookmarkMode = 'shared'; // 'shared' or 'private'
+  const btnToggleBookmarkMode = document.getElementById('btn-toggle-bookmark-mode');
+  const sharedOnlyAdminNotice = document.getElementById('shared-only-admin-notice');
+  const formGroupFolder = document.getElementById('form-group-folder');
+  const linkFolderInput = document.getElementById('link-folder-input');
+  const bookmarkSpaceActions = document.getElementById('bookmark-space-actions');
+  const accessFolderForm = document.getElementById('access-folder-form');
+  const btnShowAddBookmark = document.getElementById('btn-show-add-bookmark');
+  const btnShowAccessFolder = document.getElementById('btn-show-access-folder');
+  const folderKeyInput = document.getElementById('folder-key-input');
+  const btnImportFolder = document.getElementById('btn-import-folder');
+
   // Toggle collapsible form
   toggleLinkFormBtn.addEventListener('click', () => {
     if (editingLinkId) {
@@ -1263,6 +1428,9 @@ document.addEventListener('DOMContentLoaded', () => {
     linkUrlInput.value = bookmark.url;
     linkTitleInput.value = bookmark.title;
     linkCategorySelect.value = bookmark.category;
+    if (linkFolderInput) {
+      linkFolderInput.value = bookmark.folderName || '';
+    }
     if (bookmark.favicon && bookmark.favicon.startsWith('letter:')) {
       linkIconSelect.value = 'letter';
     } else if (bookmark.favicon && bookmark.favicon.startsWith('icon:')) {
@@ -1291,10 +1459,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Expand form if collapsed
     if (linksaverForm.classList.contains('hidden')) {
       linksaverForm.classList.remove('hidden');
-      const iconContainer = toggleLinkFormBtn.querySelector('.btn-icon-toggle');
+      const iconContainer = toggleLinkFormBtn ? toggleLinkFormBtn.querySelector('.btn-icon-toggle') : null;
       if (iconContainer) {
         iconContainer.innerHTML = '<i data-lucide="chevron-up"></i>';
       }
+    }
+    if (btnShowAddBookmark) {
+      btnShowAddBookmark.style.background = 'var(--accent-cyan)';
+      btnShowAddBookmark.style.borderColor = 'var(--accent-cyan)';
+      btnShowAddBookmark.style.color = '#fff';
+    }
+    if (btnShowAccessFolder) {
+      btnShowAccessFolder.style.background = '';
+      btnShowAccessFolder.style.borderColor = '';
+      btnShowAccessFolder.style.color = '';
+    }
+    if (accessFolderForm) {
+      accessFolderForm.classList.add('hidden');
     }
     lucide.createIcons();
   }
@@ -1308,6 +1489,9 @@ document.addEventListener('DOMContentLoaded', () => {
     linkTitleInput.value = '';
     linkCategorySelect.value = 'General';
     linkIconSelect.value = 'auto';
+    if (linkFolderInput) {
+      linkFolderInput.value = '';
+    }
 
     // Reset form header
     const formHeaderTitle = toggleLinkFormBtn.querySelector('h2');
@@ -1329,10 +1513,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Collapse form
     if (!linksaverForm.classList.contains('hidden')) {
       linksaverForm.classList.add('hidden');
-      const iconContainer = toggleLinkFormBtn.querySelector('.btn-icon-toggle');
+      const iconContainer = toggleLinkFormBtn ? toggleLinkFormBtn.querySelector('.btn-icon-toggle') : null;
       if (iconContainer) {
         iconContainer.innerHTML = '<i data-lucide="chevron-down"></i>';
       }
+    }
+    if (btnShowAddBookmark) {
+      btnShowAddBookmark.style.background = '';
+      btnShowAddBookmark.style.borderColor = '';
+      btnShowAddBookmark.style.color = '';
+    }
+    if (btnShowAccessFolder) {
+      btnShowAccessFolder.style.background = '';
+      btnShowAccessFolder.style.borderColor = '';
+      btnShowAccessFolder.style.color = '';
+    }
+    if (accessFolderForm) {
+      accessFolderForm.classList.add('hidden');
     }
     lucide.createIcons();
   }
@@ -1443,7 +1640,8 @@ document.addEventListener('DOMContentLoaded', () => {
       filtered = filtered.filter(item => 
         item.title.toLowerCase().includes(searchVal) || 
         item.url.toLowerCase().includes(searchVal) ||
-        item.domain.toLowerCase().includes(searchVal)
+        (item.domain || '').toLowerCase().includes(searchVal) ||
+        (item.folderName || '').toLowerCase().includes(searchVal)
       );
     }
 
@@ -1459,222 +1657,585 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Group bookmarks by category
-    const grouped = {};
-    filtered.forEach(item => {
-      if (!grouped[item.category]) {
-        grouped[item.category] = [];
-      }
-      grouped[item.category].push(item);
-    });
+    if (currentBookmarkMode === 'private' && !(window.collectModeActive && window.collectSource === 'public')) {
+      // Group by Folders
+      const folders = {};
+      const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
 
-    // Default category order to keep the rendering order consistent
-    const categoryOrder = ['Movies & Shows', 'Sports', 'Anime', 'Games', 'Development', 'General'];
-    
-    // Add any dynamically created category that's not in the default list
-    const finalCategories = [...categoryOrder];
-    Object.keys(grouped).forEach(cat => {
-      if (!finalCategories.includes(cat)) {
-        finalCategories.push(cat);
-      }
-    });
+      filtered.forEach(item => {
+        const fKey = item.folderKey || '';
+        const fName = item.folderName || '';
+        const groupKey = fKey ? `key:${fKey}` : (fName ? `local:${fName}` : 'general');
 
-    // Render each category section
-    finalCategories.forEach(cat => {
-      const items = grouped[cat];
-      if (!items || items.length === 0) return;
+        if (!folders[groupKey]) {
+          folders[groupKey] = {
+            name: fName || 'General Bookmarks',
+            key: fKey || null,
+            owner: item.ownerUsername || 'Owner',
+            isImported: fKey ? (item.ownerUsername || '').toLowerCase() !== currentUser.toLowerCase() : false,
+            items: []
+          };
+        }
+        folders[groupKey].items.push(item);
+      });
 
-      const section = document.createElement('div');
-      section.className = 'genre-section';
+      window.folderStates = window.folderStates || {};
 
-      // Define header icons and titles based on the category (genre)
-      let iconName = 'bookmark';
-      let iconClass = 'genre-icon-general';
-      let displayTitle = cat;
-
-      if (cat === 'Movies & Shows') {
-        iconName = 'film';
-        iconClass = 'genre-icon-movies';
-        displayTitle = 'Movies & Shows';
-      } else if (cat === 'Sports') {
-        iconName = 'tv';
-        iconClass = 'genre-icon-sports';
-        displayTitle = 'Sports Streaming';
-      } else if (cat === 'Anime') {
-        iconName = 'tv-2';
-        iconClass = 'genre-icon-anime';
-        displayTitle = 'Anime';
-      } else if (cat === 'Games') {
-        iconName = 'gamepad-2';
-        iconClass = 'genre-icon-games';
-        displayTitle = 'Games';
-      } else if (cat === 'Development') {
-        iconName = 'terminal';
-        iconClass = 'genre-icon-development';
-        displayTitle = 'Coding & Tools';
-      } else if (cat === 'General') {
-        iconName = 'bookmark';
-        iconClass = 'genre-icon-general';
-        displayTitle = 'General Bookmarks';
-      } else {
-        iconName = 'link-2';
-        iconClass = 'genre-icon-general';
-      }
-
-      section.innerHTML = `
-        <div class="genre-section-header">
-          <div class="genre-title-wrapper">
-            <div class="genre-icon ${iconClass}">
-              <i data-lucide="${iconName}"></i>
-            </div>
-            <h3>${displayTitle}</h3>
-            <span class="genre-count-badge">${items.length}</span>
-          </div>
-        </div>
-        <div class="bookmarks-grid" data-category="${cat}"></div>
-      `;
-
-      const grid = section.querySelector('.bookmarks-grid');
-
-      // Set up Sortable on the grid container for admins/owners
-      if (isOwner && typeof Sortable !== 'undefined') {
-        new Sortable(grid, {
-          group: 'bookmarks-shared-group', // Allows dragging between categories
-          animation: 250, // smooth shifting transitions (in milliseconds)
-          handle: '.drag-handle', // drag only by handle to prevent click/window.open interference
-          ghostClass: 'bookmark-ghost',
-          chosenClass: 'bookmark-chosen',
-          dragClass: 'bookmark-drag-active',
-          fallbackOnBody: true,
-          swapThreshold: 0.65,
-          // When drop is completed
-          onEnd: async function (evt) {
-            const itemEl = evt.item;
-            const toGrid = evt.to;
-            const bookmarkId = itemEl.getAttribute('data-id');
-            const newCategory = toGrid.getAttribute('data-category');
-
-            // Find siblings to determine new sortOrder float midpoint
-            const prevEl = itemEl.previousElementSibling;
-            const nextEl = itemEl.nextElementSibling;
-
-            let newSortOrder = 1000;
-
-            if (prevEl && nextEl) {
-              const prevOrder = parseFloat(prevEl.getAttribute('data-sort-order'));
-              const nextOrder = parseFloat(nextEl.getAttribute('data-sort-order'));
-              newSortOrder = (prevOrder + nextOrder) / 2;
-            } else if (nextEl) {
-              const nextOrder = parseFloat(nextEl.getAttribute('data-sort-order'));
-              newSortOrder = nextOrder - 10;
-            } else if (prevEl) {
-              const prevOrder = parseFloat(prevEl.getAttribute('data-sort-order'));
-              newSortOrder = prevOrder + 10;
-            }
-
-            // Update attributes on the element itself
-            itemEl.setAttribute('data-sort-order', newSortOrder);
-
-            // Update local array state
-            const bookmarkIndex = savedLinks.findIndex(b => b.id === bookmarkId);
-            if (bookmarkIndex !== -1) {
-              savedLinks[bookmarkIndex].category = newCategory;
-              savedLinks[bookmarkIndex].sortOrder = newSortOrder;
-            }
-
-            try {
-              const response = await fetch(`/api/links/${bookmarkId}/reorder`, {
-                method: 'PATCH',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-owner-token': localStorage.getItem('owner_token') || ''
-                },
-                body: JSON.stringify({
-                  category: newCategory,
-                  sortOrder: newSortOrder
-                })
-              });
-
-              if (!response.ok) {
-                throw new Error('Failed to update bookmark order on server');
-              }
-
-              // Keep locally-sorted structure in sync and refresh UI to update counts/badges
-              savedLinks.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-              renderBookmarks();
-            } catch (err) {
-              console.error('Failed to save bookmark order:', err);
-              // Revert state by fetching fresh from the server
-              fetchBookmarks();
-            }
+      Object.keys(folders).forEach(groupKey => {
+        const folder = folders[groupKey];
+        if (!window.folderStates[groupKey]) {
+          window.folderStates[groupKey] = {
+            isOpen: true,
+            filter: 'all',
+            deleteMode: false,
+            selectedForDelete: []
+          };
+        } else {
+          // Preserve existing fields, ensure new ones exist
+          if (!window.folderStates[groupKey].selectedForDelete) {
+            window.folderStates[groupKey].selectedForDelete = [];
           }
-        });
-      }
+        }
+        const state = window.folderStates[groupKey];
 
-      items.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'bookmark-card' + (item.hiddenByAdmin ? ' admin-hidden' : '');
-        card.setAttribute('data-id', item.id);
-        card.setAttribute('data-sort-order', item.sortOrder || '0');
-        
-        const categoryClass = getCategoryColorClass(item.category);
-        const faviconHtml = getFaviconHtml(item.favicon, item.title);
-        
-        const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
-        const canModify = isOwner || (item.addedBy || 'Owner').toLowerCase() === currentUser.toLowerCase();
-        
-        card.innerHTML = `
-          <div class="bookmark-card-top">
-            ${faviconHtml}
-            <div class="bookmark-info">
-              <h4 class="bookmark-title" title="${item.title}">${item.title}</h4>
-              <span class="bookmark-domain">${item.domain || 'External Link'}</span>
-              <span class="bookmark-added-by">${item.addedBy || 'Owner'}</span>
-              ${item.hiddenByAdmin ? '<span class="bookmark-hidden-badge"><i data-lucide="eye-off" style="width:10px;height:10px;"></i> Hidden</span>' : ''}
+        const section = document.createElement('div');
+        section.className = `folder-vault-card${state.isOpen ? ' open' : ''}`;
+        section.setAttribute('data-group-key', groupKey);
+
+        const isImported = folder.isImported;
+
+        // Folder action buttons
+        let shareButtonHtml = '';
+        let cloneButtonHtml = '';
+        let deleteFolderButtonHtml = '';
+        const deleteLinksButtonHtml = state.deleteMode ? '' : `
+          <button class="btn-folder-action btn-folder-action--danger btn-delete-links-mode" title="Select links to delete">
+            <i data-lucide="trash-2" style="width:12px;height:12px;"></i>
+            <span>Delete Links</span>
+          </button>
+        `;
+
+        if (groupKey === 'general') {
+          // General group: only Delete Links (no folder-level delete)
+        } else if (!isImported) {
+          shareButtonHtml = `
+            <button class="btn-folder-action btn-share-folder" data-folder="${folder.name}">
+              <i data-lucide="share-2" style="width:12px;height:12px;"></i>
+              <span>Share</span>
+            </button>
+          `;
+          deleteFolderButtonHtml = `
+            <button class="btn-folder-action btn-delete-folder btn-folder-action--danger" data-folder="${folder.name}">
+              <i data-lucide="folder-x" style="width:12px;height:12px;"></i>
+              <span>Delete Folder</span>
+            </button>
+          `;
+        } else {
+          shareButtonHtml = `
+            <button class="btn-folder-action btn-unsave-folder" data-key="${folder.key}">
+              <i data-lucide="folder-minus" style="width:12px;height:12px;"></i>
+              <span>Unsubscribe</span>
+            </button>
+          `;
+          cloneButtonHtml = `
+            <button class="btn-folder-action btn-clone-folder" data-key="${folder.key}" data-name="${folder.name}">
+              <i data-lucide="copy" style="width:12px;height:12px;"></i>
+              <span>Clone</span>
+            </button>
+          `;
+        }
+
+        const badgeHtml = isImported ? `
+          <span class="bookmark-folder-badge shared-badge">Shared by ${folder.owner}</span>
+        ` : (folder.key ? `
+          <span class="bookmark-folder-badge btn-copy-key" style="cursor:pointer;" title="Click to copy sharing key" data-key="${folder.key}">Key: ${folder.key}</span>
+        ` : '');
+
+        section.innerHTML = `
+          <!-- Vault door header -->
+          <div class="folder-vault-header">
+            <div class="vault-handle-wrapper">
+              <div class="vault-handle-wheel">
+                <svg viewBox="0 0 100 100" class="vault-wheel-svg">
+                  <circle cx="50" cy="50" r="40" stroke="var(--accent-cyan)" stroke-width="6" fill="none" />
+                  <circle cx="50" cy="50" r="10" fill="var(--accent-cyan)" />
+                  <line x1="50" y1="10" x2="50" y2="90" stroke="var(--accent-cyan)" stroke-width="6" />
+                  <line x1="10" y1="50" x2="90" y2="50" stroke="var(--accent-cyan)" stroke-width="6" />
+                </svg>
+              </div>
+            </div>
+            <div class="vault-title-details">
+              <h3 class="vault-folder-name">${folder.name}</h3>
+              <div class="vault-meta-info">
+                ${badgeHtml}
+                <span class="vault-link-count">${folder.items.length} bookmarks</span>
+              </div>
+            </div>
+            <div class="vault-actions">
+              ${cloneButtonHtml}
+              ${shareButtonHtml}
+              ${deleteFolderButtonHtml}
+              ${deleteLinksButtonHtml}
             </div>
           </div>
-          <div class="bookmark-mid">
-            <span class="category-tag ${categoryClass}">${item.category}</span>
-            <div class="bookmark-actions">
-              ${isOwner ? `
-              <div class="btn-bookmark-action drag-handle" title="Drag to Reorder" style="cursor: grab;">
-                <i data-lucide="grip-vertical"></i>
+
+          <!-- Vault interior content (collapsible) -->
+          <div class="folder-vault-body${state.isOpen ? '' : ' hidden'}">
+            <!-- Delete mode control bar -->
+            <div class="delete-mode-bar${state.deleteMode ? '' : ' hidden'}">
+              <div class="delete-mode-info">
+                <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                <span class="delete-mode-count-label">Select items to delete</span>
               </div>
-              ` : ''}
-              <button class="btn-bookmark-action btn-copy" data-url="${item.url}" title="Copy Link">
-                <i data-lucide="copy"></i>
-              </button>
-              ${isOwner ? `
-              <button class="btn-bookmark-action hide-toggle-btn" data-id="${item.id}" data-hidden="${item.hiddenByAdmin ? 'true' : 'false'}" title="${item.hiddenByAdmin ? 'Unhide from guests' : 'Hide from guests'}">
-                <i data-lucide="${item.hiddenByAdmin ? 'eye' : 'eye-off'}"></i>
-              </button>
-              ` : ''}
-              ${canModify ? `
-              <button class="btn-bookmark-action edit-btn" data-id="${item.id}" title="Edit Bookmark">
-                <i data-lucide="edit-2"></i>
-              </button>
-              <button class="btn-bookmark-action delete" data-id="${item.id}" title="Delete Bookmark">
-                <i data-lucide="trash-2"></i>
-              </button>
-              ` : ''}
+              <div class="delete-mode-btns">
+                <button class="btn-folder-action btn-folder-action--danger btn-delete-all-in-folder">
+                  <i data-lucide="trash" style="width:12px;height:12px;"></i>
+                  <span>Delete All</span>
+                </button>
+                <button class="btn-folder-action btn-folder-action--confirm btn-confirm-delete-selected">
+                  <i data-lucide="check-circle-2" style="width:12px;height:12px;"></i>
+                  <span>Done</span>
+                </button>
+                <button class="btn-folder-action btn-cancel-delete-mode">
+                  <i data-lucide="x" style="width:12px;height:12px;"></i>
+                  <span>Cancel</span>
+                </button>
+              </div>
             </div>
+            <!-- Local category filters (hidden in delete mode) -->
+            <div class="vault-filters${state.deleteMode ? ' hidden' : ''}">
+              <button class="vault-filter-btn${state.filter === 'all' ? ' active' : ''}" data-filter="all">All</button>
+              <button class="vault-filter-btn${state.filter === 'Movies & Shows' ? ' active' : ''}" data-filter="Movies & Shows">Movies</button>
+              <button class="vault-filter-btn${state.filter === 'Sports' ? ' active' : ''}" data-filter="Sports">Sports</button>
+              <button class="vault-filter-btn${state.filter === 'Anime' ? ' active' : ''}" data-filter="Anime">Anime</button>
+              <button class="vault-filter-btn${state.filter === 'Games' ? ' active' : ''}" data-filter="Games">Games</button>
+              <button class="vault-filter-btn${state.filter === 'Development' ? ' active' : ''}" data-filter="Development">Tools</button>
+              <button class="vault-filter-btn${state.filter === 'General' ? ' active' : ''}" data-filter="General">General</button>
+            </div>
+            
+            <!-- Bookmarks grid -->
+            <div class="bookmarks-grid"></div>
           </div>
         `;
 
-        card.addEventListener('click', (e) => {
-          if (e.target.closest('.btn-bookmark-action')) {
+        const headerEl = section.querySelector('.folder-vault-header');
+        headerEl.addEventListener('click', (e) => {
+          if (e.target.closest('.btn-folder-action') || e.target.closest('.bookmark-folder-badge')) {
             return;
           }
-          window.open(item.url, '_blank', 'noopener,noreferrer');
+          state.isOpen = !state.isOpen;
+          renderBookmarks();
         });
+
+        const filterBtns = section.querySelectorAll('.vault-filter-btn');
+        filterBtns.forEach(btn => {
+          btn.addEventListener('click', () => {
+            state.filter = btn.getAttribute('data-filter');
+            renderBookmarks();
+          });
+        });
+
+        const grid = section.querySelector('.bookmarks-grid');
+        const activeFilter = state.filter;
         
-        grid.appendChild(card);
+        let folderItems = folder.items;
+        if (activeFilter !== 'all') {
+          folderItems = folderItems.filter(item => item.category === activeFilter);
+        }
+
+        if (folderItems.length === 0) {
+          grid.innerHTML = `
+            <div class="empty-state-simple" style="padding: 12px; grid-column: 1 / -1; text-align: center; color: var(--text-muted);">
+              <p>No bookmarks in this category.</p>
+            </div>
+          `;
+        } else {
+          folderItems.forEach(item => {
+            const isSelectedForDelete = state.deleteMode && state.selectedForDelete.includes(item.id);
+            const card = document.createElement('div');
+            card.className = 'bookmark-card'
+              + (item.hiddenByAdmin ? ' admin-hidden' : '')
+              + (state.deleteMode ? ' delete-selecting' : '')
+              + (isSelectedForDelete ? ' delete-selected' : '');
+            card.setAttribute('data-id', item.id);
+            
+            const categoryClass = getCategoryColorClass(item.category);
+            const faviconHtml = getFaviconHtml(item.favicon, item.title);
+            const itemOwner = (item.ownerUsername || 'Owner').toLowerCase();
+            const isOwnBookmark = isOwner || itemOwner === currentUser.toLowerCase() || itemOwner === 'owner' || itemOwner === 'guest';
+
+            card.innerHTML = `
+              ${state.deleteMode ? `
+              <div class="delete-indicator${isSelectedForDelete ? ' selected' : ''}">
+                ${isSelectedForDelete ? '<i data-lucide="check" style="width:13px;height:13px;"></i>' : ''}
+              </div>` : ''}
+              <div class="bookmark-card-top">
+                ${faviconHtml}
+                <div class="bookmark-info">
+                  <h4 class="bookmark-title" title="${item.title}">${item.title}</h4>
+                  <span class="bookmark-domain">${item.domain || 'External Link'}</span>
+                  <span class="bookmark-added-by">${item.addedBy || 'Owner'}</span>
+                </div>
+              </div>
+              <div class="bookmark-mid">
+                <span class="category-tag ${categoryClass}">${item.category}</span>
+                <div class="bookmark-actions">
+                  ${!state.deleteMode ? `
+                  <button class="btn-bookmark-action btn-copy" data-url="${item.url}" title="Copy Link">
+                    <i data-lucide="copy"></i>
+                  </button>
+                  <button class="btn-bookmark-action edit-btn" data-id="${item.id}" title="Edit Bookmark" ${isOwnBookmark ? '' : 'style="display:none"'}>
+                    <i data-lucide="edit-2"></i>
+                  </button>
+                  <button class="btn-bookmark-action delete" data-id="${item.id}" data-own="${isOwnBookmark}" title="${isOwnBookmark ? 'Delete Bookmark' : 'Remove from my space'}">
+                    <i data-lucide="trash-2"></i>
+                  </button>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+
+            card.addEventListener('click', (e) => {
+              if (state.deleteMode) {
+                e.preventDefault();
+                e.stopPropagation();
+                const idx = state.selectedForDelete.indexOf(item.id);
+                if (idx === -1) {
+                  state.selectedForDelete.push(item.id);
+                  card.classList.add('delete-selected');
+                  const ind = card.querySelector('.delete-indicator');
+                  if (ind) { ind.classList.add('selected'); ind.innerHTML = '<i data-lucide="check" style="width:13px;height:13px;"></i>'; lucide.createIcons(); }
+                } else {
+                  state.selectedForDelete.splice(idx, 1);
+                  card.classList.remove('delete-selected');
+                  const ind = card.querySelector('.delete-indicator');
+                  if (ind) { ind.classList.remove('selected'); ind.innerHTML = ''; }
+                }
+                const n = state.selectedForDelete.length;
+                const lbl = section.querySelector('.delete-mode-count-label');
+                if (lbl) lbl.textContent = n > 0 ? `${n} selected` : 'Select items to delete';
+                const doneSpan = section.querySelector('.btn-confirm-delete-selected span');
+                if (doneSpan) doneSpan.textContent = n > 0 ? `Done (${n})` : 'Done';
+                return;
+              }
+              if (e.target.closest('.btn-bookmark-action')) return;
+              window.open(item.url, '_blank', 'noopener,noreferrer');
+            });
+            
+            grid.appendChild(card);
+          });
+        }
+
+        bookmarksContainer.appendChild(section);
+
+        // ── Delete mode handlers ───────────────────────────────────────────
+        const deleteLinksModeBtn = section.querySelector('.btn-delete-links-mode');
+        if (deleteLinksModeBtn) {
+          deleteLinksModeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.deleteMode = true;
+            state.selectedForDelete = [];
+            renderBookmarks();
+          });
+        }
+
+        const cancelDeleteBtn = section.querySelector('.btn-cancel-delete-mode');
+        if (cancelDeleteBtn) {
+          cancelDeleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.deleteMode = false;
+            state.selectedForDelete = [];
+            renderBookmarks();
+          });
+        }
+
+        const confirmDeleteBtn = section.querySelector('.btn-confirm-delete-selected');
+        if (confirmDeleteBtn) {
+          confirmDeleteBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (state.selectedForDelete.length === 0) {
+              await showModalAlert('Please select at least one bookmark first.', 'No Selection', 'warning');
+              return;
+            }
+            const n = state.selectedForDelete.length;
+            const confirmed = await showModalConfirm(
+              `Remove <strong>${n}</strong> selected bookmark${n > 1 ? 's' : ''} from your space?`,
+              'Confirm Delete'
+            );
+            if (!confirmed) return;
+            await bulkDeleteBookmarks([...state.selectedForDelete]);
+            state.deleteMode = false;
+            state.selectedForDelete = [];
+            fetchBookmarks();
+          });
+        }
+
+        const deleteAllInFolderBtn = section.querySelector('.btn-delete-all-in-folder');
+        if (deleteAllInFolderBtn) {
+          deleteAllInFolderBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const allIds = folder.items.map(i => i.id);
+            if (allIds.length === 0) {
+              await showModalAlert('This folder is already empty.', 'Empty Folder', 'warning');
+              return;
+            }
+            const confirmed = await showModalConfirm(
+              `Remove <strong>all ${allIds.length}</strong> bookmark(s) from this folder?<br><br><span style="color:var(--accent-pink)">This cannot be undone.</span>`,
+              'Delete All'
+            );
+            if (!confirmed) return;
+            await bulkDeleteBookmarks(allIds);
+            state.deleteMode = false;
+            state.selectedForDelete = [];
+            fetchBookmarks();
+          });
+        }
+        // ──────────────────────────────────────────────────────────────────
       });
 
-      bookmarksContainer.appendChild(section);
-    });
+    } else {
+      // Shared mode: group by category
+      const grouped = {};
+      filtered.forEach(item => {
+        if (!grouped[item.category]) {
+          grouped[item.category] = [];
+        }
+        grouped[item.category].push(item);
+      });
 
-    // Attach clipboard and delete event listeners
+      const categoryOrder = ['Movies & Shows', 'Sports', 'Anime', 'Games', 'Development', 'General'];
+      const finalCategories = [...categoryOrder];
+      Object.keys(grouped).forEach(cat => {
+        if (!finalCategories.includes(cat)) {
+          finalCategories.push(cat);
+        }
+      });
+
+      finalCategories.forEach(cat => {
+        const items = grouped[cat];
+        if (!items || items.length === 0) return;
+
+        const section = document.createElement('div');
+        section.className = 'genre-section';
+
+        let iconName = 'bookmark';
+        let iconClass = 'genre-icon-general';
+        let displayTitle = cat;
+
+        if (cat === 'Movies & Shows') {
+          iconName = 'film';
+          iconClass = 'genre-icon-movies';
+        } else if (cat === 'Sports') {
+          iconName = 'tv';
+          iconClass = 'genre-icon-sports';
+          displayTitle = 'Sports Streaming';
+        } else if (cat === 'Anime') {
+          iconName = 'tv-2';
+          iconClass = 'genre-icon-anime';
+        } else if (cat === 'Games') {
+          iconName = 'gamepad-2';
+          iconClass = 'genre-icon-games';
+        } else if (cat === 'Development') {
+          iconName = 'terminal';
+          iconClass = 'genre-icon-development';
+          displayTitle = 'Coding & Tools';
+        } else if (cat === 'General') {
+          iconName = 'bookmark';
+          iconClass = 'genre-icon-general';
+          displayTitle = 'General Bookmarks';
+        } else {
+          iconName = 'link-2';
+          iconClass = 'genre-icon-general';
+        }
+
+        section.innerHTML = `
+          <div class="genre-section-header">
+            <div class="genre-title-wrapper">
+              <div class="genre-icon ${iconClass}">
+                <i data-lucide="${iconName}"></i>
+              </div>
+              <h3>${displayTitle}</h3>
+              <span class="genre-count-badge">${items.length}</span>
+            </div>
+          </div>
+          <div class="bookmarks-grid" data-category="${cat}"></div>
+        `;
+
+        const grid = section.querySelector('.bookmarks-grid');
+
+        if (isOwner && typeof Sortable !== 'undefined' && !window.collectModeActive) {
+          new Sortable(grid, {
+            group: 'bookmarks-shared-group',
+            animation: 250,
+            handle: '.drag-handle',
+            ghostClass: 'bookmark-ghost',
+            chosenClass: 'bookmark-chosen',
+            dragClass: 'bookmark-drag-active',
+            swapThreshold: 0.65,
+            onEnd: async function (evt) {
+              const itemEl = evt.item;
+              const toGrid = evt.to;
+              const bookmarkId = itemEl.getAttribute('data-id');
+              const newCategory = toGrid.getAttribute('data-category');
+
+              const prevEl = itemEl.previousElementSibling;
+              const nextEl = itemEl.nextElementSibling;
+
+              let newSortOrder = 1000;
+
+              if (prevEl && nextEl) {
+                const prevOrder = parseFloat(prevEl.getAttribute('data-sort-order'));
+                const nextOrder = parseFloat(nextEl.getAttribute('data-sort-order'));
+                newSortOrder = (prevOrder + nextOrder) / 2;
+              } else if (nextEl) {
+                const nextOrder = parseFloat(nextEl.getAttribute('data-sort-order'));
+                newSortOrder = nextOrder - 10;
+              } else if (prevEl) {
+                const prevOrder = parseFloat(prevEl.getAttribute('data-sort-order'));
+                newSortOrder = prevOrder + 10;
+              }
+
+              itemEl.setAttribute('data-sort-order', newSortOrder);
+
+              const bookmarkIndex = savedLinks.findIndex(b => b.id === bookmarkId);
+              if (bookmarkIndex !== -1) {
+                savedLinks[bookmarkIndex].category = newCategory;
+                savedLinks[bookmarkIndex].sortOrder = newSortOrder;
+              }
+
+              try {
+                const response = await fetch(`/api/links/${bookmarkId}/reorder`, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-owner-token': localStorage.getItem('owner_token') || ''
+                  },
+                  body: JSON.stringify({
+                    category: newCategory,
+                    sortOrder: newSortOrder
+                  })
+                });
+
+                if (!response.ok) {
+                  throw new Error('Failed to update bookmark order on server');
+                }
+
+                savedLinks.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+                renderBookmarks();
+              } catch (err) {
+                console.error('Failed to save bookmark order:', err);
+                fetchBookmarks();
+              }
+            }
+          });
+        }
+
+        items.forEach(item => {
+          const card = document.createElement('div');
+          
+          const isSelected = window.collectModeActive && window.selectedLinkIds.includes(item.id);
+          card.className = 'bookmark-card' + 
+            (item.hiddenByAdmin ? ' admin-hidden' : '') + 
+            (window.collectModeActive ? ' collecting' : '') +
+            (isSelected ? ' selected' : '');
+            
+          card.setAttribute('data-id', item.id);
+          card.setAttribute('data-sort-order', item.sortOrder || '0');
+          
+          const categoryClass = getCategoryColorClass(item.category);
+          const faviconHtml = getFaviconHtml(item.favicon, item.title);
+          
+          const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+          const canModify = isOwner || (item.addedBy || 'Owner').toLowerCase() === currentUser.toLowerCase();
+
+          // Collect indicator
+          const collectIndicatorHtml = window.collectModeActive ? `
+            <div class="collect-indicator">
+              ${isSelected ? '<i data-lucide="check" style="width:12px;height:12px;"></i>' : ''}
+            </div>
+          ` : '';
+
+          card.innerHTML = `
+            <div class="bookmark-card-top">
+              ${faviconHtml}
+              <div class="bookmark-info">
+                <h4 class="bookmark-title" title="${item.title}">${item.title}</h4>
+                <span class="bookmark-domain">${item.domain || 'External Link'}</span>
+                <span class="bookmark-added-by">${item.addedBy || 'Owner'}</span>
+                ${item.hiddenByAdmin ? '<span class="bookmark-hidden-badge"><i data-lucide="eye-off" style="width:10px;height:10px;"></i> Hidden</span>' : ''}
+              </div>
+              ${collectIndicatorHtml}
+            </div>
+            <div class="bookmark-mid">
+              <span class="category-tag ${categoryClass}">${item.category}</span>
+              <div class="bookmark-actions">
+                ${isOwner && !window.collectModeActive ? `
+                <div class="btn-bookmark-action drag-handle" title="Drag to Reorder" style="cursor: grab;">
+                  <i data-lucide="grip-vertical"></i>
+                </div>
+                ` : ''}
+                <button class="btn-bookmark-action btn-copy" data-url="${item.url}" title="Copy Link">
+                  <i data-lucide="copy"></i>
+                </button>
+                ${isOwner && !window.collectModeActive ? `
+                <button class="btn-bookmark-action hide-toggle-btn" data-id="${item.id}" data-hidden="${item.hiddenByAdmin ? 'true' : 'false'}" title="${item.hiddenByAdmin ? 'Unhide from guests' : 'Hide from guests'}">
+                  <i data-lucide="${item.hiddenByAdmin ? 'eye' : 'eye-off'}"></i>
+                </button>
+                <button class="btn-bookmark-action edit-btn" data-id="${item.id}" title="Edit Bookmark">
+                  <i data-lucide="edit-2"></i>
+                </button>
+                <button class="btn-bookmark-action delete" data-id="${item.id}" title="Delete Bookmark">
+                  <i data-lucide="trash-2"></i>
+                </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+
+          card.addEventListener('click', (e) => {
+            if (window.collectModeActive) {
+              e.preventDefault();
+              e.stopPropagation();
+              
+              const idx = window.selectedLinkIds.indexOf(item.id);
+              if (idx === -1) {
+                window.selectedLinkIds.push(item.id);
+                card.classList.add('selected');
+                const indicator = card.querySelector('.collect-indicator');
+                if (indicator) {
+                  indicator.innerHTML = '<i data-lucide="check" style="width:12px;height:12px;"></i>';
+                  lucide.createIcons();
+                }
+                animateLinkToBucket(card);
+              } else {
+                window.selectedLinkIds.splice(idx, 1);
+                card.classList.remove('selected');
+                const indicator = card.querySelector('.collect-indicator');
+                if (indicator) {
+                  indicator.innerHTML = '';
+                }
+              }
+              const bucketCountEl = document.getElementById('bucket-count');
+              if (bucketCountEl) {
+                bucketCountEl.textContent = window.selectedLinkIds.length;
+              }
+              return;
+            }
+
+            if (e.target.closest('.btn-bookmark-action')) {
+              return;
+            }
+            window.open(item.url, '_blank', 'noopener,noreferrer');
+          });
+
+          grid.appendChild(card);
+        });
+
+        bookmarksContainer.appendChild(section);
+      });
+    }
+
+    // Attach clipboard, edit, and delete event listeners
     bookmarksContainer.querySelectorAll('.btn-copy').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1704,7 +2265,8 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const linkId = btn.getAttribute('data-id');
-        deleteBookmark(linkId);
+        const isOwn = btn.getAttribute('data-own') !== 'false';
+        deleteBookmark(linkId, isOwn);
       });
     });
 
@@ -1718,7 +2280,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     adjustBookmarkCollapsing();
-
     lucide.createIcons();
   }
 
@@ -1878,15 +2439,24 @@ document.addEventListener('DOMContentLoaded', () => {
       const ownerToken = localStorage.getItem('owner_token');
       if (ownerToken) headers['x-owner-token'] = ownerToken;
 
-      const response = await fetch('/api/links', { headers });
+      const isOwner = document.body.classList.contains('mode-owner');
+      const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+      headers['x-user-name'] = currentUser;
+
+      const fetchMode = (window.collectModeActive && window.collectSource === 'public') ? 'shared' : currentBookmarkMode;
+      const response = await fetch(`/api/links?mode=${fetchMode}`, { headers });
       const data = await response.json();
       savedLinks = data;
       
       // Update Dashboard Link Count
-      document.getElementById('stat-links-count').textContent = savedLinks.length;
+      if (!window.collectModeActive) {
+        document.getElementById('stat-links-count').textContent = savedLinks.length;
+      }
       
       renderBookmarks();
-      renderRecentBookmarks();
+      if (!window.collectModeActive) {
+        renderRecentBookmarks();
+      }
     } catch (e) {
       console.error('Failed to load bookmarks', e);
     }
@@ -1900,6 +2470,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const titleVal = linkTitleInput.value.trim();
     const catVal = linkCategorySelect.value;
     let iconVal = linkIconSelect.value;
+    const folderVal = linkFolderInput ? linkFolderInput.value.trim() : '';
     const saveBtn = document.getElementById('btn-save-bookmark');
 
     const isOwner = document.body.classList.contains('mode-owner');
@@ -1923,6 +2494,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const addedBy = isOwner ? 'Owner' : (guestUser || 'Guest');
+      const isPrivate = (currentBookmarkMode === 'private');
 
       let response;
       if (editingLinkId) {
@@ -1933,13 +2505,33 @@ document.addEventListener('DOMContentLoaded', () => {
             'x-user-name': addedBy,
             'x-owner-token': localStorage.getItem('owner_token') || ''
           },
-          body: JSON.stringify({ linkUrl: urlVal, category: catVal, customTitle: titleVal, favicon: iconVal, addedBy })
+          body: JSON.stringify({ 
+            linkUrl: urlVal, 
+            category: catVal, 
+            customTitle: titleVal, 
+            favicon: iconVal, 
+            addedBy,
+            isPrivate,
+            folderName: folderVal
+          })
         });
       } else {
         response = await fetch('/api/links', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ linkUrl: urlVal, category: catVal, customTitle: titleVal, favicon: iconVal, addedBy })
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-user-name': addedBy,
+            'x-owner-token': localStorage.getItem('owner_token') || ''
+          },
+          body: JSON.stringify({ 
+            linkUrl: urlVal, 
+            category: catVal, 
+            customTitle: titleVal, 
+            favicon: iconVal, 
+            addedBy,
+            isPrivate,
+            folderName: folderVal
+          })
         });
       }
 
@@ -1999,14 +2591,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Delete bookmark
-  async function deleteBookmark(id) {
+  // Delete / Remove bookmark from private space
+  async function deleteBookmark(id, isOwn = true) {
     const isOwner = document.body.classList.contains('mode-owner');
-    const confirmed = await showModalConfirm('Are you sure you want to remove this bookmark?', 'Delete Bookmark');
+    const confirmMsg = (isOwner || isOwn)
+      ? 'Are you sure you want to permanently delete this bookmark?'
+      : 'Remove this bookmark from your space?<br><small style="color:var(--text-muted)">This only removes it from your view. The original owner\'s bookmark is not affected.</small>';
+    const confirmTitle = (isOwner || isOwn) ? 'Delete Bookmark' : 'Remove from My Space';
+    const confirmed = await showModalConfirm(confirmMsg, confirmTitle);
     if (!confirmed) return;
 
     try {
-      const isOwner = document.body.classList.contains('mode-owner');
       const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
       const response = await fetch(`/api/links/${id}`, { 
         method: 'DELETE',
@@ -2023,15 +2618,41 @@ document.addEventListener('DOMContentLoaded', () => {
         renderBookmarks();
         renderRecentBookmarks();
       } else if (res.error) {
-        await showModalAlert(res.error, 'Delete Error', 'error');
+        await showModalAlert(res.error, 'Error', 'error');
       }
     } catch (e) {
-      await showModalAlert('Failed to delete bookmark.', 'Delete Error', 'error');
+      await showModalAlert('Failed to remove bookmark.', 'Error', 'error');
+    }
+  }
+
+  // Bulk delete/hide bookmarks (used by delete selection mode)
+  async function bulkDeleteBookmarks(ids) {
+    if (!ids || ids.length === 0) return;
+    const isOwner = document.body.classList.contains('mode-owner');
+    const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+    try {
+      const response = await fetch('/api/bookmarks/bulk', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-name': currentUser,
+          'x-owner-token': localStorage.getItem('owner_token') || ''
+        },
+        body: JSON.stringify({ ids })
+      });
+      const data = await response.json();
+      if (data.error) {
+        await showModalAlert(data.error, 'Delete Error', 'error');
+      }
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+      await showModalAlert('Failed to remove some bookmarks.', 'Error', 'error');
     }
   }
 
   // Toggle bookmark visibility (admin hide/unhide)
   async function toggleBookmarkVisibility(id, hide) {
+
     try {
       const response = await fetch(`/api/links/${id}/visibility`, {
         method: 'PATCH',
@@ -2074,6 +2695,631 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Live search inputs
   linksSearch.addEventListener('input', renderBookmarks);
+
+  function updateBookmarkModeUI(mode) {
+    currentBookmarkMode = mode;
+    localStorage.setItem('bookmark_hub_mode', mode);
+
+    if (btnToggleBookmarkMode) {
+      if (mode === 'private') {
+        btnToggleBookmarkMode.classList.add('private-mode');
+      } else {
+        btnToggleBookmarkMode.classList.remove('private-mode');
+      }
+      btnToggleBookmarkMode.textContent = mode === 'shared' ? 'Shared' : 'Private';
+    }
+
+    const filterTabsContainer = document.querySelector('.filter-tabs');
+    if (filterTabsContainer) {
+      filterTabsContainer.style.display = 'flex'; // Keep consistent in both spaces
+    }
+
+    const btnCollectToggle = document.getElementById('btn-vault-collect-toggle');
+    if (btnCollectToggle) {
+      btnCollectToggle.style.display = mode === 'private' ? 'flex' : 'none';
+      if (mode !== 'private' && window.collectModeActive) {
+        exitCollectMode();
+      }
+    }
+
+    const collectSourceTabs = document.getElementById('collect-source-tabs');
+    if (collectSourceTabs) {
+      collectSourceTabs.style.display = 'none';
+    }
+
+    const isOwner = document.body.classList.contains('mode-owner');
+
+    // Default: hide all forms/inputs and action button active states initially when toggling modes
+    if (linksaverForm) linksaverForm.classList.add('hidden');
+    if (accessFolderForm) accessFolderForm.classList.add('hidden');
+    if (btnShowAddBookmark) {
+      btnShowAddBookmark.style.background = '';
+      btnShowAddBookmark.style.borderColor = '';
+      btnShowAddBookmark.style.color = '';
+    }
+    if (btnShowAccessFolder) {
+      btnShowAccessFolder.style.background = '';
+      btnShowAccessFolder.style.borderColor = '';
+      btnShowAccessFolder.style.color = '';
+    }
+
+    // Determine target control box element to display
+    let targetContentEl = null;
+    if (mode === 'shared') {
+      if (formGroupFolder) formGroupFolder.classList.add('hidden');
+      if (!isOwner) {
+        targetContentEl = sharedOnlyAdminNotice;
+      } else {
+        targetContentEl = toggleLinkFormBtn;
+      }
+    } else {
+      if (formGroupFolder) formGroupFolder.classList.remove('hidden');
+      targetContentEl = bookmarkSpaceActions;
+    }
+
+    // Smoothly swap active item inside control box
+    const controlContents = document.querySelectorAll('.hub-control-content');
+    controlContents.forEach(el => {
+      if (el === targetContentEl) {
+        el.classList.remove('hidden');
+        el.classList.remove('switching-out');
+      } else {
+        el.classList.add('hidden');
+        el.classList.remove('switching-out');
+      }
+    });
+  }
+
+  if (btnToggleBookmarkMode) {
+    btnToggleBookmarkMode.addEventListener('click', () => {
+      const targetMode = currentBookmarkMode === 'shared' ? 'private' : 'shared';
+      
+      // Smoothly transition toggle button text
+      btnToggleBookmarkMode.style.opacity = '0.3';
+      btnToggleBookmarkMode.style.transform = 'scale(0.95)';
+      
+      // Smoothly transition container content
+      if (bookmarksContainer) {
+        bookmarksContainer.classList.add('switching-exit');
+      }
+
+      // Smoothly transition the active control content out
+      const activeContent = document.querySelector('.hub-control-content:not(.hidden)');
+      if (activeContent) {
+        activeContent.classList.add('switching-out');
+      }
+      
+      setTimeout(async () => {
+        updateBookmarkModeUI(targetMode);
+        await fetchBookmarks();
+        
+        btnToggleBookmarkMode.style.opacity = '';
+        btnToggleBookmarkMode.style.transform = '';
+        
+        if (bookmarksContainer) {
+          bookmarksContainer.classList.remove('switching-exit');
+        }
+      }, 250);
+    });
+  }
+
+  // Initialize Collection state variables
+  window.collectModeActive = false;
+  window.selectedLinkIds = [];
+  window.collectSource = 'private';
+
+  function exitCollectMode() {
+    window.selectedLinkIds = [];
+    window.collectModeActive = false;
+    window.collectSource = 'private';
+    const btnCollectToggle = document.getElementById('btn-vault-collect-toggle');
+    if (btnCollectToggle) {
+      btnCollectToggle.innerHTML = '<i data-lucide="plus-square" style="width: 14px; height: 14px;"></i><span>Collect Links</span>';
+      btnCollectToggle.style.background = '';
+      btnCollectToggle.style.borderColor = '';
+      btnCollectToggle.style.color = '';
+    }
+    const bucketEl = document.getElementById('vault-collect-bucket');
+    if (bucketEl) {
+      bucketEl.classList.add('hidden');
+    }
+    const collectSourceTabs = document.getElementById('collect-source-tabs');
+    if (collectSourceTabs) {
+      collectSourceTabs.style.display = 'none';
+    }
+    fetchBookmarks();
+  }
+
+  function animateLinkToBucket(cardEl) {
+    const rect = cardEl.getBoundingClientRect();
+    const bucketEl = document.getElementById('vault-collect-bucket');
+    if (!bucketEl) return;
+    const bucketRect = bucketEl.getBoundingClientRect();
+
+    const particle = document.createElement('div');
+    particle.className = 'vault-collect-particle';
+    particle.style.left = `${rect.left + rect.width / 2 - 13}px`;
+    particle.style.top = `${rect.top + rect.height / 2 - 13}px`;
+    
+    const favicon = cardEl.querySelector('.bookmark-favicon img');
+    if (favicon && favicon.style.display !== 'none') {
+      particle.innerHTML = `<img src="${favicon.src}" style="width:100%; height:100%; border-radius:50%; object-fit:contain;"/>`;
+    } else {
+      particle.innerHTML = `<i data-lucide="star" style="width:14px; height:14px; color:#000;"></i>`;
+    }
+    
+    document.body.appendChild(particle);
+    if (!favicon || favicon.style.display === 'none') {
+      lucide.createIcons();
+    }
+
+    const destX = bucketRect.left + bucketRect.width / 2 - (rect.left + rect.width / 2);
+    const destY = bucketRect.top + bucketRect.height / 2 - (rect.top + rect.height / 2);
+
+    particle.animate([
+      { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+      { transform: `translate(${destX * 0.3}px, ${destY * 0.1 - 60}px) scale(1.3)`, opacity: 0.9 },
+      { transform: `translate(${destX}px, ${destY}px) scale(0.3)`, opacity: 0.3 }
+    ], {
+      duration: 800,
+      easing: 'cubic-bezier(0.25, 1, 0.50, 1)'
+    });
+
+    setTimeout(() => {
+      particle.remove();
+      bucketEl.classList.add('bounce');
+      setTimeout(() => bucketEl.classList.remove('bounce'), 300);
+    }, 780);
+  }
+
+  function populateBucketFolderSelect() {
+    const selectEl = document.getElementById('bucket-folder-select');
+    if (!selectEl) return;
+    
+    selectEl.innerHTML = '<option value="">General (No Folder)</option><option value="__new__">+ Create New Folder...</option>';
+    
+    const localFolders = new Set();
+    const isOwner = document.body.classList.contains('mode-owner');
+    const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+    
+    savedLinks.forEach(item => {
+      if (item.isPrivate && item.folderName && !item.folderKey && (item.ownerUsername || '').toLowerCase() === currentUser.toLowerCase()) {
+        localFolders.add(item.folderName);
+      }
+    });
+
+    localFolders.forEach(folderName => {
+      const option = document.createElement('option');
+      option.value = folderName;
+      option.textContent = folderName;
+      selectEl.appendChild(option);
+    });
+  }
+
+  const btnCollectToggle = document.getElementById('btn-vault-collect-toggle');
+  if (btnCollectToggle) {
+    btnCollectToggle.addEventListener('click', () => {
+      if (window.collectModeActive) {
+        exitCollectMode();
+      } else {
+        window.collectModeActive = true;
+        window.selectedLinkIds = [];
+        window.collectSource = 'private'; // default to LinkFolder
+        btnCollectToggle.innerHTML = '<i data-lucide="x" style="width: 14px; height: 14px;"></i><span>Exit Collect</span>';
+        btnCollectToggle.style.background = 'var(--accent-cyan)';
+        btnCollectToggle.style.borderColor = 'var(--accent-cyan)';
+        btnCollectToggle.style.color = '#000';
+        
+        populateBucketFolderSelect();
+        
+        const bucketEl = document.getElementById('vault-collect-bucket');
+        if (bucketEl) {
+          bucketEl.classList.remove('hidden');
+          const bucketCountEl = document.getElementById('bucket-count');
+          if (bucketCountEl) {
+            bucketCountEl.textContent = '0';
+          }
+        }
+
+        const collectSourceTabs = document.getElementById('collect-source-tabs');
+        if (collectSourceTabs) {
+          collectSourceTabs.style.display = 'flex';
+          const btnPrivate = document.getElementById('btn-collect-src-private');
+          const btnPublic = document.getElementById('btn-collect-src-public');
+          if (btnPrivate) btnPrivate.classList.add('active');
+          if (btnPublic) btnPublic.classList.remove('active');
+        }
+
+        renderBookmarks();
+      }
+      lucide.createIcons();
+    });
+  }
+
+  // Collect Source Tab Event Listeners
+  const btnCollectSrcPrivate = document.getElementById('btn-collect-src-private');
+  const btnCollectSrcPublic = document.getElementById('btn-collect-src-public');
+
+  if (btnCollectSrcPrivate) {
+    btnCollectSrcPrivate.addEventListener('click', () => {
+      if (!window.collectModeActive) return;
+      window.collectSource = 'private';
+      btnCollectSrcPrivate.classList.add('active');
+      if (btnCollectSrcPublic) btnCollectSrcPublic.classList.remove('active');
+      fetchBookmarks();
+    });
+  }
+
+  if (btnCollectSrcPublic) {
+    btnCollectSrcPublic.addEventListener('click', () => {
+      if (!window.collectModeActive) return;
+      window.collectSource = 'public';
+      btnCollectSrcPublic.classList.add('active');
+      if (btnCollectSrcPrivate) btnCollectSrcPrivate.classList.remove('active');
+      fetchBookmarks();
+    });
+  }
+
+  const bucketFolderSelect = document.getElementById('bucket-folder-select');
+  if (bucketFolderSelect) {
+    bucketFolderSelect.addEventListener('change', async () => {
+      if (bucketFolderSelect.value === '__new__') {
+        const newFolderName = await showModalPrompt('Enter name for the new folder:', 'Create New Folder');
+        if (newFolderName && newFolderName.trim()) {
+          const opt = document.createElement('option');
+          opt.value = newFolderName.trim();
+          opt.textContent = newFolderName.trim();
+          bucketFolderSelect.appendChild(opt);
+          bucketFolderSelect.value = newFolderName.trim();
+        } else {
+          bucketFolderSelect.value = '';
+        }
+      }
+    });
+  }
+
+  const btnBucketCancel = document.getElementById('btn-bucket-cancel');
+  if (btnBucketCancel) {
+    btnBucketCancel.addEventListener('click', exitCollectMode);
+  }
+
+  const btnBucketDone = document.getElementById('btn-bucket-done');
+  if (btnBucketDone) {
+    btnBucketDone.addEventListener('click', async () => {
+      if (window.selectedLinkIds.length === 0) {
+        await showModalAlert('Please select at least one link to collect.', 'No Links Selected', 'warning');
+        return;
+      }
+      
+      const targetFolder = bucketFolderSelect.value === '__new__' ? '' : bucketFolderSelect.value;
+      btnBucketDone.disabled = true;
+      try {
+        const isOwner = document.body.classList.contains('mode-owner');
+        const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+
+        const response = await fetch('/api/links/copy-batch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-name': currentUser
+          },
+          body: JSON.stringify({
+            linkIds: window.selectedLinkIds,
+            folderName: targetFolder || null
+          })
+        });
+
+        const data = await response.json();
+        btnBucketDone.disabled = false;
+
+        if (data.error) {
+          await showModalAlert(data.error, 'Sync Error', 'error');
+          return;
+        }
+
+        await showModalAlert(`Successfully synced ${data.count} links to private folder "${targetFolder || 'General'}"!`, 'Links Synced', 'success');
+        exitCollectMode();
+        fetchBookmarks();
+      } catch (err) {
+        btnBucketDone.disabled = false;
+        console.error('Batch sync error:', err);
+        await showModalAlert('Failed to sync links to private space.', 'Sync Error', 'error');
+      }
+    });
+  }
+
+  // Toggle dropdown forms in Private Space
+  if (btnShowAddBookmark) {
+    btnShowAddBookmark.addEventListener('click', () => {
+      if (editingLinkId) {
+        cancelEditBookmark();
+        return;
+      }
+      
+      linksaverForm.classList.toggle('hidden');
+      accessFolderForm.classList.add('hidden');
+
+      if (linksaverForm.classList.contains('hidden')) {
+        btnShowAddBookmark.style.background = '';
+        btnShowAddBookmark.style.borderColor = '';
+        btnShowAddBookmark.style.color = '';
+      } else {
+        btnShowAddBookmark.style.background = 'var(--accent-cyan)';
+        btnShowAddBookmark.style.borderColor = 'var(--accent-cyan)';
+        btnShowAddBookmark.style.color = '#fff';
+      }
+      btnShowAccessFolder.style.background = '';
+      btnShowAccessFolder.style.borderColor = '';
+      btnShowAccessFolder.style.color = '';
+    });
+  }
+
+  if (btnShowAccessFolder) {
+    btnShowAccessFolder.addEventListener('click', () => {
+      accessFolderForm.classList.toggle('hidden');
+      linksaverForm.classList.add('hidden');
+
+      if (accessFolderForm.classList.contains('hidden')) {
+        btnShowAccessFolder.style.background = '';
+        btnShowAccessFolder.style.borderColor = '';
+        btnShowAccessFolder.style.color = '';
+      } else {
+        btnShowAccessFolder.style.background = 'var(--accent-cyan)';
+        btnShowAccessFolder.style.borderColor = 'var(--accent-cyan)';
+        btnShowAccessFolder.style.color = '#fff';
+      }
+      btnShowAddBookmark.style.background = '';
+      btnShowAddBookmark.style.borderColor = '';
+      btnShowAddBookmark.style.color = '';
+    });
+  }
+
+  // Import shared folder using linkKey
+  if (btnImportFolder) {
+    btnImportFolder.addEventListener('click', async () => {
+      const keyVal = folderKeyInput.value.trim();
+      if (!keyVal) {
+        await showModalAlert('Please enter a folder sharing key (linkKey).', 'Import Folder', 'warning');
+        return;
+      }
+
+      btnImportFolder.disabled = true;
+      btnImportFolder.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 16px; height: 16px;"></i> <span>Importing...</span>';
+      lucide.createIcons();
+
+      try {
+        const isOwner = document.body.classList.contains('mode-owner');
+        const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+
+        const response = await fetch('/api/folders/save', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-name': currentUser
+          },
+          body: JSON.stringify({ linkKey: keyVal })
+        });
+        const data = await response.json();
+
+        btnImportFolder.disabled = false;
+        btnImportFolder.innerHTML = '<i data-lucide="download" style="width: 16px; height: 16px;"></i> <span>Import Folder</span>';
+        lucide.createIcons();
+
+        if (data.error) {
+          await showModalAlert(data.error, 'Import Folder Error', 'error');
+          return;
+        }
+
+        folderKeyInput.value = '';
+        await showModalAlert(`Successfully imported shared folder "${data.folderName}" (Shared by ${data.ownerUsername})!`, 'Import Folder', 'success');
+        fetchBookmarks();
+      } catch (err) {
+        btnImportFolder.disabled = false;
+        btnImportFolder.innerHTML = '<i data-lucide="download" style="width: 16px; height: 16px;"></i> <span>Import Folder</span>';
+        lucide.createIcons();
+        console.error('Import folder error:', err);
+        await showModalAlert('Failed to import shared folder. Make sure the key is valid.', 'Import Folder Error', 'error');
+      }
+    });
+  }
+
+  // Delegate folder action events: share, unsave, click to copy key
+  bookmarksContainer.addEventListener('click', async (e) => {
+    // Clear all general (unfiled) bookmarks
+    const clearGeneralBtn = e.target.closest('.btn-clear-general');
+    if (clearGeneralBtn) {
+      const confirmed = await showModalConfirm(
+        'Are you sure you want to delete <strong>all unfiled bookmarks</strong> in the General Bookmarks section?<br><br><span style="color: var(--accent-pink);">This action cannot be undone.</span>',
+        'Clear All General Bookmarks'
+      );
+      if (!confirmed) return;
+
+      clearGeneralBtn.disabled = true;
+      try {
+        const isOwner = document.body.classList.contains('mode-owner');
+        const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+        const ownerToken = localStorage.getItem('owner_token');
+        const headers = { 'x-user-name': currentUser };
+        if (ownerToken) headers['x-owner-token'] = ownerToken;
+
+        const response = await fetch('/api/bookmarks/clear-general', {
+          method: 'DELETE',
+          headers
+        });
+        const data = await response.json();
+        clearGeneralBtn.disabled = false;
+
+        if (data.error) {
+          await showModalAlert(data.error, 'Clear Error', 'error');
+          return;
+        }
+
+        await showModalAlert(`All unfiled bookmarks have been removed (${data.count} deleted).`, 'Clear General Bookmarks', 'success');
+        fetchBookmarks();
+      } catch (err) {
+        clearGeneralBtn.disabled = false;
+        console.error('Clear general bookmarks error:', err);
+        await showModalAlert('Failed to clear general bookmarks.', 'Clear Error', 'error');
+      }
+      return;
+    }
+
+    const deleteFolderBtn = e.target.closest('.btn-delete-folder');
+    if (deleteFolderBtn) {
+      const folderName = deleteFolderBtn.getAttribute('data-folder');
+      const confirmed = await showModalConfirm(`Are you sure you want to delete the folder "${folderName}"?<br><br><span style="color: var(--accent-pink);">Warning: This will delete all bookmarks inside this folder!</span>`, 'Delete Folder');
+      if (!confirmed) return;
+
+      deleteFolderBtn.disabled = true;
+      try {
+        const isOwner = document.body.classList.contains('mode-owner');
+        const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+        const ownerToken = localStorage.getItem('owner_token');
+        const headers = {
+          'x-user-name': currentUser
+        };
+        if (ownerToken) headers['x-owner-token'] = ownerToken;
+
+        const response = await fetch(`/api/folders?folderName=${encodeURIComponent(folderName)}`, {
+          method: 'DELETE',
+          headers: headers
+        });
+        const data = await response.json();
+        deleteFolderBtn.disabled = false;
+
+        if (data.error) {
+          await showModalAlert(data.error, 'Delete Folder Error', 'error');
+          return;
+        }
+
+        await showModalAlert(`Folder "${folderName}" and all its bookmarks have been deleted.`, 'Delete Folder Success', 'success');
+        fetchBookmarks();
+      } catch (err) {
+        deleteFolderBtn.disabled = false;
+        console.error('Delete folder error:', err);
+        await showModalAlert('Failed to delete folder.', 'Delete Folder Error', 'error');
+      }
+      return;
+    }
+
+    const shareBtn = e.target.closest('.btn-share-folder');
+    if (shareBtn) {
+      const folderName = shareBtn.getAttribute('data-folder');
+      shareBtn.disabled = true;
+      try {
+        const isOwner = document.body.classList.contains('mode-owner');
+        const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+
+        const response = await fetch('/api/folders/share', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-name': currentUser
+          },
+          body: JSON.stringify({ folderName })
+        });
+        const data = await response.json();
+        shareBtn.disabled = false;
+
+        if (data.error) {
+          await showModalAlert(data.error, 'Share Folder Error', 'error');
+          return;
+        }
+
+        if (data.linkKey) {
+          await navigator.clipboard.writeText(data.linkKey);
+          await showModalAlert(`Folder shared successfully!<br><br>Sharing Key: <strong>${data.linkKey}</strong><br><br>The key has been copied to your clipboard. Share it with your friends to give them access!`, 'Share Folder', 'success');
+          fetchBookmarks();
+        }
+      } catch (err) {
+        shareBtn.disabled = false;
+        console.error('Share folder error:', err);
+        await showModalAlert('Failed to generate folder sharing key.', 'Share Folder Error', 'error');
+      }
+      return;
+    }
+
+    const cloneBtn = e.target.closest('.btn-clone-folder');
+    if (cloneBtn) {
+      const folderKey = cloneBtn.getAttribute('data-key');
+      const defaultName = cloneBtn.getAttribute('data-name');
+      const targetFolderName = await showModalPrompt('Clone Folder: All links in this shared folder will be copied into a local private folder of your own so you can edit or delete them.\n\nEnter new target folder name:', 'Clone Folder', defaultName);
+      if (!targetFolderName || !targetFolderName.trim()) return;
+
+      cloneBtn.disabled = true;
+      try {
+        const isOwner = document.body.classList.contains('mode-owner');
+        const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+
+        const response = await fetch('/api/folders/clone', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-name': currentUser
+          },
+          body: JSON.stringify({ folderKey, targetFolderName: targetFolderName.trim() })
+        });
+        const data = await response.json();
+        cloneBtn.disabled = false;
+
+        if (data.error) {
+          await showModalAlert(data.error, 'Clone Folder Error', 'error');
+          return;
+        }
+
+        await showModalAlert(`Folder successfully cloned to "${targetFolderName.trim()}"! Copied ${data.count} bookmarks.`, 'Clone Folder Success', 'success');
+        fetchBookmarks();
+      } catch (err) {
+        cloneBtn.disabled = false;
+        console.error('Clone folder error:', err);
+        await showModalAlert('Failed to clone shared folder.', 'Clone Folder Error', 'error');
+      }
+      return;
+    }
+
+    const unsaveBtn = e.target.closest('.btn-unsave-folder');
+    if (unsaveBtn) {
+      const keyVal = unsaveBtn.getAttribute('data-key');
+      const confirmed = await showModalConfirm('Unsubscribe from this shared folder? It will remove it from your bookmarks list.', 'Unsubscribe Folder');
+      if (!confirmed) return;
+
+      unsaveBtn.disabled = true;
+      try {
+        const isOwner = document.body.classList.contains('mode-owner');
+        const currentUser = isOwner ? 'Owner' : (guestUser || 'Guest');
+
+        const response = await fetch('/api/folders/unsave', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-name': currentUser
+          },
+          body: JSON.stringify({ linkKey: keyVal })
+        });
+        const data = await response.json();
+        unsaveBtn.disabled = false;
+
+        if (data.error) {
+          await showModalAlert(data.error, 'Unsubscribe Error', 'error');
+          return;
+        }
+
+        fetchBookmarks();
+      } catch (err) {
+        unsaveBtn.disabled = false;
+        console.error('Unsave folder error:', err);
+        await showModalAlert('Failed to unsubscribe from folder.', 'Unsubscribe Error', 'error');
+      }
+      return;
+    }
+
+    const badgeCopy = e.target.closest('[data-key]');
+    if (badgeCopy && badgeCopy.classList.contains('bookmark-folder-badge')) {
+      const keyVal = badgeCopy.getAttribute('data-key');
+      await navigator.clipboard.writeText(keyVal);
+      await showModalAlert(`Sharing key <strong>${keyVal}</strong> copied to clipboard!`, 'Copy Key', 'success');
+    }
+  });
 
 
 
@@ -4195,8 +5441,14 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchUserProfile();
   }
 
+  const savedBookmarkMode = localStorage.getItem('bookmark_hub_mode') || 'shared';
+  updateBookmarkModeUI(savedBookmarkMode);
+
   // 2. Initial load of bookmarks
   fetchBookmarks();
+
+  // Wire account page inline auth forms
+  wireAccountAuthForms();
 
   // 3. Restore active view
   const savedView = localStorage.getItem('active_view') || 'dashboard';
@@ -6719,7 +7971,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (brianAuthLandingView) brianAuthLandingView.style.display = 'none';
       if (brianChatWrapperPanel) brianChatWrapperPanel.style.display = 'flex';
       syncBrianIdentity();
-      loadConversationsList(false);
+      loadConversationsList(true);
     } else {
       if (brianAuthLandingView) brianAuthLandingView.style.display = 'flex';
       if (brianChatWrapperPanel) brianChatWrapperPanel.style.display = 'none';
@@ -6984,7 +8236,2147 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial load
   checkBrianAuth();
-  loadConversationsList(true);
+
+  // --- Tool Vault & Apple spring animation logic ---
+  const vaultCard = document.getElementById('dash-card-vault');
+  const vaultOverlay = document.getElementById('tool-vault-overlay');
+  const vaultWindow = vaultOverlay ? vaultOverlay.querySelector('.tool-vault-window') : null;
+  const btnCloseVault = document.getElementById('btn-close-vault');
+
+  function openVaultOverlay() {
+    if (!vaultCard || !vaultOverlay || !vaultWindow) return;
+    
+    const rect = vaultCard.getBoundingClientRect();
+    const folderPreview = vaultCard.querySelector('.dash-card-folder-preview');
+    const previewRect = folderPreview ? folderPreview.getBoundingClientRect() : rect;
+
+    const centerX = previewRect.left + previewRect.width / 2;
+    const centerY = previewRect.top + previewRect.height / 2;
+    
+    const windowWidth = 420;
+    const windowHeight = 280; // Default estimate
+    
+    const overlayCenterX = window.innerWidth / 2;
+    const overlayCenterY = window.innerHeight / 2;
+    
+    const dx = centerX - overlayCenterX;
+    const dy = centerY - overlayCenterY;
+    
+    const scaleX = previewRect.width / windowWidth;
+    const scaleY = previewRect.height / windowHeight;
+    const scale = Math.min(scaleX, scaleY) || 0.15;
+
+    vaultWindow.style.transition = 'none';
+    vaultWindow.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${scale})`;
+    vaultWindow.style.opacity = '0';
+    
+    // Force reflow
+    vaultWindow.offsetHeight;
+    
+    vaultOverlay.classList.remove('hidden');
+    // Force reflow
+    vaultOverlay.offsetHeight;
+    vaultOverlay.classList.add('active');
+    
+    vaultWindow.style.transition = 'transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s';
+    vaultWindow.style.transform = 'translate3d(0, 0, 0) scale(1)';
+    vaultWindow.style.opacity = '1';
+  }
+
+  function closeVaultOverlay() {
+    if (!vaultCard || !vaultOverlay || !vaultWindow) return;
+    
+    const rect = vaultCard.getBoundingClientRect();
+    const folderPreview = vaultCard.querySelector('.dash-card-folder-preview');
+    const previewRect = folderPreview ? folderPreview.getBoundingClientRect() : rect;
+    
+    const centerX = previewRect.left + previewRect.width / 2;
+    const centerY = previewRect.top + previewRect.height / 2;
+    
+    const windowWidth = 420;
+    const windowHeight = vaultWindow.offsetHeight || 280;
+    
+    const overlayCenterX = window.innerWidth / 2;
+    const overlayCenterY = window.innerHeight / 2;
+    
+    const dx = centerX - overlayCenterX;
+    const dy = centerY - overlayCenterY;
+    
+    const scaleX = previewRect.width / windowWidth;
+    const scaleY = previewRect.height / windowHeight;
+    const scale = Math.min(scaleX, scaleY) || 0.15;
+
+    vaultOverlay.classList.remove('active');
+    vaultWindow.style.transition = 'transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.25s';
+    vaultWindow.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${scale})`;
+    vaultWindow.style.opacity = '0';
+    
+    setTimeout(() => {
+      vaultOverlay.classList.add('hidden');
+    }, 350);
+  }
+
+  if (vaultCard) {
+    vaultCard.addEventListener('click', openVaultOverlay);
+  }
+  
+  if (btnCloseVault) {
+    btnCloseVault.addEventListener('click', closeVaultOverlay);
+  }
+  
+  if (vaultOverlay) {
+    vaultOverlay.addEventListener('click', (e) => {
+      if (e.target === vaultOverlay) {
+        closeVaultOverlay();
+      }
+    });
+  }
+
+  // Vault app items click events
+  document.querySelectorAll('.vault-app-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const app = item.getAttribute('data-app');
+      closeVaultOverlay();
+      setTimeout(() => {
+        switchView(app);
+      }, 200); // Wait for transition out slightly
+    });
+  });
+
+  document.querySelectorAll('.standalone-app-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const app = card.getAttribute('data-app');
+      switchView(app);
+    });
+  });
+
+  document.querySelectorAll('.btn-back[data-action="go-to-vault"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      switchView('vault');
+    });
+  });
+
+
+  // --- 1. QR Code Tool Javascript Logic ---
+  const tabQrGen = document.getElementById('tab-qr-gen');
+  const tabQrScan = document.getElementById('tab-qr-scan');
+  const qrGenSection = document.getElementById('qr-generator-section');
+  const qrScanSection = document.getElementById('qr-scanner-section');
+
+  const qrTextInput = document.getElementById('qr-text');
+  const qrFgColor = document.getElementById('qr-fg-color');
+  const qrBgColor = document.getElementById('qr-bg-color');
+  const qrSizeSlider = document.getElementById('qr-size-slider');
+  const qrSizeVal = document.getElementById('qr-size-val');
+  const btnGenerateQr = document.getElementById('btn-generate-qr');
+  const qrCanvasHolder = document.getElementById('qr-canvas-holder');
+  const btnDownloadQr = document.getElementById('btn-download-qr');
+
+  const qrScanDropzone = document.getElementById('qr-scan-dropzone');
+  const qrFileInput = document.getElementById('qr-file-input');
+  const qrScanResultCard = document.getElementById('qr-scan-result-card');
+  const qrDecodedText = document.getElementById('qr-decoded-text');
+  const btnCopyQrText = document.getElementById('btn-copy-qr-text');
+
+  // Hex color labels update
+  function updateHexLabel(inputEl) {
+    const label = inputEl.nextElementSibling;
+    if (label && label.classList.contains('color-val-hex')) {
+      label.textContent = inputEl.value.toUpperCase();
+    }
+  }
+
+  if (qrFgColor) {
+    qrFgColor.addEventListener('input', () => updateHexLabel(qrFgColor));
+  }
+  if (qrBgColor) {
+    qrBgColor.addEventListener('input', () => updateHexLabel(qrBgColor));
+  }
+
+  // QR tabs switching
+  if (tabQrGen && tabQrScan) {
+    tabQrGen.addEventListener('click', () => {
+      tabQrGen.classList.add('active');
+      tabQrScan.classList.remove('active');
+      qrGenSection.classList.remove('hidden');
+      qrScanSection.classList.add('hidden');
+    });
+    tabQrScan.addEventListener('click', () => {
+      tabQrScan.classList.add('active');
+      tabQrGen.classList.remove('active');
+      qrScanSection.classList.remove('hidden');
+      qrGenSection.classList.add('hidden');
+    });
+  }
+
+  // Size slider update
+  if (qrSizeSlider && qrSizeVal) {
+    qrSizeSlider.addEventListener('input', () => {
+      qrSizeVal.textContent = `${qrSizeSlider.value}px`;
+    });
+  }
+
+  // QR Code Generation
+  if (btnGenerateQr) {
+    btnGenerateQr.addEventListener('click', () => {
+      const text = qrTextInput.value.trim();
+      if (!text) {
+        showModalAlert('Please enter some text or URL to generate QR code.', 'Input Required', 'warning');
+        return;
+      }
+
+      const size = parseInt(qrSizeSlider.value, 10);
+      const fg = qrFgColor.value;
+      const bg = qrBgColor.value;
+
+      qrCanvasHolder.innerHTML = '';
+      const canvas = document.createElement('canvas');
+
+      if (typeof QRCode !== 'undefined') {
+        QRCode.toCanvas(canvas, text, {
+          width: size,
+          margin: 2,
+          color: {
+            dark: fg,
+            light: bg
+          }
+        }, function (error) {
+          if (error) {
+            console.error('QR code generation failed:', error);
+            showModalAlert('Failed to generate QR Code.', 'Generation Error', 'error');
+            return;
+          }
+          qrCanvasHolder.appendChild(canvas);
+          btnDownloadQr.classList.remove('hidden');
+        });
+      } else {
+        showModalAlert('QR Code library is not loaded yet.', 'Library Missing', 'error');
+      }
+    });
+  }
+
+  // Download QR Code
+  if (btnDownloadQr) {
+    btnDownloadQr.addEventListener('click', () => {
+      const canvas = qrCanvasHolder.querySelector('canvas');
+      if (!canvas) return;
+      
+      const link = document.createElement('a');
+      link.download = 'qrcode.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  }
+
+  // QR Scanner dropzone click & select file
+  if (qrScanDropzone && qrFileInput) {
+    qrScanDropzone.addEventListener('click', () => {
+      qrFileInput.click();
+    });
+
+    qrScanDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      qrScanDropzone.classList.add('dragover');
+    });
+
+    qrScanDropzone.addEventListener('dragleave', () => {
+      qrScanDropzone.classList.remove('dragover');
+    });
+
+    qrScanDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      qrScanDropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        qrFileInput.files = e.dataTransfer.files;
+        handleQrScanFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    qrFileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleQrScanFile(e.target.files[0]);
+      }
+    });
+  }
+
+  function handleQrScanFile(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      showModalAlert('Please select a valid image file.', 'Invalid Format', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const imgData = ctx.getImageData(0, 0, img.width, img.height);
+        if (typeof jsQR !== 'undefined') {
+          const code = jsQR(imgData.data, imgData.width, imgData.height);
+          if (code) {
+            qrDecodedText.textContent = code.data;
+            qrScanResultCard.classList.remove('hidden');
+          } else {
+            qrScanResultCard.classList.add('hidden');
+            showModalAlert('No readable QR code found in this image. Make sure the QR code is centered and clear.', 'Scan Failed', 'info');
+          }
+        } else {
+          showModalAlert('Scanner library is not loaded yet.', 'Library Missing', 'error');
+        }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Copy Decoded Text
+  if (btnCopyQrText) {
+    btnCopyQrText.addEventListener('click', () => {
+      const txt = qrDecodedText.textContent;
+      if (!txt) return;
+      navigator.clipboard.writeText(txt).then(() => {
+        const icon = btnCopyQrText.querySelector('i');
+        if (icon) {
+          icon.setAttribute('data-lucide', 'check');
+          lucide.createIcons();
+          setTimeout(() => {
+            icon.setAttribute('data-lucide', 'copy');
+            lucide.createIcons();
+          }, 1500);
+        }
+      });
+    });
+  }
+
+
+  // --- 2. Password Generator Logic ---
+  const pwOutput = document.getElementById('pw-output');
+  const btnRegeneratePw = document.getElementById('btn-regenerate-pw');
+  const btnCopyPw = document.getElementById('btn-copy-pw');
+  const pwStrengthLabel = document.getElementById('pw-strength-label');
+  const pwStrengthBarFill = document.getElementById('pw-strength-bar-fill');
+  const pwLengthSlider = document.getElementById('pw-length');
+  const pwLengthVal = document.getElementById('pw-length-val');
+
+  const pwIncludeUpper = document.getElementById('pw-include-upper');
+  const pwIncludeLower = document.getElementById('pw-include-lower');
+  const pwIncludeNums = document.getElementById('pw-include-nums');
+  const pwIncludeSymbols = document.getElementById('pw-include-symbols');
+  const pwExcludeSimilar = document.getElementById('pw-exclude-similar');
+
+  function generatePassword() {
+    if (!pwOutput) return;
+
+    const length = parseInt(pwLengthSlider.value, 10);
+    const hasUpper = pwIncludeUpper.checked;
+    const hasLower = pwIncludeLower.checked;
+    const hasNums = pwIncludeNums.checked;
+    const hasSymbols = pwIncludeSymbols.checked;
+    const excludeSimilar = pwExcludeSimilar.checked;
+
+    const upperChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowerChars = 'abcdefghijklmnopqrstuvwxyz';
+    const numChars = '0123456789';
+    const symbolChars = '!@#$%^&*()_+~|}{[]:;?><,./-=';
+
+    let charPool = '';
+    if (hasUpper) charPool += upperChars;
+    if (hasLower) charPool += lowerChars;
+    if (hasNums) charPool += numChars;
+    if (hasSymbols) charPool += symbolChars;
+
+    if (excludeSimilar) {
+      charPool = charPool.replace(/[il1Lo0OI|`~]/g, '');
+    }
+
+    if (!charPool) {
+      pwOutput.value = '';
+      pwStrengthLabel.textContent = 'None';
+      pwStrengthLabel.className = '';
+      pwStrengthBarFill.style.width = '0%';
+      pwStrengthBarFill.className = 'strength-bar-fill';
+      return;
+    }
+
+    let password = '';
+    const array = new Uint32Array(length);
+    window.crypto.getRandomValues(array);
+
+    for (let i = 0; i < length; i++) {
+      password += charPool[array[i] % charPool.length];
+    }
+
+    pwOutput.value = password;
+    evaluatePasswordStrength(password, length, hasUpper, hasLower, hasNums, hasSymbols);
+  }
+
+  function evaluatePasswordStrength(password, length, hasUpper, hasLower, hasNums, hasSymbols) {
+    let score = 0;
+    if (length >= 8) score += 1;
+    if (length >= 12) score += 1;
+    if (length >= 16) score += 1;
+
+    let diversityCount = 0;
+    if (hasUpper) diversityCount++;
+    if (hasLower) diversityCount++;
+    if (hasNums) diversityCount++;
+    if (hasSymbols) diversityCount++;
+    score += (diversityCount - 1);
+
+    if (score < 2) {
+      pwStrengthLabel.textContent = 'Weak';
+      pwStrengthLabel.className = 'strength-weak';
+      pwStrengthBarFill.style.width = '25%';
+      pwStrengthBarFill.className = 'strength-bar-fill strength-weak';
+    } else if (score < 4) {
+      pwStrengthLabel.textContent = 'Medium';
+      pwStrengthLabel.className = 'strength-medium';
+      pwStrengthBarFill.style.width = '50%';
+      pwStrengthBarFill.className = 'strength-bar-fill strength-medium';
+    } else if (score < 6) {
+      pwStrengthLabel.textContent = 'Strong';
+      pwStrengthLabel.className = 'strength-strong';
+      pwStrengthBarFill.style.width = '75%';
+      pwStrengthBarFill.className = 'strength-bar-fill strength-strong';
+    } else {
+      pwStrengthLabel.textContent = 'Secure';
+      pwStrengthLabel.className = 'strength-secure';
+      pwStrengthBarFill.style.width = '100%';
+      pwStrengthBarFill.className = 'strength-bar-fill strength-secure';
+    }
+  }
+
+  if (pwLengthSlider && pwLengthVal) {
+    pwLengthSlider.addEventListener('input', () => {
+      pwLengthVal.textContent = pwLengthSlider.value;
+      generatePassword();
+    });
+  }
+
+  [pwIncludeUpper, pwIncludeLower, pwIncludeNums, pwIncludeSymbols, pwExcludeSimilar].forEach(box => {
+    if (box) box.addEventListener('change', generatePassword);
+  });
+
+  if (btnRegeneratePw) {
+    btnRegeneratePw.addEventListener('click', generatePassword);
+  }
+
+  if (btnCopyPw) {
+    btnCopyPw.addEventListener('click', () => {
+      const pw = pwOutput.value;
+      if (!pw) return;
+      
+      navigator.clipboard.writeText(pw).then(() => {
+        const originalText = btnCopyPw.innerHTML;
+        btnCopyPw.innerHTML = '<i data-lucide="check"></i><span>Copied!</span>';
+        btnCopyPw.style.background = 'var(--accent-green)';
+        lucide.createIcons();
+        
+        setTimeout(() => {
+          btnCopyPw.innerHTML = originalText;
+          btnCopyPw.style.background = '';
+          lucide.createIcons();
+        }, 1500);
+      });
+    });
+  }
+
+  const pwGenBtn = document.querySelector('[data-app="password-gen"]');
+  if (pwGenBtn) {
+    pwGenBtn.addEventListener('click', () => {
+      setTimeout(generatePassword, 250);
+    });
+  }
+  const sidePwGenBtn = document.querySelector('.standalone-app-card[data-app="password-gen"]');
+  if (sidePwGenBtn) {
+    sidePwGenBtn.addEventListener('click', () => {
+      setTimeout(generatePassword, 250);
+    });
+  }
+
+
+  // --- 3. Image Optimizer Logic ---
+  const imgDropzone = document.getElementById('img-dropzone');
+  const imgFileInput = document.getElementById('img-file-input');
+  const imgSettingsSection = document.getElementById('img-settings-section');
+  const imgWidthInput = document.getElementById('img-width');
+  const imgHeightInput = document.getElementById('img-height');
+  const imgLockAspect = document.getElementById('img-lock-aspect');
+  const imgFormatSelect = document.getElementById('img-format');
+  const imgQualitySlider = document.getElementById('img-quality');
+  const imgQualityVal = document.getElementById('img-quality-val');
+  const btnOptimizeImg = document.getElementById('btn-optimize-img');
+  const imgPreviewHolder = document.getElementById('img-preview-holder');
+
+  const imgMetaInfo = document.getElementById('img-meta-info');
+  const imgOrigSize = document.getElementById('img-orig-size');
+  const imgNewSize = document.getElementById('img-new-size');
+  const imgReductionPct = document.getElementById('img-reduction-pct');
+  const btnDownloadImg = document.getElementById('btn-download-img');
+
+  const btnCropMode = document.getElementById('btn-crop-mode');
+  const btnCropApply = document.getElementById('btn-crop-apply');
+  const btnCropCancel = document.getElementById('btn-crop-cancel');
+  const cropAspectRatios = document.getElementById('crop-aspect-ratios');
+  const btnResetImg = document.getElementById('btn-reset-img');
+
+  let loadedImage = null;
+  let originalWidth = 0;
+  let originalHeight = 0;
+  let originalSize = 0;
+  let originalFileName = 'image';
+  let optimizedBlob = null;
+
+  let cropperInstance = null;
+  let backupImageSrc = null;
+  let backupWidth = 0;
+  let backupHeight = 0;
+  let backupSize = 0;
+
+  if (imgDropzone && imgFileInput) {
+    imgDropzone.addEventListener('click', () => imgFileInput.click());
+
+    imgDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      imgDropzone.classList.add('dragover');
+    });
+
+    imgDropzone.addEventListener('dragleave', () => {
+      imgDropzone.classList.remove('dragover');
+    });
+
+    imgDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      imgDropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        imgFileInput.files = e.dataTransfer.files;
+        handleImageFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    imgFileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleImageFile(e.target.files[0]);
+      }
+    });
+  }
+
+  function handleImageFile(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      showModalAlert('Please select a valid image file.', 'Invalid Format', 'warning');
+      return;
+    }
+
+    // Clean up any active cropper
+    cancelCrop();
+
+    originalSize = file.size;
+    originalFileName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+    imgOrigSize.textContent = formatBytes(originalSize);
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        loadedImage = img;
+        originalWidth = img.width;
+        originalHeight = img.height;
+
+        // Set backup variables for reset capability
+        backupImageSrc = e.target.result;
+        backupWidth = img.width;
+        backupHeight = img.height;
+        backupSize = file.size;
+
+        imgWidthInput.value = img.width;
+        imgHeightInput.value = img.height;
+
+        imgPreviewHolder.innerHTML = '';
+        const previewImg = document.createElement('img');
+        previewImg.src = e.target.result;
+        imgPreviewHolder.appendChild(previewImg);
+
+        imgSettingsSection.classList.remove('hidden');
+        imgMetaInfo.classList.add('hidden');
+        btnDownloadImg.classList.add('hidden');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Cancel Crop function
+  function cancelCrop() {
+    if (cropperInstance) {
+      cropperInstance.destroy();
+      cropperInstance = null;
+    }
+    if (btnCropMode) btnCropMode.classList.remove('hidden');
+    if (btnCropApply) btnCropApply.classList.add('hidden');
+    if (btnCropCancel) btnCropCancel.classList.add('hidden');
+    if (cropAspectRatios) cropAspectRatios.classList.add('hidden');
+    
+    // Re-render the image preview static element if we have loadedImage
+    if (loadedImage && imgPreviewHolder) {
+      imgPreviewHolder.innerHTML = '';
+      const previewImg = document.createElement('img');
+      previewImg.src = loadedImage.src;
+      imgPreviewHolder.appendChild(previewImg);
+    }
+  }
+
+  // Crop Mode Button click
+  if (btnCropMode) {
+    btnCropMode.addEventListener('click', () => {
+      const previewImg = imgPreviewHolder.querySelector('img');
+      if (!previewImg) return;
+
+      btnCropMode.classList.add('hidden');
+      btnCropApply.classList.remove('hidden');
+      btnCropCancel.classList.remove('hidden');
+      cropAspectRatios.classList.remove('hidden');
+
+      if (cropperInstance) {
+        cropperInstance.destroy();
+      }
+
+      cropperInstance = new Cropper(previewImg, {
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 0.8,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: false,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+        ready() {
+          const activeRatioBtn = cropAspectRatios.querySelector('.btn-ratio.active');
+          if (activeRatioBtn) {
+            const ratio = parseFloat(activeRatioBtn.getAttribute('data-ratio'));
+            cropperInstance.setAspectRatio(isNaN(ratio) ? NaN : ratio);
+          }
+        }
+      });
+    });
+  }
+
+  // Handle aspect ratio presets clicks
+  if (cropAspectRatios) {
+    const ratioButtons = cropAspectRatios.querySelectorAll('.btn-ratio');
+    ratioButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        ratioButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        const ratio = parseFloat(btn.getAttribute('data-ratio'));
+        if (cropperInstance) {
+          cropperInstance.setAspectRatio(isNaN(ratio) ? NaN : ratio);
+        }
+      });
+    });
+  }
+
+  // Apply Crop
+  if (btnCropApply) {
+    btnCropApply.addEventListener('click', () => {
+      if (!cropperInstance) return;
+
+      const croppedCanvas = cropperInstance.getCroppedCanvas({
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+      });
+
+      if (!croppedCanvas) {
+        showModalAlert('Failed to crop the image.', 'Crop Error', 'error');
+        cancelCrop();
+        return;
+      }
+
+      const format = imgFormatSelect.value || 'image/jpeg';
+      const croppedDataUrl = croppedCanvas.toDataURL(format);
+
+      const img = new Image();
+      img.onload = function() {
+        loadedImage = img;
+        originalWidth = img.width;
+        originalHeight = img.height;
+
+        imgWidthInput.value = img.width;
+        imgHeightInput.value = img.height;
+
+        imgPreviewHolder.innerHTML = '';
+        const previewImg = document.createElement('img');
+        previewImg.src = croppedDataUrl;
+        imgPreviewHolder.appendChild(previewImg);
+
+        cropperInstance.destroy();
+        cropperInstance = null;
+        
+        btnCropMode.classList.remove('hidden');
+        btnCropApply.classList.add('hidden');
+        btnCropCancel.classList.add('hidden');
+        cropAspectRatios.classList.add('hidden');
+        
+        // Hide previous optimized result details as we have a new cropped image
+        imgMetaInfo.classList.add('hidden');
+        btnDownloadImg.classList.add('hidden');
+      };
+      img.src = croppedDataUrl;
+    });
+  }
+
+  if (btnCropCancel) {
+    btnCropCancel.addEventListener('click', cancelCrop);
+  }
+
+  // Reset image back to original state
+  if (btnResetImg) {
+    btnResetImg.addEventListener('click', () => {
+      if (!backupImageSrc) return;
+
+      if (cropperInstance) {
+        cropperInstance.destroy();
+        cropperInstance = null;
+      }
+
+      originalSize = backupSize;
+      originalWidth = backupWidth;
+      originalHeight = backupHeight;
+
+      imgWidthInput.value = backupWidth;
+      imgHeightInput.value = backupHeight;
+      imgOrigSize.textContent = formatBytes(originalSize);
+
+      const img = new Image();
+      img.onload = function() {
+        loadedImage = img;
+        imgPreviewHolder.innerHTML = '';
+        const previewImg = document.createElement('img');
+        previewImg.src = backupImageSrc;
+        imgPreviewHolder.appendChild(previewImg);
+
+        btnCropMode.classList.remove('hidden');
+        btnCropApply.classList.add('hidden');
+        btnCropCancel.classList.add('hidden');
+        cropAspectRatios.classList.add('hidden');
+        imgMetaInfo.classList.add('hidden');
+        btnDownloadImg.classList.add('hidden');
+      };
+      img.src = backupImageSrc;
+    });
+  }
+
+  if (imgWidthInput && imgHeightInput) {
+    imgWidthInput.addEventListener('input', () => {
+      if (imgLockAspect.checked && loadedImage && originalWidth > 0) {
+        const ratio = originalHeight / originalWidth;
+        imgHeightInput.value = Math.round(parseFloat(imgWidthInput.value) * ratio) || '';
+      }
+    });
+
+    imgHeightInput.addEventListener('input', () => {
+      if (imgLockAspect.checked && loadedImage && originalHeight > 0) {
+        const ratio = originalWidth / originalHeight;
+        imgWidthInput.value = Math.round(parseFloat(imgHeightInput.value) * ratio) || '';
+      }
+    });
+  }
+
+  if (imgFormatSelect) {
+    imgFormatSelect.addEventListener('change', () => {
+      const format = imgFormatSelect.value;
+      const qualityRow = document.getElementById('img-quality-row');
+      if (qualityRow) {
+        if (format === 'image/png') {
+          qualityRow.style.display = 'none';
+        } else {
+          qualityRow.style.display = 'block';
+        }
+      }
+    });
+  }
+
+  if (imgQualitySlider && imgQualityVal) {
+    imgQualitySlider.addEventListener('input', () => {
+      imgQualityVal.textContent = `${imgQualitySlider.value}%`;
+    });
+  }
+
+  if (btnOptimizeImg) {
+    btnOptimizeImg.addEventListener('click', () => {
+      if (!loadedImage) return;
+
+      const targetWidth = parseInt(imgWidthInput.value, 10) || originalWidth;
+      const targetHeight = parseInt(imgHeightInput.value, 10) || originalHeight;
+      const format = imgFormatSelect.value;
+      const quality = parseFloat(imgQualitySlider.value) / 100;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(loadedImage, 0, 0, targetWidth, targetHeight);
+
+      canvas.toBlob(function(blob) {
+        if (!blob) {
+          showModalAlert('Failed to optimize image.', 'Optimization Error', 'error');
+          return;
+        }
+
+        optimizedBlob = blob;
+
+        imgPreviewHolder.innerHTML = '';
+        const optImg = document.createElement('img');
+        const optUrl = URL.createObjectURL(blob);
+        optImg.src = optUrl;
+        imgPreviewHolder.appendChild(optImg);
+
+        imgNewSize.textContent = formatBytes(blob.size);
+        
+        const savings = originalSize - blob.size;
+        const savingsPct = Math.max(0, Math.round((savings / originalSize) * 100));
+        imgReductionPct.textContent = savingsPct > 0 ? `-${savingsPct}%` : '0%';
+        if (blob.size > originalSize) {
+          imgReductionPct.textContent = `+${Math.abs(savingsPct)}% (Larger)`;
+          imgReductionPct.style.color = '#ef4444';
+        } else {
+          imgReductionPct.style.color = 'var(--accent-green)';
+        }
+
+        imgMetaInfo.classList.remove('hidden');
+        btnDownloadImg.classList.remove('hidden');
+      }, format, format === 'image/png' ? undefined : quality);
+    });
+  }
+
+  if (btnDownloadImg) {
+    btnDownloadImg.addEventListener('click', () => {
+      if (!optimizedBlob) return;
+      
+      const format = imgFormatSelect.value;
+      let ext = 'jpg';
+      if (format === 'image/png') ext = 'png';
+      else if (format === 'image/webp') ext = 'webp';
+
+      const link = document.createElement('a');
+      link.download = `${originalFileName}_optimized.${ext}`;
+      link.href = URL.createObjectURL(optimizedBlob);
+      link.click();
+    });
+  }
+
+  function formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  }
+
+  // ─── Object Remover Javascript Logic ───
+  const objectDropzone = document.getElementById('object-dropzone');
+  const objectFileInput = document.getElementById('object-file-input');
+  const objectWorkspace = document.getElementById('object-workspace');
+  const objectControlsEmpty = document.getElementById('object-controls-empty');
+  const objectControls = document.getElementById('object-controls');
+  const objectCanvasWrapper = document.getElementById('object-canvas-wrapper');
+  const objectImgCanvas = document.getElementById('object-img-canvas');
+  const objectMaskCanvas = document.getElementById('object-mask-canvas');
+  const brushCursor = document.getElementById('brush-cursor');
+  
+  const btnBrushDraw = document.getElementById('btn-brush-draw');
+  const btnBrushErase = document.getElementById('btn-brush-erase');
+  const brushSizeSlider = document.getElementById('brush-size-slider');
+  const brushSizeVal = document.getElementById('brush-size-val');
+  const btnBrushUndo = document.getElementById('btn-brush-undo');
+  const btnBrushClear = document.getElementById('btn-brush-clear');
+  
+  const btnProcessRemove = document.getElementById('btn-process-remove');
+  const objectLoader = document.getElementById('object-loader');
+  const objectLoaderText = document.getElementById('object-loader-text');
+  const objectProgressContainer = document.getElementById('object-progress-container');
+  const objectProgressFill = document.getElementById('object-progress-fill');
+  
+  const objectResultActions = document.getElementById('object-result-actions');
+  const btnToggleCompare = document.getElementById('btn-toggle-compare');
+  const btnDownloadRemoved = document.getElementById('btn-download-removed');
+
+  let objectImage = null;
+  let objectImgCtx = null;
+  let objectMaskCtx = null;
+  let isDrawing = false;
+  let lastX = 0;
+  let lastY = 0;
+  let brushSize = 25;
+  let brushMode = 'draw';
+  let undoStack = [];
+  const maxUndo = 10;
+  
+  let modelSession = null;
+  let inpaintedCanvas = null;
+  let isComparing = false;
+
+  // Quantized INT8 LaMa model
+  const LAMA_MODEL_URL = 'https://huggingface.co/linkus2026/lama-int8-mobile/resolve/main/lama_int8.onnx';
+
+  function saveUndoState() {
+    if (!objectMaskCanvas) return;
+    if (undoStack.length >= maxUndo) {
+      undoStack.shift();
+    }
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = objectMaskCanvas.width;
+    tempCanvas.height = objectMaskCanvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(objectMaskCanvas, 0, 0);
+    undoStack.push(tempCanvas);
+  }
+
+  function undo() {
+    if (!objectMaskCanvas || !objectMaskCtx) return;
+    if (undoStack.length > 1) {
+      undoStack.pop(); // Remove current state
+      const prevState = undoStack[undoStack.length - 1];
+      objectMaskCtx.clearRect(0, 0, objectMaskCanvas.width, objectMaskCanvas.height);
+      objectMaskCtx.drawImage(prevState, 0, 0);
+    } else if (undoStack.length === 1) {
+      objectMaskCtx.clearRect(0, 0, objectMaskCanvas.width, objectMaskCanvas.height);
+    }
+  }
+
+  function loadEditorImage(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      objectImage = new Image();
+      objectImage.onload = () => {
+        const maxW = 750;
+        const maxH = 450;
+        let w = objectImage.width;
+        let h = objectImage.height;
+        
+        if (w > maxW || h > maxH) {
+          const ratio = Math.min(maxW / w, maxH / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        
+        if (objectCanvasWrapper) {
+          objectCanvasWrapper.style.width = `${w}px`;
+          objectCanvasWrapper.style.height = `${h}px`;
+        }
+        
+        if (objectImgCanvas && objectMaskCanvas) {
+          objectImgCanvas.width = w;
+          objectImgCanvas.height = h;
+          objectMaskCanvas.width = w;
+          objectMaskCanvas.height = h;
+          
+          objectImgCtx = objectImgCanvas.getContext('2d');
+          objectMaskCtx = objectMaskCanvas.getContext('2d');
+          
+          objectImgCtx.clearRect(0, 0, w, h);
+          objectImgCtx.drawImage(objectImage, 0, 0, w, h);
+          objectMaskCtx.clearRect(0, 0, w, h);
+        }
+        
+        undoStack = [];
+        saveUndoState();
+        
+        if (objectDropzone) objectDropzone.classList.add('hidden');
+        if (objectWorkspace) objectWorkspace.classList.remove('hidden');
+        if (objectControlsEmpty) objectControlsEmpty.classList.add('hidden');
+        if (objectControls) objectControls.classList.remove('hidden');
+        if (objectResultActions) objectResultActions.classList.add('hidden');
+        
+        inpaintedCanvas = null;
+        isComparing = false;
+        if (btnToggleCompare) btnToggleCompare.textContent = 'Show Original';
+      };
+      objectImage.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function getMousePos(canvas, evt) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+    const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+    
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
+    };
+  }
+
+  function startDrawing(e) {
+    if (!objectMaskCanvas || !objectMaskCtx) return;
+    e.preventDefault();
+    isDrawing = true;
+    saveUndoState();
+    const pos = getMousePos(objectMaskCanvas, e);
+    lastX = pos.x;
+    lastY = pos.y;
+    draw(e);
+  }
+
+  function draw(e) {
+    if (!isDrawing || !objectMaskCanvas || !objectMaskCtx) return;
+    e.preventDefault();
+    const pos = getMousePos(objectMaskCanvas, e);
+    
+    objectMaskCtx.beginPath();
+    objectMaskCtx.moveTo(lastX, lastY);
+    objectMaskCtx.lineTo(pos.x, pos.y);
+    
+    objectMaskCtx.lineWidth = brushSize;
+    objectMaskCtx.lineCap = 'round';
+    objectMaskCtx.lineJoin = 'round';
+    
+    if (brushMode === 'draw') {
+      objectMaskCtx.globalCompositeOperation = 'source-over';
+      objectMaskCtx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+    } else {
+      objectMaskCtx.globalCompositeOperation = 'destination-out';
+      objectMaskCtx.strokeStyle = 'rgba(0,0,0,1)';
+    }
+    
+    objectMaskCtx.stroke();
+    
+    lastX = pos.x;
+    lastY = pos.y;
+  }
+
+  function stopDrawing() {
+    isDrawing = false;
+  }
+
+  function updateBrushCursor(e) {
+    if (!objectMaskCanvas || !brushCursor) return;
+    const rect = objectMaskCanvas.getBoundingClientRect();
+    
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    
+    if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+      brushCursor.style.left = `${clientX - rect.left}px`;
+      brushCursor.style.top = `${clientY - rect.top}px`;
+      brushCursor.style.width = `${brushSize * (rect.width / objectMaskCanvas.width)}px`;
+      brushCursor.style.height = `${brushSize * (rect.height / objectMaskCanvas.height)}px`;
+      brushCursor.style.display = 'block';
+    } else {
+      brushCursor.style.display = 'none';
+    }
+  }
+
+  // Bind Drawing Events
+  if (objectMaskCanvas) {
+    objectMaskCanvas.addEventListener('mousedown', startDrawing);
+    objectMaskCanvas.addEventListener('mousemove', (e) => {
+      draw(e);
+      updateBrushCursor(e);
+    });
+    objectMaskCanvas.addEventListener('mouseup', stopDrawing);
+    objectMaskCanvas.addEventListener('mouseleave', () => {
+      stopDrawing();
+      if (brushCursor) brushCursor.style.display = 'none';
+    });
+    objectMaskCanvas.addEventListener('mouseenter', (e) => {
+      updateBrushCursor(e);
+    });
+    
+    // Touch support
+    objectMaskCanvas.addEventListener('touchstart', startDrawing);
+    objectMaskCanvas.addEventListener('touchmove', (e) => {
+      draw(e);
+      updateBrushCursor(e);
+    });
+    objectMaskCanvas.addEventListener('touchend', stopDrawing);
+  }
+
+  // Toolbar mode buttons
+  if (btnBrushDraw) {
+    btnBrushDraw.addEventListener('click', () => {
+      brushMode = 'draw';
+      btnBrushDraw.classList.add('active');
+      if (btnBrushErase) btnBrushErase.classList.remove('active');
+    });
+  }
+
+  if (btnBrushErase) {
+    btnBrushErase.addEventListener('click', () => {
+      brushMode = 'erase';
+      btnBrushErase.classList.add('active');
+      if (btnBrushDraw) btnBrushDraw.classList.remove('active');
+    });
+  }
+
+  if (brushSizeSlider && brushSizeVal) {
+    brushSizeSlider.addEventListener('input', () => {
+      brushSize = parseInt(brushSizeSlider.value, 10);
+      brushSizeVal.textContent = `${brushSize}px`;
+    });
+  }
+
+  if (btnBrushUndo) {
+    btnBrushUndo.addEventListener('click', undo);
+  }
+
+  if (btnBrushClear) {
+    btnBrushClear.addEventListener('click', () => {
+      if (objectMaskCtx && objectMaskCanvas) {
+        saveUndoState();
+        objectMaskCtx.clearRect(0, 0, objectMaskCanvas.width, objectMaskCanvas.height);
+      }
+    });
+  }
+
+  // Drag-and-drop
+  if (objectDropzone && objectFileInput) {
+    objectDropzone.addEventListener('click', () => objectFileInput.click());
+    objectDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      objectDropzone.classList.add('dragover');
+    });
+    objectDropzone.addEventListener('dragleave', () => {
+      objectDropzone.classList.remove('dragover');
+    });
+    objectDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      objectDropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        loadEditorImage(e.dataTransfer.files[0]);
+      }
+    });
+    objectFileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        loadEditorImage(e.target.files[0]);
+      }
+    });
+  }
+
+  // Caching and downloader function
+  async function getOrDownloadModel(onProgress) {
+    const cache = await caches.open('onnx-model-cache');
+    let response = await cache.match(LAMA_MODEL_URL);
+    
+    if (!response) {
+      console.log('Model not cached. Fetching with progress...');
+      const res = await fetch(LAMA_MODEL_URL);
+      if (!res.ok) throw new Error('Failed to fetch ONNX model');
+      
+      const reader = res.body.getReader();
+      const contentLength = +res.headers.get('content-length') || 52000000;
+      let receivedLength = 0;
+      const chunks = [];
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        receivedLength += value.length;
+        if (onProgress) {
+          onProgress(Math.min(0.99, receivedLength / contentLength));
+        }
+      }
+      
+      const blob = new Blob(chunks);
+      response = new Response(blob, {
+        headers: { 'content-type': 'application/octet-stream' }
+      });
+      await cache.put(LAMA_MODEL_URL, response.clone());
+    }
+    
+    if (onProgress) onProgress(1.0);
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  // Process / Inpaint
+  if (btnProcessRemove) {
+    btnProcessRemove.addEventListener('click', async () => {
+      if (!objectImage || !objectMaskCanvas) return;
+      
+      // Ensure there is some mask drawn
+      const maskPixels = objectMaskCtx.getImageData(0, 0, objectMaskCanvas.width, objectMaskCanvas.height).data;
+      let hasMask = false;
+      for (let i = 3; i < maskPixels.length; i += 4) {
+        if (maskPixels[i] > 10) {
+          hasMask = true;
+          break;
+        }
+      }
+      
+      if (!hasMask) {
+        showModalAlert('Please brush over the objects you want to remove first.', 'No Mask Selected', 'warning');
+        return;
+      }
+      
+      // Show loader
+      if (objectLoader) {
+        objectLoader.classList.remove('hidden');
+        objectLoaderText.textContent = 'Loading AI engine...';
+      }
+      if (objectProgressContainer) objectProgressContainer.classList.remove('hidden');
+      if (objectProgressFill) objectProgressFill.style.width = '0%';
+      if (btnProcessRemove) btnProcessRemove.disabled = true;
+      
+      try {
+        // Set up WebAssembly paths
+        if (typeof ort !== 'undefined') {
+          ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.0/dist/";
+        } else {
+          throw new Error('ONNX Runtime library not loaded.');
+        }
+        
+        // Load model
+        const modelObjectUrl = await getOrDownloadModel((pct) => {
+          const pctText = Math.round(pct * 100);
+          if (objectLoaderText) objectLoaderText.textContent = `Downloading AI Model: ${pctText}%`;
+          if (objectProgressFill) objectProgressFill.style.width = `${pctText}%`;
+        });
+        
+        // Initialize inference session
+        if (!modelSession) {
+          if (objectLoaderText) objectLoaderText.textContent = 'Starting AI engine (WebGPU)...';
+          if (objectProgressContainer) objectProgressContainer.classList.add('hidden');
+          
+          try {
+            modelSession = await ort.InferenceSession.create(modelObjectUrl, {
+              executionProviders: ['webgpu']
+            });
+            console.log('LaMa initialized with WebGPU.');
+          } catch (webgpuError) {
+            console.warn('WebGPU fallback to WASM:', webgpuError);
+            try {
+              modelSession = await ort.InferenceSession.create(modelObjectUrl, {
+                executionProviders: ['wasm']
+              });
+              console.log('LaMa initialized with WASM.');
+            } catch (wasmError) {
+              throw new Error('Failed to initialize AI model: ' + wasmError.message);
+            }
+          }
+        }
+        
+        if (objectLoaderText) objectLoaderText.textContent = 'Erase process running (AI Inpainting)...';
+        if (objectProgressContainer) objectProgressContainer.classList.add('hidden');
+        
+        // Prep inputs: image and mask resized to 512x512
+        const tempImgCanvas = document.createElement('canvas');
+        tempImgCanvas.width = 512;
+        tempImgCanvas.height = 512;
+        const tempImgCtx = tempImgCanvas.getContext('2d');
+        tempImgCtx.drawImage(objectImage, 0, 0, 512, 512);
+        const imgData512 = tempImgCtx.getImageData(0, 0, 512, 512);
+        
+        const tempMaskCanvas = document.createElement('canvas');
+        tempMaskCanvas.width = 512;
+        tempMaskCanvas.height = 512;
+        const tempMaskCtx = tempMaskCanvas.getContext('2d');
+        tempMaskCtx.drawImage(objectMaskCanvas, 0, 0, 512, 512);
+        const maskData512 = tempMaskCtx.getImageData(0, 0, 512, 512);
+        
+        // Preprocess tensors: NCHW RGB [1, 3, 512, 512] and [1, 1, 512, 512]
+        const imageFloat = new Float32Array(512 * 512 * 3);
+        const maskFloat = new Float32Array(512 * 512);
+        
+        const imgPixels = imgData512.data;
+        const maskPixels = maskData512.data;
+        const size = 512 * 512;
+        
+        for (let i = 0; i < size; i++) {
+          imageFloat[i] = imgPixels[i * 4] / 255.0;        // R
+          imageFloat[size + i] = imgPixels[i * 4 + 1] / 255.0; // G
+          imageFloat[size * 2 + i] = imgPixels[i * 4 + 2] / 255.0; // B
+          
+          maskFloat[i] = maskPixels[i * 4 + 3] > 10 ? 1.0 : 0.0;
+        }
+        
+        const imageTensor = new ort.Tensor('float32', imageFloat, [1, 3, 512, 512]);
+        const maskTensor = new ort.Tensor('float32', maskFloat, [1, 1, 512, 512]);
+        
+        const inputNames = modelSession.inputNames;
+        const imgInputName = inputNames.find(name => name.includes('image') || name.includes('input') && !name.includes('mask')) || inputNames[0];
+        const maskInputName = inputNames.find(name => name.includes('mask')) || inputNames[1];
+        
+        const feeds = {};
+        feeds[imgInputName] = imageTensor;
+        feeds[maskInputName] = maskTensor;
+        
+        // Run AI model
+        const results = await modelSession.run(feeds);
+        const outputTensor = results[modelSession.outputNames[0]];
+        const outFloat = outputTensor.data;
+        
+        // Convert output to 512x512 canvas
+        const outCanvas512 = document.createElement('canvas');
+        outCanvas512.width = 512;
+        outCanvas512.height = 512;
+        const outCtx512 = outCanvas512.getContext('2d');
+        const outImgData512 = outCtx512.createImageData(512, 512);
+        
+        for (let i = 0; i < size; i++) {
+          let r = outFloat[i];
+          let g = outFloat[size + i];
+          let b = outFloat[size * 2 + i];
+          
+          if (Math.max(r, g, b) <= 1.01) {
+            r *= 255.0;
+            g *= 255.0;
+            b *= 255.0;
+          }
+          
+          outImgData512.data[i * 4] = Math.min(255, Math.max(0, Math.round(r)));
+          outImgData512.data[i * 4 + 1] = Math.min(255, Math.max(0, Math.round(g)));
+          outImgData512.data[i * 4 + 2] = Math.min(255, Math.max(0, Math.round(b)));
+          outImgData512.data[i * 4 + 3] = 255;
+        }
+        outCtx512.putImageData(outImgData512, 0, 0);
+        
+        // High-res blended composite reconstruction
+        const origW = objectImage.width;
+        const origH = objectImage.height;
+        
+        const origMaskCanvas = document.createElement('canvas');
+        origMaskCanvas.width = origW;
+        origMaskCanvas.height = origH;
+        const origMaskCtx = origMaskCanvas.getContext('2d');
+        origMaskCtx.drawImage(objectMaskCanvas, 0, 0, origW, origH);
+        
+        const origInpaintCanvas = document.createElement('canvas');
+        origInpaintCanvas.width = origW;
+        origInpaintCanvas.height = origH;
+        const origInpaintCtx = origInpaintCanvas.getContext('2d');
+        origInpaintCtx.drawImage(outCanvas512, 0, 0, origW, origH);
+        
+        inpaintedCanvas = document.createElement('canvas');
+        inpaintedCanvas.width = origW;
+        inpaintedCanvas.height = origH;
+        const blendCtx = inpaintedCanvas.getContext('2d');
+        blendCtx.drawImage(objectImage, 0, 0);
+        
+        const maskFeatherCanvas = document.createElement('canvas');
+        maskFeatherCanvas.width = origW;
+        maskFeatherCanvas.height = origH;
+        const maskFeatherCtx = maskFeatherCanvas.getContext('2d');
+        
+        maskFeatherCtx.filter = 'blur(4px)';
+        maskFeatherCtx.drawImage(origMaskCanvas, 0, 0);
+        maskFeatherCtx.filter = 'none';
+        
+        maskFeatherCtx.globalCompositeOperation = 'source-in';
+        maskFeatherCtx.drawImage(origInpaintCanvas, 0, 0);
+        
+        blendCtx.drawImage(maskFeatherCanvas, 0, 0);
+        
+        // Draw output back to visible workspace
+        objectImgCtx.clearRect(0, 0, objectImgCanvas.width, objectImgCanvas.height);
+        objectImgCtx.drawImage(inpaintedCanvas, 0, 0, objectImgCanvas.width, objectImgCanvas.height);
+        objectMaskCtx.clearRect(0, 0, objectMaskCanvas.width, objectMaskCanvas.height);
+        
+        // Show result options
+        if (objectLoader) objectLoader.classList.add('hidden');
+        if (objectResultActions) objectResultActions.classList.remove('hidden');
+        isComparing = false;
+        if (btnToggleCompare) btnToggleCompare.textContent = 'Show Original';
+        
+      } catch (err) {
+        console.error('Inpainting error:', err);
+        showModalAlert('An error occurred during AI inpainting: ' + err.message, 'Process Failed', 'error');
+        if (objectLoader) objectLoader.classList.add('hidden');
+      } finally {
+        if (btnProcessRemove) btnProcessRemove.disabled = false;
+      }
+    });
+  }
+
+  // Toggle Compare
+  if (btnToggleCompare) {
+    btnToggleCompare.addEventListener('click', () => {
+      if (!inpaintedCanvas || !objectImage || !objectImgCtx) return;
+      
+      if (!isComparing) {
+        // Show original image
+        objectImgCtx.clearRect(0, 0, objectImgCanvas.width, objectImgCanvas.height);
+        objectImgCtx.drawImage(objectImage, 0, 0, objectImgCanvas.width, objectImgCanvas.height);
+        btnToggleCompare.textContent = 'Show Cleaned';
+        isComparing = true;
+      } else {
+        // Show cleaned image
+        objectImgCtx.clearRect(0, 0, objectImgCanvas.width, objectImgCanvas.height);
+        objectImgCtx.drawImage(inpaintedCanvas, 0, 0, objectImgCanvas.width, objectImgCanvas.height);
+        btnToggleCompare.textContent = 'Show Original';
+        isComparing = false;
+      }
+    });
+  }
+
+  // Download Output Image
+  if (btnDownloadRemoved) {
+    btnDownloadRemoved.addEventListener('click', () => {
+      if (!inpaintedCanvas) return;
+      const link = document.createElement('a');
+      link.download = 'cleaned_image.png';
+      link.href = inpaintedCanvas.toDataURL('image/png');
+      link.click();
+    });
+  }
+
+  // ==========================================================================
+  // MY PROFILE PAGE LOGIC
+  // ==========================================================================
+
+  let profileCropper = null;
+  let profileAvatarDataUrl = null;
+  let profileData = null;
+
+  // Password strength helper (standalone, used in profile page)
+  function calcPasswordStrength(pw) {
+    let score = 0;
+    if (pw.length >= 6) score++;
+    if (pw.length >= 10) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    return score;
+  }
+
+  function applyStrengthToBar(pw, fillEl, labelEl) {
+    if (!fillEl || !labelEl) return;
+    const score = calcPasswordStrength(pw);
+    const widths = ['0%', '20%', '40%', '65%', '85%', '100%'];
+    const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#10b981', '#06b6d4'];
+    const labels = ['', 'Too Weak', 'Weak', 'Fair', 'Strong', 'Very Strong'];
+    fillEl.style.width = pw.length > 0 ? widths[score] : '0%';
+    fillEl.style.background = colors[score];
+    labelEl.textContent = pw.length > 0 ? labels[score] : '';
+    labelEl.style.color = colors[score];
+  }
+
+  // Wire password toggle buttons on the profile page
+  function wireProfilePwToggles() {
+    document.querySelectorAll('.auth-pw-toggle[data-target]').forEach(btn => {
+      const targetId = btn.getAttribute('data-target');
+      const input = document.getElementById(targetId);
+      if (!input || btn._wired) return;
+      btn._wired = true;
+      btn.addEventListener('click', () => {
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+        btn.innerHTML = isPassword ? '<i data-lucide="eye-off"></i>' : '<i data-lucide="eye"></i>';
+        lucide.createIcons();
+      });
+    });
+  }
+
+  function initAccountPage() {
+    const profileLoggedIn = document.getElementById('account-logged-in');
+    const profileGuestPrompt = document.getElementById('account-auth-container');
+    const isLoggedIn = !!guestUser;
+    const isOwner = localStorage.getItem('nexus_mode') === 'owner';
+
+    if (!profileLoggedIn || !profileGuestPrompt) return;
+
+    if (!isLoggedIn && !isOwner) {
+      profileLoggedIn.style.display = 'none';
+      profileGuestPrompt.style.display = 'block';
+      return;
+    }
+
+    profileLoggedIn.style.display = 'block';
+    profileGuestPrompt.style.display = 'none';
+
+    // Populate hero
+    const heroInitials = document.getElementById('profile-hero-initials');
+    const heroImg = document.getElementById('profile-hero-img');
+    const heroDisplayName = document.getElementById('profile-hero-display-name');
+    const heroUsername = document.getElementById('profile-hero-username');
+    const heroJoined = document.getElementById('profile-hero-joined');
+
+    const displayUsername = isOwner ? 'Borno (Admin)' : (guestUser || 'User');
+    if (heroUsername) heroUsername.textContent = '@' + displayUsername.toLowerCase().replace(/\s/g, '');
+    if (heroInitials) heroInitials.textContent = displayUsername.substring(0, 2).toUpperCase();
+
+    // Load profile data from server
+    if (!isOwner && guestUser) {
+      fetch('/api/auth/profile', { headers: { 'x-user-name': guestUser } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data) return;
+          profileData = data;
+          const dn = data.display_name || data.username || guestUser;
+          if (heroDisplayName) heroDisplayName.textContent = dn;
+          if (heroInitials) heroInitials.textContent = dn.substring(0, 2).toUpperCase();
+          
+          // Show avatar if stored
+          if (data.avatar_data && heroImg) {
+            heroImg.src = data.avatar_data;
+            heroImg.classList.remove('hidden');
+            if (heroInitials) heroInitials.style.display = 'none';
+            // Also set sidebar avatar
+            updateSidebarAvatar(data.avatar_data);
+          }
+
+          if (heroJoined && data.created_at) {
+            const d = new Date(data.created_at);
+            heroJoined.textContent = 'Member since ' + d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+          }
+
+          // Stats
+          const statJoined = document.getElementById('profile-stat-joined');
+          if (statJoined && data.created_at) {
+            statJoined.textContent = new Date(data.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          }
+
+          const statAccess = document.getElementById('profile-stat-access');
+          if (statAccess) {
+            const access = data.brian_access || 'none';
+            const labels = { approved: 'Approved', pending: 'Pending', rejected: 'Denied', none: 'Guest' };
+            statAccess.textContent = labels[access] || 'Guest';
+          }
+
+          // Info card
+          const infoUsername = document.getElementById('profile-info-username');
+          const infoDN = document.getElementById('profile-info-displayname');
+          const infoBio = document.getElementById('profile-info-bio');
+          const infoAccess = document.getElementById('profile-info-access');
+          if (infoUsername) infoUsername.textContent = data.username || guestUser;
+          if (infoDN) infoDN.textContent = data.display_name || data.username || '—';
+          if (infoBio) infoBio.textContent = data.bio || 'No bio set.';
+          if (infoAccess) {
+            const accessLabels = { approved: '✓ Bro Mode Active', pending: '⏳ Pending Approval', rejected: '✗ Rejected', none: 'No Access' };
+            infoAccess.textContent = accessLabels[data.brian_access || 'none'] || 'No Access';
+          }
+
+          // Pre-fill edit form
+          const dnInput = document.getElementById('profile-display-name-input');
+          const bioInput = document.getElementById('profile-bio-input');
+          const bioChars = document.getElementById('profile-bio-chars');
+          if (dnInput) dnInput.value = data.display_name || '';
+          if (bioInput) {
+            bioInput.value = data.bio || '';
+            if (bioChars) bioChars.textContent = (data.bio || '').length;
+          }
+
+          // Bookmark count
+          const statBm = document.getElementById('profile-stat-bookmarks');
+          if (statBm && typeof savedLinks !== 'undefined') {
+            const privateBm = savedLinks.filter(l => l.is_private && (l.owner_username || '').toLowerCase() === guestUser.toLowerCase());
+            statBm.textContent = privateBm.length;
+          }
+
+          lucide.createIcons();
+        })
+        .catch(() => {
+          if (heroDisplayName) heroDisplayName.textContent = guestUser || 'User';
+        });
+    } else if (isOwner) {
+      if (heroDisplayName) heroDisplayName.textContent = 'Borno (Admin)';
+      if (heroJoined) heroJoined.textContent = 'Node Owner';
+      const statAccess = document.getElementById('profile-stat-access');
+      if (statAccess) statAccess.textContent = 'Full Admin';
+    }
+
+    // Wire password toggles
+    wireProfilePwToggles();
+
+    // Password strength meter on profile page
+    const newPwInput = document.getElementById('profile-new-pw');
+    const strengthFill = document.getElementById('profile-pw-strength-fill');
+    const strengthLabel = document.getElementById('profile-pw-strength-label');
+    const confirmPwInput = document.getElementById('profile-confirm-pw');
+    const matchMsg = document.getElementById('profile-pw-match-msg');
+
+    if (newPwInput) {
+      newPwInput.addEventListener('input', () => {
+        applyStrengthToBar(newPwInput.value, strengthFill, strengthLabel);
+        if (confirmPwInput && confirmPwInput.value.length > 0) {
+          const match = newPwInput.value === confirmPwInput.value;
+          matchMsg.style.display = 'block';
+          matchMsg.textContent = match ? '✓ Passwords match' : '✗ Passwords do not match';
+          matchMsg.style.color = match ? '#10b981' : '#ef4444';
+        }
+      });
+    }
+
+    if (confirmPwInput) {
+      confirmPwInput.addEventListener('input', () => {
+        const match = newPwInput.value === confirmPwInput.value;
+        matchMsg.style.display = confirmPwInput.value.length > 0 ? 'block' : 'none';
+        matchMsg.textContent = match ? '✓ Passwords match' : '✗ Passwords do not match';
+        matchMsg.style.color = match ? '#10b981' : '#ef4444';
+      });
+    }
+
+    // Bio character counter
+    const bioInput = document.getElementById('profile-bio-input');
+    const bioCharsEl = document.getElementById('profile-bio-chars');
+    if (bioInput && bioCharsEl) {
+      bioInput.addEventListener('input', () => {
+        bioCharsEl.textContent = bioInput.value.length;
+      });
+    }
+  }
+
+  function updateSidebarAvatar(dataUrl) {
+    const avatarTextMode = document.getElementById('avatar-text-mode');
+    const avatarRingEl = document.querySelector('.user-avatar');
+    if (!avatarRingEl) return;
+    // Replace initials with image in sidebar avatar
+    let existingImg = avatarRingEl.querySelector('img.sidebar-avatar-img');
+    if (!existingImg) {
+      existingImg = document.createElement('img');
+      existingImg.className = 'sidebar-avatar-img';
+      existingImg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:50%;';
+      avatarRingEl.style.position = 'relative';
+      avatarRingEl.appendChild(existingImg);
+    }
+    existingImg.src = dataUrl;
+    if (avatarTextMode) avatarTextMode.style.opacity = '0';
+  }
+
+  // Profile tab switching
+  function setupProfileTabs() {
+    document.querySelectorAll('.profile-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.getAttribute('data-profile-tab');
+        document.querySelectorAll('.profile-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.profile-tab-content').forEach(c => {
+          c.style.display = 'none';
+          c.classList.remove('active');
+        });
+        const target = document.getElementById('profile-tab-' + tabId);
+        if (target) {
+          target.style.display = 'block';
+          target.classList.add('active');
+        }
+        lucide.createIcons();
+      });
+    });
+  }
+
+  setupProfileTabs();
+
+  // Profile update form submission
+  const profileUpdateForm = document.getElementById('profile-update-form');
+  if (profileUpdateForm) {
+    profileUpdateForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('profile-update-error');
+      if (errEl) errEl.style.display = 'none';
+
+      const dnVal = document.getElementById('profile-display-name-input')?.value?.trim() || '';
+      const bioVal = document.getElementById('profile-bio-input')?.value?.trim() || '';
+      const submitBtn = profileUpdateForm.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/auth/profile/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-name': guestUser || '' },
+          body: JSON.stringify({ displayName: dnVal, bio: bioVal, avatarData: profileAvatarDataUrl || undefined })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showModalAlert('Your profile has been updated successfully!', 'Profile Updated', 'success');
+          // Update displayed info
+          const heroDisplayName = document.getElementById('profile-hero-display-name');
+          if (heroDisplayName && dnVal) heroDisplayName.textContent = dnVal;
+          const infoDisplayName = document.getElementById('profile-info-displayname');
+          if (infoDisplayName && dnVal) infoDisplayName.textContent = dnVal;
+          const infoBio = document.getElementById('profile-info-bio');
+          if (infoBio) infoBio.textContent = bioVal || 'No bio set.';
+        } else {
+          if (errEl) { errEl.textContent = data.error || 'Failed to update profile.'; errEl.style.display = 'block'; }
+        }
+      } catch (err) {
+        if (errEl) { errEl.textContent = 'Network error. Please try again.'; errEl.style.display = 'block'; }
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+
+  // Change password form submission
+  const profileChangePwForm = document.getElementById('profile-change-password-form');
+  if (profileChangePwForm) {
+    profileChangePwForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('profile-pw-error');
+      if (errEl) errEl.style.display = 'none';
+
+      const currentPw = document.getElementById('profile-current-pw')?.value || '';
+      const newPw = document.getElementById('profile-new-pw')?.value || '';
+      const confirmPw = document.getElementById('profile-confirm-pw')?.value || '';
+
+      if (newPw !== confirmPw) {
+        if (errEl) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'block'; }
+        return;
+      }
+
+      if (newPw.length < 4) {
+        if (errEl) { errEl.textContent = 'New password must be at least 4 characters long.'; errEl.style.display = 'block'; }
+        return;
+      }
+
+      const submitBtn = profileChangePwForm.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/auth/profile/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-name': guestUser || '' },
+          body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          profileChangePwForm.reset();
+          const fillEl = document.getElementById('profile-pw-strength-fill');
+          const labelEl = document.getElementById('profile-pw-strength-label');
+          if (fillEl) fillEl.style.width = '0%';
+          if (labelEl) labelEl.textContent = '';
+          showModalAlert('Password updated successfully! Use your new password next time you log in.', 'Password Changed', 'success');
+        } else {
+          if (errEl) { errEl.textContent = data.error || 'Failed to change password.'; errEl.style.display = 'block'; }
+        }
+      } catch (err) {
+        if (errEl) { errEl.textContent = 'Network error. Please try again.'; errEl.style.display = 'block'; }
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+
+  // Profile page logout button
+  const btnProfilePageLogout = document.getElementById('btn-profile-page-logout');
+  if (btnProfilePageLogout) {
+    btnProfilePageLogout.addEventListener('click', async () => {
+      const confirmed = await showModalConfirm('Are you sure you want to log out?', 'Confirm Sign Out');
+      if (!confirmed) return;
+      localStorage.removeItem('guest_user');
+      localStorage.removeItem('owner_token');
+      guestUser = null;
+      guestUserBrianAccess = 'none';
+      setAppMode('guest');
+      switchView('dashboard');
+      showModalAlert('You have been signed out.', 'Signed Out', 'success');
+    });
+  }
+
+  function wireAccountAuthForms() {
+    const tabBtnGuest = document.getElementById('account-tab-btn-guest');
+    const tabBtnOwner = document.getElementById('account-tab-btn-owner');
+    const panelGuest = document.getElementById('account-panel-guest');
+    const panelOwner = document.getElementById('account-panel-owner');
+
+    const btnGuestSubtabLogin = document.getElementById('account-btn-guest-subtab-login');
+    const btnGuestSubtabSignup = document.getElementById('account-btn-guest-subtab-signup');
+    const guestSubtabIndicator = document.getElementById('account-guest-subtab-indicator');
+    const guestSubmitText = document.getElementById('account-guest-submit-text');
+    const guestUsernameInput = document.getElementById('account-guest-username');
+    const guestPasswordInput = document.getElementById('account-guest-password');
+    const signupExtraFields = document.getElementById('account-signup-extra-fields');
+    const guestConfirmPasswordInput = document.getElementById('account-guest-confirm-password');
+    const guestConfirmMatch = document.getElementById('account-guest-confirm-match');
+    const guestPwStrengthFill = document.getElementById('account-guest-pw-strength-fill');
+    const guestPwStrengthLabel = document.getElementById('account-guest-pw-strength-label');
+
+    const guestCredentialsArea = document.getElementById('account-guest-credentials-area');
+    const panelGuestReset = document.getElementById('account-panel-guest-reset');
+    const btnGuestForgot = document.getElementById('account-btn-guest-forgot');
+    const btnGuestResetBack = document.getElementById('account-btn-guest-reset-back');
+
+    let currentGuestTab = 'login'; // login or signup
+
+    // Password strength helper
+    function getPasswordStrength(pw) {
+      let score = 0;
+      if (pw.length >= 6) score++;
+      if (pw.length >= 10) score++;
+      if (/[A-Z]/.test(pw)) score++;
+      if (/[0-9]/.test(pw)) score++;
+      if (/[^A-Za-z0-9]/.test(pw)) score++;
+      return score;
+    }
+
+    function updateStrengthBar(pw, fill, label) {
+      const score = getPasswordStrength(pw);
+      const widths = ['0%', '20%', '40%', '65%', '85%', '100%'];
+      const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#10b981', '#06b6d4'];
+      const labels = ['', 'Too Weak', 'Weak', 'Fair', 'Strong', 'Very Strong'];
+      fill.style.width = pw.length > 0 ? widths[score] : '0%';
+      fill.style.background = colors[score];
+      label.textContent = pw.length > 0 ? labels[score] : '';
+      label.style.color = colors[score];
+    }
+
+    // Pw toggle helper
+    function wireToggle(btn, input) {
+      if (!btn || !input) return;
+      btn.addEventListener('click', () => {
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+        btn.innerHTML = isPassword ? '<i data-lucide="eye-off"></i>' : '<i data-lucide="eye"></i>';
+        lucide.createIcons();
+      });
+    }
+
+    wireToggle(document.getElementById('account-toggle-guest-pw'), guestPasswordInput);
+    wireToggle(document.getElementById('account-toggle-guest-confirm-pw'), guestConfirmPasswordInput);
+
+    // Listen to password input for strength
+    if (guestPasswordInput && guestPwStrengthFill) {
+      guestPasswordInput.addEventListener('input', () => {
+        if (currentGuestTab === 'signup') {
+          updateStrengthBar(guestPasswordInput.value, guestPwStrengthFill, guestPwStrengthLabel);
+        }
+      });
+    }
+
+    // Confirm password validation
+    if (guestConfirmPasswordInput) {
+      guestConfirmPasswordInput.addEventListener('input', () => {
+        const match = guestPasswordInput.value === guestConfirmPasswordInput.value;
+        guestConfirmMatch.style.display = guestConfirmPasswordInput.value.length > 0 ? 'block' : 'none';
+        guestConfirmMatch.textContent = match ? '✓ Passwords match' : '✗ Passwords do not match';
+        guestConfirmMatch.style.color = match ? '#10b981' : '#ef4444';
+      });
+    }
+
+    // Switch Main Portal Tabs (Guest vs Owner)
+    if (tabBtnGuest) {
+      tabBtnGuest.addEventListener('click', () => {
+        tabBtnGuest.classList.add('active');
+        tabBtnOwner.classList.remove('active');
+        panelGuest.style.display = 'block';
+        panelOwner.style.display = 'none';
+        guestUsernameInput.focus();
+      });
+    }
+
+    if (tabBtnOwner) {
+      tabBtnOwner.addEventListener('click', () => {
+        tabBtnOwner.classList.add('active');
+        tabBtnGuest.classList.remove('active');
+        panelOwner.style.display = 'block';
+        panelGuest.style.display = 'none';
+        document.getElementById('account-owner-username').focus();
+      });
+    }
+
+    // Guest Sub-tabs Login/Signup
+    if (btnGuestSubtabLogin) {
+      btnGuestSubtabLogin.addEventListener('click', () => {
+        currentGuestTab = 'login';
+        btnGuestSubtabLogin.classList.add('active');
+        btnGuestSubtabSignup.classList.remove('active');
+        guestSubtabIndicator.style.left = '0px';
+        guestSubmitText.textContent = 'Log In';
+        document.getElementById('account-guest-auth-error').style.display = 'none';
+        if (signupExtraFields) signupExtraFields.style.display = 'none';
+        guestPasswordInput.autocomplete = 'current-password';
+      });
+    }
+
+    if (btnGuestSubtabSignup) {
+      btnGuestSubtabSignup.addEventListener('click', () => {
+        currentGuestTab = 'signup';
+        btnGuestSubtabSignup.classList.add('active');
+        btnGuestSubtabLogin.classList.remove('active');
+        guestSubtabIndicator.style.left = '50%';
+        guestSubmitText.textContent = 'Sign Up';
+        document.getElementById('account-guest-auth-error').style.display = 'none';
+        if (signupExtraFields) signupExtraFields.style.display = 'flex';
+        guestPasswordInput.autocomplete = 'new-password';
+      });
+    }
+
+    // Guest Forgot password panel toggle
+    if (btnGuestForgot) {
+      btnGuestForgot.addEventListener('click', () => {
+        guestCredentialsArea.style.display = 'none';
+        panelGuestReset.style.display = 'flex';
+        document.getElementById('account-reset-username').focus();
+      });
+    }
+
+    if (btnGuestResetBack) {
+      btnGuestResetBack.addEventListener('click', () => {
+        panelGuestReset.style.display = 'none';
+        guestCredentialsArea.style.display = 'block';
+        guestUsernameInput.focus();
+      });
+    }
+
+    // Form Guest Submission
+    const formGuestAuth = document.getElementById('account-form-guest-auth');
+    if (formGuestAuth) {
+      formGuestAuth.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById('account-guest-auth-error');
+        errEl.style.display = 'none';
+
+        const uVal = guestUsernameInput.value.trim();
+        const pVal = guestPasswordInput.value;
+        const submitBtn = document.getElementById('account-btn-guest-auth-submit');
+        submitBtn.disabled = true;
+
+        const endpoint = currentGuestTab === 'login' ? '/api/auth/login' : '/api/auth/signup';
+
+        // Confirm password check for signup
+        if (currentGuestTab === 'signup') {
+          const confirmVal = guestConfirmPasswordInput ? guestConfirmPasswordInput.value : '';
+          if (pVal !== confirmVal) {
+            errEl.textContent = 'Passwords do not match. Please re-enter.';
+            errEl.style.display = 'block';
+            submitBtn.disabled = false;
+            return;
+          }
+        }
+
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: uVal, password: pVal })
+          });
+
+          const data = await res.json();
+          if (res.ok) {
+            guestUser = data.username;
+            localStorage.setItem('guest_user', data.username);
+            setAppMode('guest');
+
+            // Fetch user profile access status immediately on login
+            await fetchUserProfile();
+
+            // Re-initialize account page UI (which will show logged-in view)
+            initAccountPage();
+
+            if (currentGuestTab === 'signup' && data.recoveryCode) {
+              showRecoveryCodeModal(data.recoveryCode, false);
+            }
+          } else {
+            submitBtn.disabled = false;
+            errEl.textContent = data.error || 'Authentication failed.';
+            errEl.style.display = 'block';
+          }
+        } catch (err) {
+          submitBtn.disabled = false;
+          errEl.textContent = 'Network error. Please try again.';
+          errEl.style.display = 'block';
+        }
+      });
+    }
+
+    // Form Guest Reset Submission
+    const formGuestReset = document.getElementById('account-form-guest-reset');
+    if (formGuestReset) {
+      formGuestReset.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById('account-guest-reset-error');
+        errEl.style.display = 'none';
+
+        const uVal = document.getElementById('account-reset-username').value.trim();
+        const cVal = document.getElementById('account-reset-code').value.trim().toUpperCase();
+        const newPwVal = document.getElementById('account-reset-newpw').value;
+        const confirmPwVal = document.getElementById('account-reset-confirmpw').value;
+
+        if (newPwVal !== confirmPwVal) {
+          errEl.textContent = 'Passwords do not match.';
+          errEl.style.display = 'block';
+          return;
+        }
+
+        const submitBtn = formGuestReset.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+
+        try {
+          const res = await fetch('/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: uVal, recoveryCode: cVal, newPassword: newPwVal })
+          });
+          const data = await res.json();
+
+          if (res.ok && data.success) {
+            formGuestReset.reset();
+            panelGuestReset.style.display = 'none';
+            guestCredentialsArea.style.display = 'block';
+            showRecoveryCodeModal(data.newRecoveryCode, true);
+          } else {
+            submitBtn.disabled = false;
+            errEl.textContent = data.error || 'Reset failed.';
+            errEl.style.display = 'block';
+          }
+        } catch (err) {
+          submitBtn.disabled = false;
+          errEl.textContent = 'Network error. Please try again.';
+          errEl.style.display = 'block';
+        }
+      });
+    }
+
+    // Form Owner Submission
+    const formOwnerAuth = document.getElementById('account-form-owner-auth');
+    if (formOwnerAuth) {
+      formOwnerAuth.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById('account-owner-auth-error');
+        errEl.style.display = 'none';
+
+        const uVal = document.getElementById('account-owner-username').value.trim();
+        const pVal = document.getElementById('account-owner-password').value;
+        const submitBtn = formOwnerAuth.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+
+        try {
+          const res = await fetch('/api/auth/owner', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: uVal, password: pVal })
+          });
+
+          const data = await res.json();
+          if (res.ok && data.success) {
+            localStorage.setItem('owner_token', data.token);
+            setAppMode('owner');
+            initAccountPage();
+          } else {
+            submitBtn.disabled = false;
+            errEl.textContent = data.error || 'Authentication failed.';
+            errEl.style.display = 'block';
+          }
+        } catch (err) {
+          submitBtn.disabled = false;
+          errEl.textContent = 'Network error. Please try again.';
+          errEl.style.display = 'block';
+        }
+      });
+    }
+  }
+
+  // Avatar upload & crop logic
+  const profileAvatarFile = document.getElementById('profile-avatar-file');
+  const btnProfileAvatarEdit = document.getElementById('btn-profile-avatar-edit');
+  const avatarCropModal = document.getElementById('profile-avatar-crop-modal');
+  const avatarCropImg = document.getElementById('profile-avatar-crop-img');
+  const btnAvatarCropApply = document.getElementById('btn-crop-apply-avatar');
+  const btnAvatarCropCancel = document.getElementById('btn-crop-cancel-avatar');
+
+  if (btnProfileAvatarEdit && profileAvatarFile) {
+    btnProfileAvatarEdit.addEventListener('click', () => profileAvatarFile.click());
+  }
+
+  if (profileAvatarFile) {
+    profileAvatarFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (!avatarCropImg || !avatarCropModal) return;
+        avatarCropImg.src = ev.target.result;
+        avatarCropModal.style.display = 'flex';
+        avatarCropModal.classList.add('active');
+        lucide.createIcons();
+
+        // Destroy previous cropper
+        if (profileCropper) { profileCropper.destroy(); profileCropper = null; }
+
+        if (typeof Cropper !== 'undefined') {
+          profileCropper = new Cropper(avatarCropImg, {
+            aspectRatio: 1,
+            viewMode: 1,
+            dragMode: 'move',
+            cropBoxResizable: false,
+            guides: false,
+            background: false,
+            autoCropArea: 1,
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    });
+  }
+
+  if (btnAvatarCropApply) {
+    btnAvatarCropApply.addEventListener('click', async () => {
+      let dataUrl;
+      if (profileCropper) {
+        const canvas = profileCropper.getCroppedCanvas({ width: 256, height: 256, fillColor: '#000' });
+        dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      } else if (avatarCropImg) {
+        dataUrl = avatarCropImg.src;
+      }
+      if (!dataUrl) return;
+
+      profileAvatarDataUrl = dataUrl;
+
+      // Update hero image immediately
+      const heroImg = document.getElementById('profile-hero-img');
+      const heroInitials = document.getElementById('profile-hero-initials');
+      if (heroImg) { heroImg.src = dataUrl; heroImg.classList.remove('hidden'); }
+      if (heroInitials) heroInitials.style.display = 'none';
+      updateSidebarAvatar(dataUrl);
+
+      // Save to server
+      if (guestUser) {
+        try {
+          const res = await fetch('/api/auth/profile/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-user-name': guestUser },
+            body: JSON.stringify({ avatarData: dataUrl })
+          });
+          if (res.ok) {
+            showModalAlert('Avatar saved successfully!', 'Avatar Updated', 'success');
+          }
+        } catch (err) {
+          console.error('Failed to save avatar:', err);
+        }
+      }
+
+      // Close modal
+      avatarCropModal.classList.remove('active');
+      avatarCropModal.style.display = 'none';
+      if (profileCropper) { profileCropper.destroy(); profileCropper = null; }
+    });
+  }
+
+  if (btnAvatarCropCancel) {
+    btnAvatarCropCancel.addEventListener('click', () => {
+      avatarCropModal.classList.remove('active');
+      avatarCropModal.style.display = 'none';
+      if (profileCropper) { profileCropper.destroy(); profileCropper = null; }
+    });
+  }
 
 });
+
+
+
+
+
 
