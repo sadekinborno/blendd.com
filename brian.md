@@ -441,7 +441,7 @@ LLM:
 Gemini 2.5 Flash / Gemini 1.5 Flash (via official Google Gen AI SDK)
 
 Deployment:
-Docker container (deployed to existing host/service as part of the TouchMe portal)
+Docker container (deployed to existing host/service as part of the blendd portal)
 
 ---
 

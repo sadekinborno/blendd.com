@@ -1,7 +1,7 @@
 @echo off
-title TouchMe Portal (NexusHub)
+title blendd Portal (NexusHub)
 echo ===================================================
-echo   Starting TouchMe Portal (NexusHub) Server...
+echo   Starting blendd Portal (NexusHub) Server...
 echo   The browser will open automatically.
 echo ===================================================
 echo.

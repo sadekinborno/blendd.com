@@ -15,7 +15,7 @@ const mockPeople = [
     aliases: ['Borno', 'Sadekin', 'Mehrab'],
     relationship: 'Older brother',
     opinion: 'Fiercely proud of him. He is a game developer, AI engineer, and founded Arcane Interactives.',
-    notes: 'Borno is the builder of the TouchMe portal. Brian is his younger brother.'
+    notes: 'Borno is the builder of the blendd portal. Brian is his younger brother.'
   }
 ];
 

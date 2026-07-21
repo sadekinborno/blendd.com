@@ -1,7 +1,7 @@
 {
-  "name": "touchme-portal",
+  "name": "blendd-portal",
   "version": "1.0.0",
-  "description": "TouchMe Portal - Tools & Mini Games Hub",
+  "description": "blendd Portal - Tools & Mini Games Hub",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

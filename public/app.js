@@ -888,6 +888,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof updateBrianNavigation === 'function') {
       updateBrianNavigation();
     }
+
+    // Sync Dashboard greetings & Owner specs
+    if (typeof updateDashboardGreeting === 'function') {
+      updateDashboardGreeting();
+    }
+    if (typeof syncDashboardOwnerStats === 'function') {
+      syncDashboardOwnerStats();
+    }
   }
 
   // Global Fetch Interceptor to handle Session Expiration
@@ -1846,7 +1854,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     recents.forEach(item => {
       const itemEl = document.createElement('div');
-      itemEl.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--panel-border); border-radius: var(--border-radius-md);';
+      itemEl.className = 'recent-link-card';
       
       const categoryClass = getCategoryColorClass(item.category);
       const faviconHtml = getFaviconHtml(item.favicon, item.title);
@@ -6183,7 +6191,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `touchme_portal_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `blendd_portal_backup_${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -6982,9 +6990,202 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ==========================================================================
+  // DASHBOARD CONTROLLER & LIVE WIDGETS
+  // ==========================================================================
+  
+  function initDashboard() {
+    updateDashboardGreeting();
+    updateDashboardClock();
+    setInterval(updateDashboardClock, 1000);
+    
+    // Quick Actions
+    const quickLinkUrlInput = document.getElementById('quick-link-url');
+    const btnQuickSaveLink = document.getElementById('btn-quick-save-link');
+    const quickDownloadUrlInput = document.getElementById('quick-download-url');
+    const btnQuickDownload = document.getElementById('btn-quick-download');
+
+    if (btnQuickSaveLink && quickLinkUrlInput) {
+      btnQuickSaveLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const url = quickLinkUrlInput.value.trim();
+        if (!url) {
+          showModalAlert('Please enter a valid URL to save.', 'Invalid URL', 'warning');
+          return;
+        }
+
+        try {
+          btnQuickSaveLink.disabled = true;
+          btnQuickSaveLink.innerText = 'Saving...';
+          
+          const isOwner = document.body.classList.contains('mode-owner');
+          const addedBy = isOwner ? 'Owner' : (guestUser || 'Guest');
+          
+          const response = await fetch('/api/links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              linkUrl: url,
+              category: 'General',
+              customTitle: '',
+              favicon: 'auto',
+              addedBy
+            })
+          });
+
+          let newLink;
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            newLink = await response.json();
+          } else {
+            const rawText = await response.text();
+            throw new Error(rawText || `HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          if (newLink.error) {
+            await showModalAlert(newLink.error, 'Error Saving Bookmark', 'error');
+            return;
+          }
+
+          quickLinkUrlInput.value = '';
+          await showModalAlert('Bookmark saved successfully to General category!', 'Success', 'success');
+          
+          // Refresh bookmark lists
+          await fetchBookmarks();
+        } catch (err) {
+          showModalAlert(err.message, 'Error Saving Bookmark', 'error');
+        } finally {
+          btnQuickSaveLink.disabled = false;
+          btnQuickSaveLink.innerText = 'Save';
+        }
+      });
+    }
+
+    if (btnQuickDownload && quickDownloadUrlInput) {
+      btnQuickDownload.addEventListener('click', () => {
+        const url = quickDownloadUrlInput.value.trim();
+        if (!url) {
+          showModalAlert('Please enter a media URL to download.', 'Invalid URL', 'warning');
+          return;
+        }
+
+        const currentMode = localStorage.getItem('nexus_mode') || 'guest';
+        if (currentMode !== 'owner') {
+          showModalAlert('The Media Downloader is locked in Guest Mode. Please switch to Owner Mode (bottom left) to use this feature.', 'Feature Locked', 'warning');
+          return;
+        }
+
+        const downloaderUrlInput = document.getElementById('downloader-url');
+        const btnFetchInfo = document.getElementById('btn-fetch-info');
+
+        if (downloaderUrlInput && btnFetchInfo) {
+          // Switch to downloader view
+          switchView('downloader');
+          
+          // Input the url and trigger the click
+          downloaderUrlInput.value = url;
+          quickDownloadUrlInput.value = '';
+          btnFetchInfo.click();
+        }
+      });
+    }
+
+    // Owner mode stats polling
+    syncDashboardOwnerStats();
+    setInterval(syncDashboardOwnerStats, 10000);
+  }
+
+  function updateDashboardGreeting() {
+    const welcomeTitle = document.getElementById('welcome-title');
+    const welcomeSubtitle = document.getElementById('welcome-subtitle');
+    if (!welcomeTitle) return;
+
+    const hour = new Date().getHours();
+    let greeting = 'Welcome back';
+    let timeEmoji = '👋';
+
+    if (hour >= 5 && hour < 12) {
+      greeting = 'Good morning';
+      timeEmoji = '☀️';
+    } else if (hour >= 12 && hour < 17) {
+      greeting = 'Good afternoon';
+      timeEmoji = '🌤️';
+    } else if (hour >= 17 && hour < 22) {
+      greeting = 'Good evening';
+      timeEmoji = '🌆';
+    } else {
+      greeting = 'Working late';
+      timeEmoji = '🌙';
+    }
+
+    const currentMode = localStorage.getItem('nexus_mode') || 'guest';
+    const displayName = currentMode === 'owner' ? 'Owner' : (guestUser ? guestUser : 'Guest');
+
+    welcomeTitle.innerText = `${greeting}, ${displayName}! ${timeEmoji}`;
+  }
+
+  function updateDashboardClock() {
+    const clockEl = document.getElementById('dashboard-clock');
+    const dateEl = document.getElementById('dashboard-date');
+    if (!clockEl) return;
+
+    const now = new Date();
+    
+    // Time string e.g. 12:00:00 PM
+    clockEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    // Date string e.g. Sunday, July 5, 2026
+    dateEl.innerText = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  }
+
+  async function syncDashboardOwnerStats() {
+    const ownerStatsCard = document.getElementById('dashboard-owner-stats');
+    if (!ownerStatsCard) return;
+
+    const currentMode = localStorage.getItem('nexus_mode') || 'guest';
+    const ownerToken = localStorage.getItem('owner_token');
+
+    if (currentMode !== 'owner' || !ownerToken) {
+      ownerStatsCard.classList.add('hidden');
+      return;
+    }
+
+    ownerStatsCard.classList.remove('hidden');
+
+    try {
+      const response = await fetch('/api/admin/stats', {
+        headers: { 'x-owner-token': ownerToken }
+      });
+      if (!response.ok) return;
+
+      const data = await response.json();
+
+      // Memory Calculations (rss relative to total memory)
+      const rssMb = (data.memory.rss / 1024 / 1024).toFixed(1);
+      const totalMemGb = (data.system.totalMem / 1024 / 1024 / 1024).toFixed(1);
+      const freeMemGb = (data.system.freeMem / 1024 / 1024 / 1024).toFixed(1);
+      const usedMemGb = (totalMemGb - freeMemGb).toFixed(1);
+      
+      const memPercent = Math.min(100, Math.max(5, Math.round((data.memory.rss / data.system.totalMem) * 1000))); // Scale node process RSS
+      
+      document.getElementById('dash-meter-mem-val').innerText = `${rssMb} MB`;
+      const memFill = document.getElementById('dash-meter-mem');
+      if (memFill) memFill.style.width = `${Math.max(10, Math.min(100, memPercent))}%`;
+
+      // Uptime Calculation
+      const hrs = Math.floor(data.uptime / 3600);
+      const mins = Math.floor((data.uptime % 3600) / 60);
+      const secs = Math.floor(data.uptime % 60);
+      document.getElementById('dash-meter-uptime-val').innerText = `${hrs}h ${mins}m ${secs}s`;
+    } catch (e) {
+      console.error('Failed to sync dashboard health stats:', e);
+    }
+  }
+
   // Initial load
   checkBrianAuth();
   loadConversationsList(true);
+  initDashboard();
 
 });
 
