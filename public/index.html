@@ -14,8 +14,14 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <!-- SortableJS -->
   <script src="Sortable.min.js"></script>
+  <!-- QR Code Generator & Scanner Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <!-- Styling -->
   <link rel="stylesheet" href="style.css?v=1.0.6">
+  <!-- Cropper.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 </head>
 <body>
   
@@ -24,6 +30,9 @@
     
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
+      <button id="btn-sidebar-toggle" class="btn-sidebar-toggle" title="Collapse Sidebar">
+        <i data-lucide="chevron-left"></i>
+      </button>
       <div class="sidebar-brand">
         <div class="brand-logo">
           <img src="blend_icon.png" alt="blendd.com" class="brand-icon-img">
@@ -39,9 +48,9 @@
           <i data-lucide="layout-dashboard"></i>
           <span>Dashboard</span>
         </button>
-        <button class="nav-item" data-view="downloader">
-          <i data-lucide="download-cloud"></i>
-          <span>Media Downloader</span>
+        <button class="nav-item" data-view="vault">
+          <i data-lucide="box"></i>
+          <span>Tool Vault</span>
         </button>
         <button class="nav-item" data-view="linksaver">
           <i data-lucide="folder-heart"></i>
@@ -61,7 +70,7 @@
         </button>
       </nav>
       
-      <div class="sidebar-footer" id="mode-switcher-footer" style="cursor: pointer;" title="Click to switch between Guest/Owner mode">
+      <button class="sidebar-account-btn" id="sidebar-account-btn" data-view="account" title="Account Portal">
         <div class="user-avatar">
           <div class="avatar-ring" id="avatar-ring-mode"></div>
           <span class="avatar-text" id="avatar-text-mode">G</span>
@@ -70,10 +79,10 @@
           <p class="user-name" id="user-name-mode">Friend Node</p>
           <p class="user-role" id="user-role-mode">Guest Mode</p>
         </div>
-        <button class="btn-lock-mode" id="btn-lock-mode" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 5px; margin-left: auto; transition: color 0.2s;">
-          <i data-lucide="lock" style="width: 16px; height: 16px;"></i>
-        </button>
-      </div>
+        <div class="account-nav-chevron">
+          <i data-lucide="chevron-right"></i>
+        </div>
+      </button>
     </aside>
 
     <!-- Main Content Area -->
@@ -106,14 +115,19 @@
         </div>
 
         <div class="dashboard-grid fade-in-up delay-1">
-          <!-- Card: Downloader Quick Link -->
-          <div class="dash-card link-downloader" data-action="go-to-downloader">
-            <div class="dash-card-icon downloader-glow">
-              <i data-lucide="download-cloud"></i>
+          <!-- Card: Tool Vault -->
+          <div class="dash-card link-vault" id="dash-card-vault">
+            <div class="dash-card-folder-preview">
+              <div class="mini-app-grid">
+                <div class="mini-app-icon icon-qr"><i data-lucide="qr-code"></i></div>
+                <div class="mini-app-icon icon-img"><i data-lucide="image"></i></div>
+                <div class="mini-app-icon icon-pw"><i data-lucide="key-round"></i></div>
+                <div class="mini-app-icon icon-dl"><i data-lucide="download-cloud"></i></div>
+              </div>
             </div>
-            <h3>Media Downloader</h3>
-            <p>Grab video or audio from YouTube, Facebook, Instagram, and more in seconds.</p>
-            <span class="card-action-text">Launch Tool <i data-lucide="arrow-right"></i></span>
+            <h3>Tool Vault</h3>
+            <p>A secure hub for essential utility tools. Includes Downloader, QR scanner, Image tools, and more.</p>
+            <span class="card-action-text">Open Vault <i data-lucide="arrow-right"></i></span>
           </div>
 
           <!-- Card: Link Saver Stats -->
@@ -373,20 +387,514 @@
         </div>
       </section>
 
+      <!-- VIEW: TOOL VAULT DEDICATED -->
+      <section id="view-vault" class="content-view">
+        <div class="view-header">
+          <h1>Tool Vault</h1>
+          <p>Access various quick utility tools for daily workflows.</p>
+        </div>
+        <div class="vault-page-container glass-panel">
+          <div class="tool-vault-grid-standalone">
+            <div class="standalone-app-card" data-app="qrcode">
+              <div class="standalone-app-icon gradient-qrcode">
+                <i data-lucide="qr-code"></i>
+              </div>
+              <div class="standalone-app-details">
+                <h3>QR Code Utility</h3>
+                <p>Generate customized QR codes and scan/decode existing ones.</p>
+                <span class="btn-launch-tool">Launch <i data-lucide="arrow-right"></i></span>
+              </div>
+            </div>
+            <div class="standalone-app-card" data-app="image-optimizer">
+              <div class="standalone-app-icon gradient-image">
+                <i data-lucide="image"></i>
+              </div>
+              <div class="standalone-app-details">
+                <h3>Image Optimizer</h3>
+                <p>Resize, crop, and compress images directly in your browser.</p>
+                <span class="btn-launch-tool">Launch <i data-lucide="arrow-right"></i></span>
+              </div>
+            </div>
+            <div class="standalone-app-card" data-app="password-gen">
+              <div class="standalone-app-icon gradient-password">
+                <i data-lucide="key-round"></i>
+              </div>
+              <div class="standalone-app-details">
+                <h3>Password Generator</h3>
+                <p>Generate highly secure customizable passwords locally.</p>
+                <span class="btn-launch-tool">Launch <i data-lucide="arrow-right"></i></span>
+              </div>
+            </div>
+            <div class="standalone-app-card" data-app="object-remover">
+              <div class="standalone-app-icon gradient-object-remover">
+                <i data-lucide="sparkles"></i>
+              </div>
+              <div class="standalone-app-details">
+                <h3>Object Remover</h3>
+                <p>Erase watermarks, logos, or objects locally using AI.</p>
+                <span class="btn-launch-tool">Launch <i data-lucide="arrow-right"></i></span>
+              </div>
+            </div>
+            <div class="standalone-app-card" data-app="downloader">
+              <div class="standalone-app-icon gradient-downloader">
+                <i data-lucide="download-cloud"></i>
+              </div>
+              <div class="standalone-app-details">
+                <h3>Media Downloader</h3>
+                <p>Download video and audio streams from popular websites.</p>
+                <span class="btn-launch-tool">Launch <i data-lucide="arrow-right"></i></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: QR CODE TOOL -->
+      <section id="view-qrcode" class="content-view">
+        <div class="view-header">
+          <button class="btn-back" data-action="go-to-vault">
+            <i data-lucide="arrow-left"></i>
+            <span>Back to Vault</span>
+          </button>
+          <h1 style="margin-top: 16px;">QR Code Utility</h1>
+          <p>Generate beautiful custom QR codes or scan/decode an existing QR code image.</p>
+        </div>
+
+        <div class="qr-tool-container">
+          <div class="qr-panel-left glass-panel">
+            <div class="tabs-header-mini">
+              <button class="mini-tab-btn active" id="tab-qr-gen">Generate QR</button>
+              <button class="mini-tab-btn" id="tab-qr-scan">Scan QR Image</button>
+            </div>
+
+            <!-- QR Generator Block -->
+            <div id="qr-generator-section" class="qr-section">
+              <div class="form-group">
+                <label for="qr-text">Text or URL Address</label>
+                <div class="input-glow-wrapper">
+                  <input type="text" id="qr-text" placeholder="https://example.com or random text..." required>
+                  <span class="input-focus-border"></span>
+                </div>
+              </div>
+
+              <div class="qr-customizer-grid">
+                <div class="form-group">
+                  <label for="qr-fg-color">Foreground Color</label>
+                  <div class="color-picker-wrapper">
+                    <input type="color" id="qr-fg-color" value="#080b11">
+                    <span class="color-val-hex">#080B11</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="qr-bg-color">Background Color</label>
+                  <div class="color-picker-wrapper">
+                    <input type="color" id="qr-bg-color" value="#ffffff">
+                    <span class="color-val-hex">#FFFFFF</span>
+                  </div>
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                  <label for="qr-size-slider">Resolution Size: <span id="qr-size-val">256px</span></label>
+                  <input type="range" id="qr-size-slider" min="128" max="512" step="32" value="256" class="slider-field">
+                </div>
+              </div>
+
+              <button id="btn-generate-qr" class="btn-primary" style="width: 100%; margin-top: 16px;">
+                <span>Generate QR Code</span>
+                <i data-lucide="qr-code"></i>
+              </button>
+            </div>
+
+            <!-- QR Scanner Block -->
+            <div id="qr-scanner-section" class="qr-section hidden">
+              <div class="qr-dropzone" id="qr-scan-dropzone">
+                <i data-lucide="upload-cloud" class="dropzone-icon"></i>
+                <p>Drag & drop QR image or click to select</p>
+                <input type="file" id="qr-file-input" accept="image/*" class="hidden">
+              </div>
+              <div id="qr-scan-result-card" class="scan-result-card hidden">
+                <h4><i data-lucide="check-circle" class="success-icon"></i> Decoded Text:</h4>
+                <div class="decoded-text-box">
+                  <p id="qr-decoded-text"></p>
+                  <button id="btn-copy-qr-text" class="btn-copy-icon" title="Copy to clipboard">
+                    <i data-lucide="copy"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="qr-panel-right glass-panel">
+            <h3 class="panel-preview-title">Output Preview</h3>
+            <div class="qr-output-container">
+              <div id="qr-canvas-holder">
+                <div class="qr-placeholder-blank">
+                  <i data-lucide="qr-code" style="width: 64px; height: 64px; opacity: 0.25;"></i>
+                  <p>QR code preview will appear here</p>
+                </div>
+              </div>
+              <button id="btn-download-qr" class="btn-glow hidden" style="margin-top: 20px; width: 100%;">
+                <i data-lucide="download"></i>
+                <span>Download QR Code</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: PASSWORD GENERATOR -->
+      <section id="view-password-gen" class="content-view">
+        <div class="view-header">
+          <button class="btn-back" data-action="go-to-vault">
+            <i data-lucide="arrow-left"></i>
+            <span>Back to Vault</span>
+          </button>
+          <h1 style="margin-top: 16px;">Password Generator</h1>
+          <p>Instantly generate strong, secure, and customizable random passwords locally.</p>
+        </div>
+
+        <div class="password-gen-container glass-panel">
+          <div class="password-output-row">
+            <div class="input-glow-wrapper">
+              <input type="text" id="pw-output" readonly placeholder="Click Generate...">
+              <button id="btn-regenerate-pw" class="btn-regenerate" title="Regenerate Password">
+                <i data-lucide="refresh-cw"></i>
+              </button>
+            </div>
+            <button id="btn-copy-pw" class="btn-primary">
+              <i data-lucide="copy"></i>
+              <span>Copy</span>
+            </button>
+          </div>
+
+          <div class="pw-strength-container">
+            <div class="pw-strength-header">
+              <span>Password Strength:</span>
+              <strong id="pw-strength-label" class="strength-weak">Weak</strong>
+            </div>
+            <div class="pw-strength-bar-bg">
+              <div id="pw-strength-bar-fill" class="strength-bar-fill strength-weak" style="width: 25%;"></div>
+            </div>
+          </div>
+
+          <div class="pw-settings-grid">
+            <div class="pw-length-row">
+              <label for="pw-length">Password Length: <span id="pw-length-val">16</span></label>
+              <input type="range" id="pw-length" min="6" max="64" value="16" class="slider-field">
+            </div>
+
+            <div class="checkbox-options-grid">
+              <label class="custom-checkbox">
+                <input type="checkbox" id="pw-include-upper" checked>
+                <span class="checkmark"></span>
+                <span>Include Uppercase (A-Z)</span>
+              </label>
+
+              <label class="custom-checkbox">
+                <input type="checkbox" id="pw-include-lower" checked>
+                <span class="checkmark"></span>
+                <span>Include Lowercase (a-z)</span>
+              </label>
+
+              <label class="custom-checkbox">
+                <input type="checkbox" id="pw-include-nums" checked>
+                <span class="checkmark"></span>
+                <span>Include Numbers (0-9)</span>
+              </label>
+
+              <label class="custom-checkbox">
+                <input type="checkbox" id="pw-include-symbols" checked>
+                <span class="checkmark"></span>
+                <span>Include Symbols (!@#$%^&*)</span>
+              </label>
+
+              <label class="custom-checkbox" style="grid-column: 1 / -1;">
+                <input type="checkbox" id="pw-exclude-similar">
+                <span class="checkmark"></span>
+                <span>Exclude Similar Characters (e.g. i, l, 1, L, o, 0, O)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: IMAGE OPTIMIZER -->
+      <section id="view-image-optimizer" class="content-view">
+        <div class="view-header">
+          <button class="btn-back" data-action="go-to-vault">
+            <i data-lucide="arrow-left"></i>
+            <span>Back to Vault</span>
+          </button>
+          <h1 style="margin-top: 16px;">Image Optimizer</h1>
+          <p>Resize, crop, and compress images directly in your browser. No files are uploaded to any server.</p>
+        </div>
+
+        <div class="img-optimizer-container">
+          <div class="img-panel-left glass-panel">
+            <div class="img-dropzone" id="img-dropzone">
+              <i data-lucide="image" class="dropzone-icon"></i>
+              <p>Drag & drop image here or click to upload</p>
+              <input type="file" id="img-file-input" accept="image/*" class="hidden">
+            </div>
+
+            <div id="img-settings-section" class="img-settings-section hidden">
+              <h3>Optimization Settings</h3>
+              
+              <div class="form-grid-mini">
+                <div class="form-group">
+                  <label for="img-width">Width (px)</label>
+                  <div class="input-glow-wrapper">
+                    <input type="number" id="img-width" min="1" placeholder="Original">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="img-height">Height (px)</label>
+                  <div class="input-glow-wrapper">
+                    <input type="number" id="img-height" min="1" placeholder="Original">
+                  </div>
+                </div>
+                <label class="custom-checkbox" style="grid-column: 1 / -1; margin-top: 6px;">
+                  <input type="checkbox" id="img-lock-aspect" checked>
+                  <span class="checkmark"></span>
+                  <span>Lock Aspect Ratio</span>
+              </div>
+
+              <!-- Crop Tool Section -->
+              <div class="crop-section-wrapper" style="margin-top: 20px; border-top: 1px solid var(--panel-border); padding-top: 16px;">
+                <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">Crop Settings</h4>
+                <div class="crop-buttons-row" style="display: flex; gap: 8px; margin-bottom: 12px;">
+                  <button type="button" id="btn-crop-mode" class="btn-secondary" style="flex: 1; padding: 8px 12px; font-size: 13px;">
+                    <i data-lucide="crop" style="width: 14px; height: 14px;"></i>
+                    <span>Crop Image</span>
+                  </button>
+                  <button type="button" id="btn-crop-apply" class="btn-success hidden" style="flex: 1; padding: 8px 12px; font-size: 13px; background: var(--accent-green);">
+                    <i data-lucide="check" style="width: 14px; height: 14px;"></i>
+                    <span>Apply</span>
+                  </button>
+                  <button type="button" id="btn-crop-cancel" class="btn-secondary hidden" style="flex: 1; padding: 8px 12px; font-size: 13px; border-color: rgba(239, 68, 68, 0.4); color: #ef4444;">
+                    <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                    <span>Cancel</span>
+                  </button>
+                </div>
+                
+                <div id="crop-aspect-ratios" class="crop-aspect-ratios hidden" style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-muted);">Aspect Ratio Preset</label>
+                  <div class="ratio-buttons" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    <button type="button" class="btn-ratio active" data-ratio="NaN">Free</button>
+                    <button type="button" class="btn-ratio" data-ratio="1">1:1</button>
+                    <button type="button" class="btn-ratio" data-ratio="1.33333">4:3</button>
+                    <button type="button" class="btn-ratio" data-ratio="1.77778">16:9</button>
+                    <button type="button" class="btn-ratio" data-ratio="0.75">3:4</button>
+                    <button type="button" class="btn-ratio" data-ratio="0.5625">9:16</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top: 16px;">
+                <label for="img-format">Export Format</label>
+                <div class="select-wrapper">
+                  <select id="img-format">
+                    <option value="image/jpeg" selected>JPEG</option>
+                    <option value="image/png">PNG</option>
+                    <option value="image/webp">WebP</option>
+                  </select>
+                  <i data-lucide="chevron-down" class="select-chevron"></i>
+                </div>
+              </div>
+
+              <div class="form-group" id="img-quality-row" style="margin-top: 16px;">
+                <label for="img-quality">Quality: <span id="img-quality-val">80%</span></label>
+                <input type="range" id="img-quality" min="10" max="100" step="5" value="80" class="slider-field">
+              </div>
+
+              <div style="display: flex; gap: 10px; margin-top: 24px;">
+                <button id="btn-optimize-img" class="btn-primary" style="flex: 2;">
+                  <span>Optimize Image</span>
+                  <i data-lucide="check"></i>
+                </button>
+                <button type="button" id="btn-reset-img" class="btn-secondary" style="flex: 1; padding: 12px;" title="Reset back to original uploaded image">
+                  <i data-lucide="rotate-ccw" style="width: 16px; height: 16px;"></i>
+                  <span>Reset</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="img-panel-right glass-panel">
+            <h3 class="panel-preview-title">Optimized Result</h3>
+            <div class="img-output-container">
+              <div id="img-preview-holder">
+                <div class="img-placeholder-blank">
+                  <i data-lucide="image" style="width: 64px; height: 64px; opacity: 0.25;"></i>
+                  <p>Image preview will appear here</p>
+                </div>
+              </div>
+              
+              <div id="img-meta-info" class="img-meta-info hidden">
+                <div class="meta-row">
+                  <span>Original Size:</span>
+                  <span id="img-orig-size" class="size-badge-gray">0 KB</span>
+                </div>
+                <div class="meta-row">
+                  <span>Optimized Size:</span>
+                  <span id="img-new-size" class="size-badge-green">0 KB</span>
+                </div>
+                <div class="meta-row">
+                  <span>Reduction:</span>
+                  <span id="img-reduction-pct" style="color: var(--accent-green); font-weight: 700;">0%</span>
+                </div>
+              </div>
+
+              <button id="btn-download-img" class="btn-glow hidden" style="margin-top: 20px; width: 100%;">
+                <i data-lucide="download"></i>
+                <span>Download Optimized Image</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: OBJECT REMOVER -->
+      <section id="view-object-remover" class="content-view">
+        <div class="view-header">
+          <button class="btn-back" data-action="go-to-vault">
+            <i data-lucide="arrow-left"></i>
+            <span>Back to Vault</span>
+          </button>
+          <h1 style="margin-top: 16px;">Object & Watermark Remover</h1>
+          <p>Erase watermarks, logos, text, or unwanted objects from your images locally. Zero server uploads.</p>
+        </div>
+
+        <div class="object-remover-container">
+          <div class="object-panel-left glass-panel">
+            <!-- Upload Area -->
+            <div class="object-dropzone" id="object-dropzone">
+              <i data-lucide="sparkles" class="dropzone-icon" style="color: var(--accent-purple);"></i>
+              <p>Drag & drop image here or click to upload</p>
+              <input type="file" id="object-file-input" accept="image/*" class="hidden">
+            </div>
+
+            <!-- Active Editor Workspace -->
+            <div id="object-workspace" class="object-workspace hidden">
+              <div class="editor-canvas-container">
+                <div class="canvas-wrapper" id="object-canvas-wrapper">
+                  <canvas id="object-img-canvas"></canvas>
+                  <canvas id="object-mask-canvas"></canvas>
+                  <!-- Custom circular brush cursor element -->
+                  <div id="brush-cursor" class="brush-cursor"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="object-panel-right glass-panel">
+            <div id="object-controls-empty" class="controls-empty-state">
+              <p>Upload an image to reveal brush controls</p>
+            </div>
+
+            <div id="object-controls" class="object-controls-content hidden">
+              <h3>Drawing Controls</h3>
+              <div class="toolbar-mode-row">
+                <button id="btn-brush-draw" class="btn-toolbar active" title="Draw Mask">
+                  <i data-lucide="brush"></i>
+                  <span>Draw</span>
+                </button>
+                <button id="btn-brush-erase" class="btn-toolbar" title="Erase Mask">
+                  <i data-lucide="eraser"></i>
+                  <span>Erase</span>
+                </button>
+              </div>
+
+              <div class="control-row">
+                <div class="slider-label-row">
+                  <span>Brush Size:</span>
+                  <span id="brush-size-val">25px</span>
+                </div>
+                <input type="range" id="brush-size-slider" min="5" max="100" value="25" class="slider-field">
+              </div>
+
+              <div class="toolbar-action-row">
+                <button id="btn-brush-undo" class="btn-secondary" title="Undo last stroke">
+                  <i data-lucide="undo-2"></i>
+                  <span>Undo</span>
+                </button>
+                <button id="btn-brush-clear" class="btn-secondary" title="Clear all mask">
+                  <i data-lucide="trash-2"></i>
+                  <span>Clear</span>
+                </button>
+              </div>
+
+              <div class="action-separator"></div>
+
+              <h3>Inpainting Process</h3>
+              <button id="btn-process-remove" class="btn-glow" style="width: 100%;">
+                <i data-lucide="sparkles"></i>
+                <span>Erase Selected Objects</span>
+              </button>
+
+              <!-- Loading overlay -->
+              <div id="object-loader" class="object-loader hidden">
+                <div class="loader-spinner"></div>
+                <p id="object-loader-text">Loading Model...</p>
+                <div id="object-progress-container" class="progress-bar-bg hidden">
+                  <div id="object-progress-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <!-- Output comparison slider -->
+              <div id="object-result-actions" class="result-actions hidden" style="margin-top: 20px;">
+                <div class="comparison-toggle-row">
+                  <span>Compare:</span>
+                  <button id="btn-toggle-compare" class="btn-secondary">Show Original</button>
+                </div>
+                <button id="btn-download-removed" class="btn-primary" style="width: 100%; margin-top: 15px;">
+                  <i data-lucide="download"></i>
+                  <span>Download Image</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- VIEW: LINK SAVER -->
       <section id="view-linksaver" class="content-view">
         <div class="view-header">
-          <h1>Shared Bookmark Hub</h1>
+          <h1><span id="btn-toggle-bookmark-mode" class="mode-toggle-interactive" title="Click to toggle Private/Shared Mode">Shared</span> Bookmark Hub</h1>
           <p>Organize, save, and share important links, streaming sites, or articles.</p>
         </div>
 
-        <!-- Add Link Form -->
+        <!-- Add Link Form Container -->
         <div class="link-form-container glass-panel">
-          <div class="panel-header" id="toggle-link-form">
-            <h2><i data-lucide="plus-circle" class="panel-header-icon"></i> Save New Bookmark</h2>
-            <button class="btn-icon-toggle"><i data-lucide="chevron-down"></i></button>
+          <div class="hub-control-box">
+            <div id="shared-only-admin-notice" class="hub-control-content bookmark-helper-message hidden">
+              <i data-lucide="info" style="width: 16px; height: 16px; margin-right: 8px; flex-shrink: 0; color: var(--accent-cyan);"></i>
+              <span>Click the word "Shared" or "Private" in the title above to switch between public and private spaces.</span>
+            </div>
+
+            <!-- Buttons Row for Private Space (side-by-side) -->
+            <div id="bookmark-space-actions" class="hub-control-content bookmark-space-buttons hidden">
+              <button type="button" class="btn-primary flex-1" id="btn-show-add-bookmark">
+                <i data-lucide="plus-circle" style="width: 16px; height: 16px;"></i>
+                <span>Add New Bookmark</span>
+              </button>
+              <button type="button" class="btn-secondary flex-1" id="btn-show-access-folder">
+                <i data-lucide="folder-symlink" style="width: 16px; height: 16px;"></i>
+                <span>Access Shared Folder</span>
+              </button>
+              <a href="/extension.zip" download="blendd-saver-extension.zip" class="btn-secondary flex-1" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; height: 42px;">
+                <i data-lucide="chrome" style="width: 16px; height: 16px;"></i>
+                <span>Get Extension</span>
+              </a>
+            </div>
+
+            <!-- Single Toggle Header for Shared Space / Admin (displayed only when actions are hidden) -->
+            <div class="hub-control-content panel-header hidden" id="toggle-link-form">
+              <h2><i data-lucide="plus-circle" class="panel-header-icon"></i> Save New Bookmark</h2>
+              <button class="btn-icon-toggle"><i data-lucide="chevron-down"></i></button>
+            </div>
           </div>
           
+          <!-- Dropdown 1: Save Bookmark Form -->
           <form id="linksaver-form" class="link-form collapsible-content hidden">
             <div class="form-grid">
               <div class="form-group" style="grid-column: 1 / -1;">
@@ -433,6 +941,13 @@
                   <i data-lucide="chevron-down" class="select-chevron"></i>
                 </div>
               </div>
+              <div class="form-group" id="form-group-folder">
+                <label for="link-folder-input">Folder (Optional)</label>
+                <div class="input-glow-wrapper">
+                  <input type="text" id="link-folder-input" placeholder="e.g. Watchlist">
+                  <span class="input-focus-border"></span>
+                </div>
+              </div>
             </div>
             <div class="form-actions">
               <button type="button" class="btn-secondary hidden" id="btn-cancel-edit">
@@ -444,6 +959,27 @@
               </button>
             </div>
           </form>
+
+          <!-- Dropdown 2: Access Shared Folder Form (visible in Private mode) -->
+          <div id="access-folder-form" class="collapsible-content hidden" style="margin-top: 15px; border-top: 1px solid var(--panel-border); padding-top: 15px;">
+            <div class="panel-header" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; border-bottom: none; padding-bottom: 0;">
+              <i data-lucide="folder-symlink" class="panel-header-icon" style="color: var(--accent-cyan); width: 18px; height: 18px;"></i>
+              <h3 style="font-size: 1.1rem; margin: 0; font-weight: 600; color: var(--text-primary);">Access Shared Folder</h3>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0; margin-bottom: 15px;">Input a linkKey shared by a friend to import their bookmark folder.</p>
+            <div class="form-group" style="margin-bottom: 0;">
+              <div class="folder-import-row" style="display: flex; gap: 12px; align-items: center;">
+                <div class="input-glow-wrapper" style="flex: 1;">
+                  <input type="text" id="folder-key-input" placeholder="Enter folder key (e.g. watchlist-a1b2c)">
+                  <span class="input-focus-border"></span>
+                </div>
+                <button type="button" class="btn-primary" id="btn-import-folder" style="display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 20px; font-weight: 500; border-radius: 8px; white-space: nowrap;">
+                  <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                  <span>Import Folder</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Filter Tabs -->
@@ -457,9 +993,16 @@
             <button class="tab-btn" data-filter="Development">Tools</button>
             <button class="tab-btn" data-filter="General">General</button>
           </div>
-          <div class="search-box">
-            <i data-lucide="search"></i>
-            <input type="text" id="links-search" placeholder="Search saved links...">
+
+          <div class="search-section-wrapper">
+            <div class="search-box">
+              <i data-lucide="search"></i>
+              <input type="text" id="links-search" placeholder="Search saved links...">
+            </div>
+            <button id="btn-vault-collect-toggle" class="tab-btn collect-toggle-btn" style="display: none;">
+              <i data-lucide="plus-square" style="width: 14px; height: 14px;"></i>
+              <span>Collect Links</span>
+            </button>
           </div>
         </div>
 
@@ -473,6 +1016,7 @@
             </div>
           </div>
         </div>
+
       </section>
 
       <!-- VIEW: MINI GAMES -->
@@ -2093,6 +2637,318 @@
         </div>
       </section>
 
+      <!-- VIEW: ACCOUNT -->
+      <section id="view-account" class="content-view">
+        <div class="view-header">
+          <h1>Account Portal</h1>
+          <p>Manage your account settings, avatar, and security preferences.</p>
+        </div>
+
+        <!-- Account details (logged-in) -->
+        <div id="account-logged-in" style="display:none;">
+
+          <!-- Profile Hero Card -->
+          <div class="profile-hero-card glass-panel">
+            <div class="profile-hero-avatar-wrap">
+              <div class="profile-hero-avatar" id="profile-hero-avatar">
+                <span class="profile-hero-initials" id="profile-hero-initials">G</span>
+                <img id="profile-hero-img" src="" alt="Avatar" class="hidden">
+              </div>
+              <button class="profile-avatar-edit-btn" id="btn-profile-avatar-edit" title="Change avatar">
+                <i data-lucide="camera"></i>
+              </button>
+              <input type="file" id="profile-avatar-file" accept="image/*" class="hidden">
+            </div>
+            <div class="profile-hero-info">
+              <div class="profile-hero-name" id="profile-hero-display-name">Loading...</div>
+              <div class="profile-hero-username" id="profile-hero-username">@username</div>
+              <div class="profile-hero-joined" id="profile-hero-joined"></div>
+            </div>
+          </div>
+
+          <!-- Profile Tabs -->
+          <div class="profile-tabs-nav">
+            <button class="profile-tab-btn active" data-profile-tab="overview">Overview</button>
+            <button class="profile-tab-btn" data-profile-tab="customize">Edit Profile</button>
+            <button class="profile-tab-btn" data-profile-tab="security">Security</button>
+          </div>
+
+          <!-- Tab: Overview -->
+          <div id="profile-tab-overview" class="profile-tab-content active">
+            <div class="profile-stats-grid">
+              <div class="profile-stat-card">
+                <div class="profile-stat-icon" style="background: rgba(6,182,212,0.12); color: var(--accent-cyan);">
+                  <i data-lucide="bookmark"></i>
+                </div>
+                <div class="profile-stat-body">
+                  <div class="profile-stat-number" id="profile-stat-bookmarks">0</div>
+                  <div class="profile-stat-label">Bookmarks Saved</div>
+                </div>
+              </div>
+              <div class="profile-stat-card">
+                <div class="profile-stat-icon" style="background: rgba(139,92,246,0.12); color: var(--accent-purple);">
+                  <i data-lucide="calendar"></i>
+                </div>
+                <div class="profile-stat-body">
+                  <div class="profile-stat-number" id="profile-stat-joined">—</div>
+                  <div class="profile-stat-label">Member Since</div>
+                </div>
+              </div>
+              <div class="profile-stat-card">
+                <div class="profile-stat-icon" style="background: rgba(16,185,129,0.12); color: #10b981;">
+                  <i data-lucide="shield-check"></i>
+                </div>
+                <div class="profile-stat-body">
+                  <div class="profile-stat-number" id="profile-stat-access">Guest</div>
+                  <div class="profile-stat-label">Brian AI Access</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="profile-info-card glass-panel">
+              <h3><i data-lucide="info" style="width:16px;height:16px;margin-right:8px;"></i>Account Details</h3>
+              <div class="profile-info-row">
+                <span class="profile-info-label">Username</span>
+                <span class="profile-info-value" id="profile-info-username">—</span>
+              </div>
+              <div class="profile-info-row">
+                <span class="profile-info-label">Display Name</span>
+                <span class="profile-info-value" id="profile-info-displayname">—</span>
+              </div>
+              <div class="profile-info-row">
+                <span class="profile-info-label">Bio</span>
+                <span class="profile-info-value" id="profile-info-bio">No bio set.</span>
+              </div>
+              <div class="profile-info-row">
+                <span class="profile-info-label">Brian Access</span>
+                <span class="profile-info-value" id="profile-info-access">—</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Edit Profile -->
+          <div id="profile-tab-customize" class="profile-tab-content" style="display:none;">
+            <div class="glass-panel" style="padding: 28px;">
+              <h3 style="margin-bottom: 22px; font-size:16px;"><i data-lucide="edit-3" style="width:16px;height:16px;margin-right:8px;"></i>Edit Your Profile</h3>
+              <form id="profile-update-form" style="display: flex; flex-direction: column; gap: 18px;">
+                <div class="form-group">
+                  <label for="profile-display-name-input">Display Name</label>
+                  <div class="auth-field-group">
+                    <i data-lucide="user" class="auth-field-icon"></i>
+                    <input type="text" id="profile-display-name-input" placeholder="Your display name" maxlength="40">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="profile-bio-input">Bio <span style="font-size:11px;color:var(--text-muted);">(max 200 chars)</span></label>
+                  <div class="profile-bio-wrapper">
+                    <textarea id="profile-bio-input" placeholder="Tell others a bit about yourself..." rows="4" maxlength="200"></textarea>
+                    <span class="profile-bio-counter"><span id="profile-bio-chars">0</span>/200</span>
+                  </div>
+                </div>
+                <div id="profile-update-error" class="auth-error-msg" style="display:none;"></div>
+                <button type="submit" class="auth-submit-btn">
+                  <span>Save Changes</span>
+                  <i data-lucide="check" class="auth-submit-icon"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Tab: Security -->
+          <div id="profile-tab-security" class="profile-tab-content" style="display:none;">
+            <div class="glass-panel" style="padding: 28px; margin-bottom: 20px;">
+              <h3 style="margin-bottom: 6px; font-size:16px;"><i data-lucide="lock" style="width:16px;height:16px;margin-right:8px;"></i>Change Password</h3>
+              <p style="font-size:13px;color:var(--text-muted);margin-bottom:22px;">Enter your current password to set a new one.</p>
+              <form id="profile-change-password-form" style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="form-group">
+                  <label>Current Password</label>
+                  <div class="auth-field-group">
+                    <i data-lucide="lock" class="auth-field-icon"></i>
+                    <input type="password" id="profile-current-pw" placeholder="Enter current password" autocomplete="current-password">
+                    <button type="button" class="auth-pw-toggle" data-target="profile-current-pw"><i data-lucide="eye"></i></button>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>New Password</label>
+                  <div class="auth-field-group">
+                    <i data-lucide="key" class="auth-field-icon"></i>
+                    <input type="password" id="profile-new-pw" placeholder="Choose a new password" autocomplete="new-password">
+                    <button type="button" class="auth-pw-toggle" data-target="profile-new-pw"><i data-lucide="eye"></i></button>
+                  </div>
+                  <!-- Strength bar -->
+                  <div class="pw-strength-bar-bg" style="margin-top:8px;">
+                    <div id="profile-pw-strength-fill" class="strength-bar-fill" style="width:0%; transition: width 0.3s, background 0.3s;"></div>
+                  </div>
+                  <span id="profile-pw-strength-label" style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block;"></span>
+                </div>
+                <div class="form-group">
+                  <label>Confirm New Password</label>
+                  <div class="auth-field-group">
+                    <i data-lucide="shield-check" class="auth-field-icon"></i>
+                    <input type="password" id="profile-confirm-pw" placeholder="Repeat new password" autocomplete="new-password">
+                    <button type="button" class="auth-pw-toggle" data-target="profile-confirm-pw"><i data-lucide="eye"></i></button>
+                  </div>
+                  <span id="profile-pw-match-msg" style="font-size:11px;margin-top:4px;display:none;"></span>
+                </div>
+                <div id="profile-pw-error" class="auth-error-msg" style="display:none;"></div>
+                <button type="submit" class="auth-submit-btn">
+                  <span>Update Password</span>
+                  <i data-lucide="shield" class="auth-submit-icon"></i>
+                </button>
+              </form>
+            </div>
+
+            <!-- Logout danger zone -->
+            <div class="glass-panel" style="padding: 24px; border-color: rgba(236,72,153,0.15);">
+              <h3 style="margin-bottom:6px; font-size:15px; color: var(--accent-pink);"><i data-lucide="log-out" style="width:15px;height:15px;margin-right:8px;"></i>Sign Out</h3>
+              <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Log out of your current session on this device.</p>
+              <button class="btn-identity-logout" id="btn-profile-page-logout" style="width:100%;">
+                <i data-lucide="log-out" style="width: 14px; height: 14px;"></i> Sign Out
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Inline login/signup container -->
+        <div id="account-auth-container" class="glass-panel" style="max-width: 420px; margin: 40px auto; padding: 28px;">
+          <div class="auth-portal-tabs">
+            <button type="button" class="auth-portal-tab-btn active" id="account-tab-btn-guest">
+              <i data-lucide="user" style="width: 14px; height: 14px;"></i> Guest Access
+            </button>
+            <button type="button" class="auth-portal-tab-btn" id="account-tab-btn-owner">
+              <i data-lucide="shield" style="width: 14px; height: 14px;"></i> Owner Console
+            </button>
+          </div>
+
+          <!-- Guest Account Panel -->
+          <div id="account-panel-guest" class="auth-panel-content">
+            <!-- Subtabs (Login / Signup) -->
+            <div id="account-guest-credentials-area">
+              <div class="auth-tab-rail" style="margin-bottom: 16px;">
+                <div class="auth-tab-indicator" id="account-guest-subtab-indicator" style="left: 0px; width: 50%;"></div>
+                <button type="button" class="auth-tab-btn active" id="account-btn-guest-subtab-login" style="padding: 6px 0;">Log In</button>
+                <button type="button" class="auth-tab-btn" id="account-btn-guest-subtab-signup" style="padding: 6px 0;">Sign Up</button>
+              </div>
+
+              <form id="account-form-guest-auth" style="display: flex; flex-direction: column; gap: 14px;">
+                <div class="auth-field-group">
+                  <i data-lucide="user" class="auth-field-icon"></i>
+                  <input type="text" id="account-guest-username" required placeholder="Username" autocomplete="username">
+                </div>
+                <div class="auth-field-group">
+                  <i data-lucide="lock" class="auth-field-icon"></i>
+                  <input type="password" id="account-guest-password" required placeholder="Password" autocomplete="current-password">
+                  <button type="button" class="auth-pw-toggle" id="account-toggle-guest-pw" tabindex="-1"><i data-lucide="eye"></i></button>
+                </div>
+                <!-- Signup-only: confirm password + strength -->
+                <div id="account-signup-extra-fields" style="display:none; flex-direction:column; gap:10px;">
+                  <div class="auth-field-group">
+                    <i data-lucide="shield-check" class="auth-field-icon"></i>
+                    <input type="password" id="account-guest-confirm-password" placeholder="Confirm password" autocomplete="new-password">
+                    <button type="button" class="auth-pw-toggle" id="account-toggle-guest-confirm-pw" tabindex="-1"><i data-lucide="eye"></i></button>
+                  </div>
+                  <span id="account-guest-confirm-match" class="auth-signup-confirm-msg" style="display:none;"></span>
+                  <div class="pw-strength-bar-bg">
+                    <div id="account-guest-pw-strength-fill" class="strength-bar-fill" style="width:0%;"></div>
+                  </div>
+                  <span id="account-guest-pw-strength-label" style="font-size:11px;color:var(--text-muted);"></span>
+                </div>
+                <div id="account-guest-auth-error" class="auth-error-msg" style="display:none; color: var(--accent-pink); font-size: 12px; margin-top: 2px;"></div>
+                
+                <button type="submit" class="auth-submit-btn" id="account-btn-guest-auth-submit" style="margin-top: 4px; padding: 10px;">
+                  <span id="account-guest-submit-text">Log In</span>
+                  <i data-lucide="arrow-right" class="auth-submit-icon"></i>
+                </button>
+                <button type="button" class="auth-forgot-link" id="account-btn-guest-forgot" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; margin-top: 6px; text-align: center; font-family: inherit;">
+                  Forgot password?
+                </button>
+              </form>
+            </div>
+
+            <!-- Guest Reset Form (hidden by default) -->
+            <div id="account-panel-guest-reset" style="display: none; flex-direction: column; gap: 14px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                <button type="button" id="account-btn-guest-reset-back" style="background: none; border: none; color: var(--accent-cyan); cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; padding: 0; font-family: inherit;">
+                  <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> Back to Login
+                </button>
+                <h4 style="margin: 0; font-size: 14px; color: var(--text-primary);">Reset Password</h4>
+              </div>
+              <form id="account-form-guest-reset" style="display: flex; flex-direction: column; gap: 14px;">
+                <div class="auth-field-group">
+                  <i data-lucide="user" class="auth-field-icon"></i>
+                  <input type="text" id="account-reset-username" required placeholder="Your username" autocomplete="username">
+                </div>
+                <div class="auth-field-group">
+                  <i data-lucide="key" class="auth-field-icon"></i>
+                  <input type="text" id="account-reset-code" required placeholder="Recovery code (e.g. BORNO-XXXX-XXXX)" style="text-transform: uppercase;">
+                </div>
+                <div class="auth-field-group">
+                  <i data-lucide="lock" class="auth-field-icon"></i>
+                  <input type="password" id="account-reset-newpw" required placeholder="New password" autocomplete="new-password">
+                </div>
+                <div class="auth-field-group">
+                  <i data-lucide="shield-check" class="auth-field-icon"></i>
+                  <input type="password" id="account-reset-confirmpw" required placeholder="Confirm new password" autocomplete="new-password">
+                </div>
+                <div id="account-guest-reset-error" class="auth-error-msg" style="display:none; color: var(--accent-pink); font-size: 12px; margin-top: 2px;"></div>
+                
+                <button type="submit" class="auth-submit-btn" style="margin-top: 4px; padding: 10px;">
+                  <span>Reset Password</span>
+                  <i data-lucide="check" class="auth-submit-icon"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Owner Console Panel -->
+          <div id="account-panel-owner" class="auth-panel-content" style="display: none;">
+            <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 14px;">
+              Enter admin credentials to authorize Owner Mode.
+            </p>
+            <form id="account-form-owner-auth" style="display: flex; flex-direction: column; gap: 14px;">
+              <div class="auth-field-group">
+                <i data-lucide="user" class="auth-field-icon"></i>
+                <input type="text" id="account-owner-username" required placeholder="Admin Username" autocomplete="username">
+              </div>
+              <div class="auth-field-group">
+                <i data-lucide="lock" class="auth-field-icon"></i>
+                <input type="password" id="account-owner-password" required placeholder="Password" autocomplete="current-password">
+              </div>
+              <div id="account-owner-auth-error" class="auth-error-msg" style="display:none; color: var(--accent-pink); font-size: 12px; margin-top: 2px;"></div>
+              
+              <button type="submit" class="auth-submit-btn" style="margin-top: 4px; padding: 10px;">
+                <span>Authenticate Owner</span>
+                <i data-lucide="shield-check" class="auth-submit-icon"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Avatar Crop Modal -->
+        <div id="profile-avatar-crop-modal" class="custom-modal-overlay" style="display:none;">
+          <div class="custom-modal glass-panel popup-anim" style="max-width:500px;width:100%;">
+            <div class="modal-header">
+              <i data-lucide="crop" class="modal-icon info"></i>
+              <h3>Crop Your Avatar</h3>
+            </div>
+            <div class="modal-body">
+              <div style="max-height:350px;overflow:hidden;border-radius:12px;background:#000;">
+                <img id="profile-avatar-crop-img" src="" alt="Crop Preview" style="max-width:100%;display:block;">
+              </div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:12px;text-align:center;">Drag and pinch to adjust. The result will be cropped to a circle.</p>
+            </div>
+            <div class="modal-footer" style="gap:10px;">
+              <button class="btn-primary" id="btn-crop-apply-avatar" style="flex:1;">
+                <i data-lucide="check"></i> Apply
+              </button>
+              <button class="btn-secondary btn-modal-close" id="btn-crop-cancel-avatar" style="flex:1;">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
     </main>
 
     <!-- Mobile Bottom Navigation Bar (visible only on mobile ≤768px) -->
@@ -2113,18 +2969,95 @@
         <i data-lucide="message-square"></i>
         <span>Brian AI</span>
       </button>
-      <button class="mbn-item mbn-profile-btn" id="mbn-profile-btn" aria-label="Profile & Mode Switcher">
+      <button class="mbn-item" data-view="account" id="mbn-account-btn" aria-label="Account">
         <div class="mbn-avatar-ring">
           <span class="mbn-avatar-text" id="mbn-avatar-text">G</span>
         </div>
-        <span id="mbn-mode-label">Guest</span>
+        <span id="mbn-mode-label">Account</span>
       </button>
     </nav>
 
   </div>
 
+  <!-- Tool Vault Overlay (iOS style) -->
+  <div id="tool-vault-overlay" class="tool-vault-overlay hidden">
+    <div class="tool-vault-window">
+      <div class="tool-vault-header">
+        <h2 class="tool-vault-title">Tool Vault</h2>
+        <button id="btn-close-vault" class="vault-close-btn" aria-label="Close Vault">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="tool-vault-grid">
+        <!-- QR Code Tool -->
+        <div class="vault-app-item" data-app="qrcode">
+          <div class="vault-app-icon gradient-qrcode">
+            <i data-lucide="qr-code"></i>
+          </div>
+          <span class="vault-app-label">QR Tool</span>
+        </div>
+        <!-- Image Optimizer -->
+        <div class="vault-app-item" data-app="image-optimizer">
+          <div class="vault-app-icon gradient-image">
+            <i data-lucide="image"></i>
+          </div>
+          <span class="vault-app-label">Image Tool</span>
+        </div>
+        <!-- Password Generator -->
+        <div class="vault-app-item" data-app="password-gen">
+          <div class="vault-app-icon gradient-password">
+            <i data-lucide="key-round"></i>
+          </div>
+          <span class="vault-app-label">Keys</span>
+        </div>
+        <!-- Object Remover -->
+        <div class="vault-app-item" data-app="object-remover">
+          <div class="vault-app-icon gradient-object-remover">
+            <i data-lucide="sparkles"></i>
+          </div>
+          <span class="vault-app-label">Object Remover</span>
+        </div>
+        <!-- Media Downloader -->
+        <div class="vault-app-item" data-app="downloader">
+          <div class="vault-app-icon gradient-downloader">
+            <i data-lucide="download-cloud"></i>
+          </div>
+          <span class="vault-app-label">Downloader</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Collection Bucket -->
+  <div id="vault-collect-bucket" class="vault-collect-bucket glass-panel hidden">
+    <div class="bucket-info">
+      <i data-lucide="archive" class="bucket-icon"></i>
+      <div class="bucket-text">
+        <span class="bucket-count" id="bucket-count">0</span> links collected
+      </div>
+    </div>
+    <div class="bucket-destination">
+      <label for="bucket-folder-select">Target Folder:</label>
+      <div class="select-wrapper select-sm">
+        <select id="bucket-folder-select">
+          <option value="">General (No Folder)</option>
+        </select>
+        <i data-lucide="chevron-down" class="select-chevron"></i>
+      </div>
+    </div>
+    <div class="bucket-actions">
+      <button id="btn-bucket-done" class="btn-primary btn-sm">
+        <span>Sync</span>
+        <i data-lucide="check"></i>
+      </button>
+      <button id="btn-bucket-cancel" class="btn-secondary btn-sm">Cancel</button>
+    </div>
+  </div>
+
   <!-- Socket.io client JS -->
   <script src="/socket.io/socket.io.js"></script>
+  <!-- ONNX Runtime Web for Browser AI -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.0/dist/ort.min.js"></script>
   <!-- Main Frontend App Logic -->
   <script src="app.js?v=1.0.4"></script>
 </body>

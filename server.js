@@ -60,6 +60,16 @@ if (!fs.existsSync(LINKS_FILE)) fs.writeFileSync(LINKS_FILE, JSON.stringify([], 
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2));
 
+const PRIVATE_BOOKMARKS_FILE = path.join(DATA_DIR, 'private_bookmarks.json');
+const BOOKMARK_FOLDERS_FILE = path.join(DATA_DIR, 'bookmark_folders.json');
+const USER_SAVED_FOLDERS_FILE = path.join(DATA_DIR, 'user_saved_folders.json');
+const USER_HIDDEN_ITEMS_FILE = path.join(DATA_DIR, 'user_hidden_items.json');
+
+if (!fs.existsSync(PRIVATE_BOOKMARKS_FILE)) fs.writeFileSync(PRIVATE_BOOKMARKS_FILE, JSON.stringify([], null, 2));
+if (!fs.existsSync(BOOKMARK_FOLDERS_FILE)) fs.writeFileSync(BOOKMARK_FOLDERS_FILE, JSON.stringify([], null, 2));
+if (!fs.existsSync(USER_SAVED_FOLDERS_FILE)) fs.writeFileSync(USER_SAVED_FOLDERS_FILE, JSON.stringify([], null, 2));
+if (!fs.existsSync(USER_HIDDEN_ITEMS_FILE)) fs.writeFileSync(USER_HIDDEN_ITEMS_FILE, JSON.stringify([], null, 2));
+
 const VIEW_COUNTS_FILE = path.join(DATA_DIR, 'view_counts.json');
 const USAGE_LOGS_FILE = path.join(DATA_DIR, 'usage_logs.json');
 
@@ -406,38 +416,164 @@ app.get('/api/retrieve/:token', (req, res) => {
   });
 });
 
+// Local JSON helper functions for bookmarks & folders
+function readLocalPrivateBookmarks() {
+  try {
+    return JSON.parse(fs.readFileSync(PRIVATE_BOOKMARKS_FILE, 'utf8') || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+function writeLocalPrivateBookmarks(data) {
+  fs.writeFileSync(PRIVATE_BOOKMARKS_FILE, JSON.stringify(data, null, 2));
+}
+
+function readLocalFolders() {
+  try {
+    return JSON.parse(fs.readFileSync(BOOKMARK_FOLDERS_FILE, 'utf8') || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+function writeLocalFolders(data) {
+  fs.writeFileSync(BOOKMARK_FOLDERS_FILE, JSON.stringify(data, null, 2));
+}
+
+function readLocalUserSavedFolders() {
+  try {
+    return JSON.parse(fs.readFileSync(USER_SAVED_FOLDERS_FILE, 'utf8') || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+function writeLocalUserSavedFolders(data) {
+  fs.writeFileSync(USER_SAVED_FOLDERS_FILE, JSON.stringify(data, null, 2));
+}
+
+function readLocalHiddenItems() {
+  try {
+    return JSON.parse(fs.readFileSync(USER_HIDDEN_ITEMS_FILE, 'utf8') || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+function writeLocalHiddenItems(data) {
+  fs.writeFileSync(USER_HIDDEN_ITEMS_FILE, JSON.stringify(data, null, 2));
+}
+
+// Get the set of bookmark IDs hidden by a specific user
+function getUserHiddenIds(username) {
+  const all = readLocalHiddenItems();
+  return new Set(
+    all
+      .filter(h => (h.username || '').toLowerCase() === username.toLowerCase())
+      .map(h => h.bookmark_id)
+  );
+}
+
 // REST API: Link Saver CRUD
 app.get('/api/links', async (req, res) => {
   try {
     const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
+    const reqUser = req.headers['x-user-name'] || 'Guest';
+    const mode = req.query.mode || 'shared';
 
-    let fetchQuery = supabase
-      .from('bookmarks')
-      .select('*')
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('added_at', { ascending: false });
+    let data = [];
+    if (mode === 'private') {
+      let privateLinks = [];
+      let savedFolderKeys = [];
+      let sharedFoldersBookmarks = [];
+      let dbSuccess = false;
 
-    let { data, error } = await fetchQuery;
+      try {
+        const { data: ownPrivate, error: ownPrivateErr } = await supabase
+          .from('bookmarks')
+          .select('*')
+          .eq('is_private', true)
+          .ilike('owner_username', reqUser)
+          .order('sort_order', { ascending: true, nullsFirst: false });
 
-    if (error && error.message && error.message.includes('column "sort_order" does not exist')) {
-      console.warn('[Supabase] "sort_order" column does not exist yet. Please run: ALTER TABLE bookmarks ADD COLUMN sort_order FLOAT; Falling back to chronological order.');
-      const fallback = await supabase
-        .from('bookmarks')
-        .select('*')
-        .order('added_at', { ascending: false });
-      data = fallback.data;
-      error = fallback.error;
+        if (!ownPrivateErr) {
+          privateLinks = ownPrivate || [];
+          dbSuccess = true;
+        }
+
+        const { data: savedFolders, error: savedFoldersErr } = await supabase
+          .from('user_saved_folders')
+          .select('link_key')
+          .ilike('username', reqUser);
+
+        if (!savedFoldersErr && savedFolders && savedFolders.length > 0) {
+          savedFolderKeys = savedFolders.map(f => f.link_key);
+          const { data: sharedBookmarks, error: sharedBookmarksErr } = await supabase
+            .from('bookmarks')
+            .select('*')
+            .in('folder_key', savedFolderKeys)
+            .order('sort_order', { ascending: true, nullsFirst: false });
+          
+          if (!sharedBookmarksErr) {
+            sharedFoldersBookmarks = sharedBookmarks || [];
+          }
+        }
+      } catch (e) {
+        dbSuccess = false;
+      }
+
+      if (!dbSuccess) {
+        const localBookmarks = readLocalPrivateBookmarks();
+        const localSavedFolders = readLocalUserSavedFolders();
+
+        privateLinks = localBookmarks.filter(item =>
+          item.is_private === true &&
+          item.is_deleted !== true &&
+          (item.owner_username || '').toLowerCase() === reqUser.toLowerCase()
+        );
+
+        savedFolderKeys = localSavedFolders
+          .filter(f => (f.username || '').toLowerCase() === reqUser.toLowerCase())
+          .map(f => f.link_key);
+
+        sharedFoldersBookmarks = localBookmarks.filter(item =>
+          item.folder_key && savedFolderKeys.includes(item.folder_key)
+        );
+      }
+
+      data = [...privateLinks, ...sharedFoldersBookmarks];
+    } else {
+      // Shared mode
+      let dbSuccess = false;
+      try {
+        let { data: dbData, error: dbErr } = await supabase
+          .from('bookmarks')
+          .select('*')
+          .eq('is_private', false)
+          .order('sort_order', { ascending: true, nullsFirst: false })
+          .order('added_at', { ascending: false });
+
+        if (dbErr && dbErr.message && dbErr.message.includes('is_private')) {
+          const fallback = await supabase
+            .from('bookmarks')
+            .select('*')
+            .order('sort_order', { ascending: true, nullsFirst: false })
+            .order('added_at', { ascending: false });
+          dbData = fallback.data;
+          dbErr = fallback.error;
+        }
+
+        if (!dbErr) {
+          data = dbData || [];
+          dbSuccess = true;
+        }
+      } catch (e) {
+        dbSuccess = false;
+      }
+
+      if (!dbSuccess) {
+        const localBookmarks = readLocalPrivateBookmarks();
+        data = localBookmarks.filter(item => item.is_private !== true);
+      }
     }
 
-    if (error) {
-      console.error('Fetch bookmarks error:', error.message);
-      return res.status(500).json({ error: 'Could not read links' });
-    }
-
-    // Resolve null sort orders sequentially per category, or globally?
-    // We order them first by sort_order (with nulls last), and then by added_at desc.
-    // So the returned data array is in the correct default visual order.
-    // We can assign sequential sort_orders to any legacy null entries.
     let currentMax = 0;
     if (data && data.length > 0) {
       data.forEach(item => {
@@ -446,15 +582,15 @@ app.get('/api/links', async (req, res) => {
         }
       });
     }
-    if (currentMax === 0) {
-      currentMax = 1000;
-    }
+    if (currentMax === 0) currentMax = 1000;
 
-    // Map database fields to frontend keys (specifically added_at -> addedAt) and filter out soft-deleted ones
+    // Get IDs the user has personally hidden from their space
+    const userHiddenIds = mode === 'private' ? getUserHiddenIds(reqUser) : new Set();
+
     const filtered = (data || [])
       .filter(item => item.is_deleted !== true && item.deleted !== true)
+      .filter(item => !userHiddenIds.has(String(item.id)))
       .filter(item => {
-        // If not owner, hide bookmarks that admin has hidden
         if (!isOwnerRequest && item.hidden_by_admin === true) return false;
         return true;
       });
@@ -475,6 +611,10 @@ app.get('/api/links', async (req, res) => {
       domain: item.domain,
       addedAt: item.added_at,
       addedBy: item.added_by || item.addedby || 'Owner',
+      ownerUsername: item.owner_username || 'Owner',
+      isPrivate: item.is_private === true,
+      folderName: item.folder_name || null,
+      folderKey: item.folder_key || null,
       hiddenByAdmin: item.hidden_by_admin === true,
       sortOrder: item.sort_order
     }));
@@ -488,9 +628,17 @@ app.get('/api/links', async (req, res) => {
 
 // Create Link metadata auto-fetch and Save
 app.post('/api/links', async (req, res) => {
-  const { linkUrl, category, customTitle, favicon: inputFavicon, addedBy } = req.body;
+  const { linkUrl, category, customTitle, favicon: inputFavicon, addedBy, isPrivate, folderName } = req.body;
   if (!linkUrl) {
     return res.status(400).json({ error: 'URL is required' });
+  }
+
+  const reqUser = req.headers['x-user-name'] || 'Guest';
+  const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
+
+  // Shared mode rule: Only admins (owner) can add public links
+  if (isPrivate !== true && !isOwnerRequest) {
+    return res.status(403).json({ error: 'Only admins can add bookmarks to the Shared Bookmark Hub' });
   }
 
   try {
@@ -502,7 +650,6 @@ app.post('/api/links', async (req, res) => {
       favicon = `https://www.google.com/s2/favicons?sz=64&domain=${domain || 'google.com'}`;
     }
 
-    // If no custom title is provided, scrape it from the webpage
     if (!title) {
       const meta = await fetchUrlTitle(linkUrl);
       title = meta.title;
@@ -530,42 +677,66 @@ app.post('/api/links', async (req, res) => {
       console.warn('Failed to query min sort_order:', err);
     }
 
-    // Insert into Supabase (defensively check for added_by and sort_order columns)
+    // Insert logic
+    let inserted;
+    let dbSuccess = false;
+    
     const insertObj = {
       title,
       url: linkUrl,
       category: category || 'General',
       favicon,
       domain,
-      added_by: addedBy || 'Owner'
+      added_by: addedBy || reqUser,
+      is_private: isPrivate === true,
+      owner_username: reqUser,
+      folder_name: folderName || null
     };
 
     if (hasSortOrderColumn) {
       insertObj.sort_order = minSortOrder;
     }
 
-    let { data, error } = await supabase
-      .from('bookmarks')
-      .insert([insertObj])
-      .select();
-
-    if (error && error.message && error.message.includes('column "added_by"')) {
-      console.warn('[Supabase] "added_by" column does not exist yet. Retrying without it.');
-      delete insertObj.added_by;
-      const fallback = await supabase
+    try {
+      let { data, error } = await supabase
         .from('bookmarks')
         .insert([insertObj])
         .select();
-      data = fallback.data;
-      error = fallback.error;
+
+      if (error && error.message && (error.message.includes('is_private') || error.message.includes('owner_username'))) {
+        throw new Error('New columns missing');
+      }
+
+      if (!error && data && data.length > 0) {
+        inserted = data[0];
+        dbSuccess = true;
+      }
+    } catch (e) {
+      dbSuccess = false;
     }
 
-    if (error) {
-      console.error('Insert bookmark error:', error.message);
-      return res.status(500).json({ error: 'Could not save link' });
+    if (!dbSuccess) {
+      const localBookmarks = readLocalPrivateBookmarks();
+      inserted = {
+        id: uuidv4(),
+        title,
+        url: linkUrl,
+        category: category || 'General',
+        favicon,
+        domain,
+        added_at: new Date().toISOString(),
+        added_by: addedBy || reqUser,
+        owner_username: reqUser,
+        is_private: isPrivate === true,
+        folder_name: folderName || null,
+        folder_key: null,
+        hidden_by_admin: false,
+        sort_order: minSortOrder
+      };
+      localBookmarks.push(inserted);
+      writeLocalPrivateBookmarks(localBookmarks);
     }
 
-    const inserted = data[0];
     const formatted = {
       id: inserted.id,
       title: inserted.title,
@@ -575,6 +746,10 @@ app.post('/api/links', async (req, res) => {
       domain: inserted.domain,
       addedAt: inserted.added_at,
       addedBy: inserted.added_by || inserted.addedby || 'Owner',
+      ownerUsername: inserted.owner_username || 'Owner',
+      isPrivate: inserted.is_private === true,
+      folderName: inserted.folder_name || null,
+      folderKey: inserted.folder_key || null,
       hiddenByAdmin: inserted.hidden_by_admin === true,
       sortOrder: inserted.sort_order
     };
@@ -590,52 +765,112 @@ app.post('/api/links', async (req, res) => {
 app.delete('/api/links/:id', async (req, res) => {
   const id = req.params.id;
   const reqUser = req.headers['x-user-name'] || 'Guest';
+  const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
 
   try {
-    // 1. Fetch bookmark to check ownership
-    const { data: bookmark, error: fetchError } = await supabase
-      .from('bookmarks')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    let bookmark = null;
+    let dbSuccess = false;
 
-    if (fetchError) {
-      console.error('Fetch bookmark for delete error:', fetchError.message);
-      return res.status(500).json({ error: 'Could not fetch bookmark details' });
-    }
-
-    if (!bookmark) {
-      return res.status(404).json({ error: 'Bookmark not found' });
-    }
-
-    const owner = bookmark.added_by || bookmark.addedby || 'Owner';
-    const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
-    if (!isOwnerRequest && owner.toLowerCase() !== reqUser.toLowerCase()) {
-      return res.status(403).json({ error: 'You can only delete your own bookmarks' });
-    }
-
-    // 2. Soft-delete the bookmark if column exists, else hard-delete
-    let { error } = await supabase
-      .from('bookmarks')
-      .update({ is_deleted: true })
-      .eq('id', id);
-
-    if (error && error.message && error.message.includes('is_deleted')) {
-      console.warn('[Supabase] "is_deleted" column does not exist. Falling back to hard delete.');
-      const hardDeleteResult = await supabase
+    try {
+      const { data, error } = await supabase
         .from('bookmarks')
-        .delete()
-        .eq('id', id);
-      error = hardDeleteResult.error;
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!error && data) {
+        bookmark = data;
+        dbSuccess = true;
+      }
+    } catch (e) {
+      dbSuccess = false;
     }
 
-    if (error) {
-      console.error('Delete bookmark error:', error.message);
-      return res.status(500).json({ error: 'Could not delete bookmark' });
+    // Check local fallback if not found in DB
+    if (!dbSuccess || !bookmark) {
+      const localBookmarks = readLocalPrivateBookmarks();
+      const index = localBookmarks.findIndex(b => b.id === id);
+      if (index !== -1) {
+        const localB = localBookmarks[index];
+        const owner = (localB.owner_username || localB.added_by || 'Owner').toLowerCase();
+        const reqUserLower = reqUser.toLowerCase();
+        const isOwnItem = isOwnerRequest || owner === reqUserLower || owner === 'owner' || owner === 'guest';
+
+        if (isOwnItem) {
+          // Soft-delete own bookmark
+          localB.is_deleted = true;
+          writeLocalPrivateBookmarks(localBookmarks);
+          trackUsage(reqUser, `Soft-deleted bookmark: "${localB.title}"`, req);
+          return res.json({ message: 'Link deleted successfully' });
+        } else {
+          // Foreign item: add to user's personal hidden list
+          const hidden = readLocalHiddenItems();
+          const alreadyHidden = hidden.some(h =>
+            h.bookmark_id === id && (h.username || '').toLowerCase() === reqUserLower
+          );
+          if (!alreadyHidden) {
+            hidden.push({ username: reqUser, bookmark_id: id, hidden_at: new Date().toISOString() });
+            writeLocalHiddenItems(hidden);
+          }
+          trackUsage(reqUser, `Removed foreign bookmark from space: "${localB.title}"`, req);
+          return res.json({ message: 'Removed from your space' });
+        }
+      }
+
+      if (!dbSuccess) {
+        // Bookmark not found anywhere — hide it anyway to clear it from view
+        const hidden = readLocalHiddenItems();
+        const reqUserLower = reqUser.toLowerCase();
+        const alreadyHidden = hidden.some(h =>
+          h.bookmark_id === id && (h.username || '').toLowerCase() === reqUserLower
+        );
+        if (!alreadyHidden) {
+          hidden.push({ username: reqUser, bookmark_id: id, hidden_at: new Date().toISOString() });
+          writeLocalHiddenItems(hidden);
+        }
+        return res.json({ message: 'Removed from your space' });
+      }
     }
 
-    trackUsage(reqUser, `Deleted bookmark: "${bookmark.title}"`, req);
-    res.json({ message: 'Link deleted successfully' });
+    if (bookmark) {
+      const owner = (bookmark.owner_username || bookmark.added_by || bookmark.addedby || 'Owner').toLowerCase();
+      const reqUserLower = reqUser.toLowerCase();
+      const isOwnItem = isOwnerRequest || owner === reqUserLower || owner === 'owner' || owner === 'guest';
+
+      if (isOwnItem) {
+        // Soft-delete own bookmark in DB
+        let { error } = await supabase
+          .from('bookmarks')
+          .update({ is_deleted: true })
+          .eq('id', id);
+
+        if (error && error.message && error.message.includes('is_deleted')) {
+          console.warn('[Supabase] "is_deleted" column missing. Falling back to hard delete.');
+          const hardDeleteResult = await supabase.from('bookmarks').delete().eq('id', id);
+          error = hardDeleteResult.error;
+        }
+
+        if (error) {
+          console.error('Delete bookmark error:', error.message);
+          return res.status(500).json({ error: 'Could not delete bookmark' });
+        }
+
+        trackUsage(reqUser, `Deleted bookmark: "${bookmark.title}"`, req);
+        return res.json({ message: 'Link deleted successfully' });
+      } else {
+        // Foreign item: add to user's personal hidden list (local fallback)
+        const hidden = readLocalHiddenItems();
+        const alreadyHidden = hidden.some(h =>
+          h.bookmark_id === id && (h.username || '').toLowerCase() === reqUserLower
+        );
+        if (!alreadyHidden) {
+          hidden.push({ username: reqUser, bookmark_id: id, hidden_at: new Date().toISOString() });
+          writeLocalHiddenItems(hidden);
+        }
+        trackUsage(reqUser, `Removed foreign bookmark from space: "${bookmark.title}"`, req);
+        return res.json({ message: 'Removed from your space' });
+      }
+    }
   } catch (err) {
     console.error('API Error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -645,33 +880,29 @@ app.delete('/api/links/:id', async (req, res) => {
 app.put('/api/links/:id', async (req, res) => {
   const id = req.params.id;
   const reqUser = req.headers['x-user-name'] || 'Guest';
-  const { linkUrl, category, customTitle, favicon: inputFavicon, addedBy } = req.body;
+  const { linkUrl, category, customTitle, favicon: inputFavicon, addedBy, folderName } = req.body;
 
   if (!linkUrl) {
     return res.status(400).json({ error: 'URL is required' });
   }
 
   try {
-    // 1. Fetch existing bookmark to verify ownership
-    const { data: bookmark, error: fetchError } = await supabase
-      .from('bookmarks')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    let bookmark = null;
+    let dbSuccess = false;
 
-    if (fetchError) {
-      console.error('Fetch bookmark for update error:', fetchError.message);
-      return res.status(500).json({ error: 'Could not fetch bookmark details' });
-    }
+    try {
+      const { data, error } = await supabase
+        .from('bookmarks')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
 
-    if (!bookmark) {
-      return res.status(404).json({ error: 'Bookmark not found' });
-    }
-
-    const owner = bookmark.added_by || bookmark.addedby || 'Owner';
-    const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
-    if (!isOwnerRequest && owner.toLowerCase() !== reqUser.toLowerCase()) {
-      return res.status(403).json({ error: 'You can only edit your own bookmarks' });
+      if (!error && data) {
+        bookmark = data;
+        dbSuccess = true;
+      }
+    } catch (e) {
+      dbSuccess = false;
     }
 
     let title = customTitle ? customTitle.trim() : '';
@@ -687,112 +918,835 @@ app.put('/api/links/:id', async (req, res) => {
       title = meta.title;
     }
 
-    const updateObj = {
-      title,
-      url: linkUrl,
-      category: category || 'General',
-      favicon,
-      domain,
-      added_by: owner // Keep the original owner
-    };
+    if (!dbSuccess || !bookmark) {
+      const localBookmarks = readLocalPrivateBookmarks();
+      const index = localBookmarks.findIndex(b => b.id === id);
+      if (index !== -1) {
+        const localB = localBookmarks[index];
+        const owner = localB.owner_username || localB.added_by || 'Owner';
+        const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
+        const ownerLower = owner.toLowerCase();
+        const reqUserLower = reqUser.toLowerCase();
+        const isDefaultOwner = ownerLower === 'owner' || ownerLower === 'guest';
+        if (!isOwnerRequest && ownerLower !== reqUserLower && !isDefaultOwner) {
+          return res.status(403).json({ error: 'You can only edit your own bookmarks' });
+        }
 
-    let { data, error } = await supabase
-      .from('bookmarks')
-      .update(updateObj)
-      .eq('id', id)
-      .select();
-
-    if (error && error.message && error.message.includes('column "added_by"')) {
-      console.warn('[Supabase] "added_by" column does not exist yet. Retrying update without it.');
-      delete updateObj.added_by;
-      const fallbackResult = await supabase
-        .from('bookmarks')
-        .update(updateObj)
-        .eq('id', id)
-        .select();
-      data = fallbackResult.data;
-      error = fallbackResult.error;
-    }
-
-    if (!error && (!data || data.length === 0)) {
-      console.log('[Supabase] Update returned 0 rows. Attempting delete-and-insert fallback...');
-      
-      const { data: deletedData, error: deleteError } = await supabase
-        .from('bookmarks')
-        .delete()
-        .eq('id', id)
-        .select();
-
-      if (deleteError) {
-        error = deleteError;
-      } else if (deletedData && deletedData.length > 0) {
-        const oldRow = deletedData[0];
+        localB.title = title;
+        localB.url = linkUrl;
+        localB.category = category || 'General';
+        localB.favicon = favicon;
+        localB.domain = domain;
+        localB.folder_name = folderName || null;
         
-        const insertObj = {
-          id,
-          title,
-          url: linkUrl,
-          category: category || 'General',
-          favicon,
-          domain,
-          added_at: oldRow.added_at,
-          added_by: owner
+        writeLocalPrivateBookmarks(localBookmarks);
+
+        const formatted = {
+          id: localB.id,
+          title: localB.title,
+          url: localB.url,
+          category: localB.category,
+          favicon: localB.favicon,
+          domain: localB.domain,
+          addedAt: localB.added_at,
+          addedBy: localB.added_by || 'Owner',
+          ownerUsername: localB.owner_username || 'Owner',
+          isPrivate: localB.is_private === true,
+          folderName: localB.folder_name || null,
+          folderKey: localB.folder_key || null,
+          hiddenByAdmin: localB.hidden_by_admin === true
         };
 
-        let { data: insertData, error: insertError } = await supabase
-          .from('bookmarks')
-          .insert([insertObj])
-          .select();
+        trackUsage(reqUser, `Updated bookmark: "${formatted.title}"`, req);
+        return res.json(formatted);
+      }
 
-        if (insertError && insertError.message && insertError.message.includes('column "added_by"')) {
-          console.warn('[Supabase] "added_by" column does not exist yet. Retrying fallback insert without it.');
-          delete insertObj.added_by;
-          const fallbackInsert = await supabase
-            .from('bookmarks')
-            .insert([insertObj])
-            .select();
-          insertData = fallbackInsert.data;
-          insertError = fallbackInsert.error;
-        }
-
-        if (insertError) {
-          error = insertError;
-        } else if (insertData && insertData.length > 0) {
-          data = insertData;
-        }
+      if (!dbSuccess) {
+        return res.status(404).json({ error: 'Bookmark not found' });
       }
     }
 
-    if (error) {
-      console.error('Update bookmark error:', error.message);
-      return res.status(500).json({ error: 'Could not update link' });
+    if (bookmark) {
+      const owner = bookmark.owner_username || bookmark.added_by || bookmark.addedby || 'Owner';
+      const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
+      const ownerLower = owner.toLowerCase();
+      const reqUserLower = reqUser.toLowerCase();
+      const isDefaultOwner = ownerLower === 'owner' || ownerLower === 'guest';
+      if (!isOwnerRequest && ownerLower !== reqUserLower && !isDefaultOwner) {
+        return res.status(403).json({ error: 'You can only edit your own bookmarks' });
+      }
+
+      const updateObj = {
+        title,
+        url: linkUrl,
+        category: category || 'General',
+        favicon,
+        domain,
+        folder_name: folderName || null
+      };
+
+      let updatedRow;
+      let updateSuccess = false;
+      try {
+        let { data, error } = await supabase
+          .from('bookmarks')
+          .update(updateObj)
+          .eq('id', id)
+          .select();
+
+        if (error && error.message && error.message.includes('folder_name')) {
+          delete updateObj.folder_name;
+          const retry = await supabase
+            .from('bookmarks')
+            .update(updateObj)
+            .eq('id', id)
+            .select();
+          data = retry.data;
+          error = retry.error;
+        }
+
+        if (!error && data && data.length > 0) {
+          updatedRow = data[0];
+          updateSuccess = true;
+        }
+      } catch (e) {
+        updateSuccess = false;
+      }
+
+      if (!updateSuccess) {
+        const localBookmarks = readLocalPrivateBookmarks();
+        let localB = localBookmarks.find(b => b.id === id);
+        if (!localB) {
+          localB = {
+            ...bookmark,
+            is_private: bookmark.is_private === true,
+            owner_username: bookmark.owner_username || owner
+          };
+          localBookmarks.push(localB);
+        }
+        localB.title = title;
+        localB.url = linkUrl;
+        localB.category = category || 'General';
+        localB.favicon = favicon;
+        localB.domain = domain;
+        localB.folder_name = folderName || null;
+        writeLocalPrivateBookmarks(localBookmarks);
+        updatedRow = localB;
+      }
+
+      const formatted = {
+        id: updatedRow.id,
+        title: updatedRow.title,
+        url: updatedRow.url,
+        category: updatedRow.category,
+        favicon: updatedRow.favicon,
+        domain: updatedRow.domain,
+        addedAt: updatedRow.added_at,
+        addedBy: updatedRow.added_by || updatedRow.addedby || 'Owner',
+        ownerUsername: updatedRow.owner_username || 'Owner',
+        isPrivate: updatedRow.is_private === true,
+        folderName: updatedRow.folder_name || null,
+        folderKey: updatedRow.folder_key || null,
+        hiddenByAdmin: updatedRow.hidden_by_admin === true
+      };
+
+      trackUsage(reqUser, `Updated bookmark: "${formatted.title}"`, req);
+      res.json(formatted);
     }
-
-    if (!data || data.length === 0) {
-      console.warn('[Supabase] No rows updated. This usually happens if Row Level Security (RLS) is enabled on the "bookmarks" table and there is no UPDATE policy. Please run: ALTER TABLE bookmarks DISABLE ROW LEVEL SECURITY;');
-      return res.status(404).json({ error: 'Bookmark not found (No rows updated. Make sure Row Level Security is disabled or configured properly on the bookmarks table).' });
-    }
-
-    const updated = data[0];
-    const formatted = {
-      id: updated.id,
-      title: updated.title,
-      url: updated.url,
-      category: updated.category,
-      favicon: updated.favicon,
-      domain: updated.domain,
-      addedAt: updated.added_at,
-      addedBy: updated.added_by || updated.addedby || 'Owner',
-      hiddenByAdmin: updated.hidden_by_admin === true
-    };
-
-    trackUsage(reqUser, `Updated bookmark: "${formatted.title}"`, req);
-    res.json(formatted);
   } catch (err) {
     console.error('API Error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// REST API: Folder Sharing & Subscriptions
+app.post('/api/folders/share', async (req, res) => {
+  const { folderName } = req.body;
+  const reqUser = req.headers['x-user-name'] || 'Guest';
+
+  if (!folderName) {
+    return res.status(400).json({ error: 'Folder name is required' });
+  }
+
+  // Generate unique linkKey
+  const prefix = folderName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10).toLowerCase();
+  const linkKey = `${prefix}-${Math.random().toString(36).substring(2, 7)}`;
+
+  try {
+    let dbSuccess = false;
+    try {
+      const { data, error } = await supabase
+        .from('bookmark_folders')
+        .insert([{
+          folder_name: folderName,
+          link_key: linkKey,
+          owner_username: reqUser
+        }])
+        .select();
+
+      if (!error && data && data.length > 0) {
+        const { error: updateError } = await supabase
+          .from('bookmarks')
+          .update({ folder_key: linkKey })
+          .eq('is_private', true)
+          .ilike('owner_username', reqUser)
+          .eq('folder_name', folderName);
+
+        if (!updateError) {
+          dbSuccess = true;
+        }
+      }
+    } catch (e) {
+      dbSuccess = false;
+    }
+
+    if (!dbSuccess) {
+      const localFolders = readLocalFolders();
+      localFolders.push({
+        folder_name: folderName,
+        link_key: linkKey,
+        owner_username: reqUser,
+        created_at: new Date().toISOString()
+      });
+      writeLocalFolders(localFolders);
+
+      const localBookmarks = readLocalPrivateBookmarks();
+      localBookmarks.forEach(b => {
+        if (b.is_private === true &&
+            (b.owner_username || '').toLowerCase() === reqUser.toLowerCase() &&
+            b.folder_name === folderName) {
+          b.folder_key = linkKey;
+        }
+      });
+      writeLocalPrivateBookmarks(localBookmarks);
+    }
+
+    trackUsage(reqUser, `Generated linkKey for folder: "${folderName}"`, req);
+    res.json({ linkKey });
+  } catch (err) {
+    console.error('Share folder error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/folders/save', async (req, res) => {
+  const { linkKey } = req.body;
+  const reqUser = req.headers['x-user-name'] || 'Guest';
+
+  if (!linkKey) {
+    return res.status(400).json({ error: 'Link key is required' });
+  }
+
+  try {
+    let folder = null;
+    let dbSuccess = false;
+
+    try {
+      const { data, error } = await supabase
+        .from('bookmark_folders')
+        .select('*')
+        .eq('link_key', linkKey)
+        .maybeSingle();
+
+      if (!error && data) {
+        folder = data;
+        dbSuccess = true;
+      }
+    } catch (e) {
+      dbSuccess = false;
+    }
+
+    if (!dbSuccess || !folder) {
+      const localFolders = readLocalFolders();
+      folder = localFolders.find(f => f.link_key === linkKey);
+      if (!folder) {
+        return res.status(404).json({ error: 'Invalid link key. Folder not found.' });
+      }
+    }
+
+    if (folder.owner_username.toLowerCase() === reqUser.toLowerCase()) {
+      return res.status(400).json({ error: 'You cannot import your own folder.' });
+    }
+
+    let saveSuccess = false;
+    try {
+      const { error } = await supabase
+        .from('user_saved_folders')
+        .insert([{
+          username: reqUser,
+          link_key: linkKey
+        }]);
+
+      if (!error || (error.message && error.message.includes('unique'))) {
+        saveSuccess = true;
+      }
+    } catch (e) {
+      saveSuccess = false;
+    }
+
+    if (!saveSuccess) {
+      const localSaved = readLocalUserSavedFolders();
+      const exists = localSaved.some(s =>
+        (s.username || '').toLowerCase() === reqUser.toLowerCase() &&
+        s.link_key === linkKey
+      );
+      if (!exists) {
+        localSaved.push({
+          username: reqUser,
+          link_key: linkKey,
+          saved_at: new Date().toISOString()
+        });
+        writeLocalUserSavedFolders(localSaved);
+      }
+    }
+
+    trackUsage(reqUser, `Imported shared folder: "${folder.folder_name}"`, req);
+    res.json({ folderName: folder.folder_name, ownerUsername: folder.owner_username });
+  } catch (err) {
+    console.error('Save folder error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/folders/unsave', async (req, res) => {
+  const { linkKey } = req.body;
+  const reqUser = req.headers['x-user-name'] || 'Guest';
+
+  if (!linkKey) {
+    return res.status(400).json({ error: 'Link key is required' });
+  }
+
+  try {
+    let dbSuccess = false;
+    try {
+      const { error } = await supabase
+        .from('user_saved_folders')
+        .delete()
+        .eq('username', reqUser)
+        .eq('link_key', linkKey);
+
+      if (!error) {
+        dbSuccess = true;
+      }
+    } catch (e) {
+      dbSuccess = false;
+    }
+
+    if (!dbSuccess) {
+      const localSaved = readLocalUserSavedFolders();
+      const filtered = localSaved.filter(s =>
+        !((s.username || '').toLowerCase() === reqUser.toLowerCase() && s.link_key === linkKey)
+      );
+      writeLocalUserSavedFolders(filtered);
+    }
+
+    trackUsage(reqUser, `Unsaved/Unsubscribed shared folder key: "${linkKey}"`, req);
+    res.json({ message: 'Folder unsaved successfully' });
+  } catch (err) {
+    console.error('Unsave folder error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// REST API: Batch copy bookmarks from Shared to Private space
+app.post('/api/links/copy-batch', async (req, res) => {
+  const { linkIds, folderName } = req.body;
+  const reqUser = req.headers['x-user-name'] || 'Guest';
+
+  if (!linkIds || !Array.isArray(linkIds) || linkIds.length === 0) {
+    return res.status(400).json({ error: 'linkIds must be a non-empty array' });
+  }
+
+  try {
+    let dbSuccess = false;
+    let copiedLinks = [];
+
+    // Try DB first
+    try {
+      const { data: sourceLinks, error: selectError } = await supabase
+        .from('bookmarks')
+        .select('*')
+        .in('id', linkIds);
+
+      if (!selectError && sourceLinks && sourceLinks.length > 0) {
+        dbSuccess = true;
+        const insertObjects = sourceLinks.map(link => ({
+          title: link.title,
+          url: link.url,
+          category: link.category,
+          favicon: link.favicon,
+          domain: link.domain,
+          added_by: reqUser,
+          is_private: true,
+          owner_username: reqUser,
+          folder_name: folderName || null,
+          sort_order: link.sort_order
+        }));
+
+        const { data: inserted, error: insertError } = await supabase
+          .from('bookmarks')
+          .insert(insertObjects)
+          .select();
+
+        if (!insertError && inserted) {
+          copiedLinks = inserted;
+        } else {
+          dbSuccess = false;
+        }
+      }
+    } catch (e) {
+      dbSuccess = false;
+    }
+
+    if (!dbSuccess) {
+      const localBookmarks = readLocalPrivateBookmarks();
+      const sourceLinks = localBookmarks.filter(b => linkIds.includes(b.id));
+      
+      sourceLinks.forEach(link => {
+        const newLink = {
+          id: uuidv4(),
+          title: link.title,
+          url: link.url,
+          category: link.category,
+          favicon: link.favicon,
+          domain: link.domain,
+          added_at: new Date().toISOString(),
+          added_by: reqUser,
+          owner_username: reqUser,
+          is_private: true,
+          folder_name: folderName || null,
+          folder_key: null,
+          hidden_by_admin: false,
+          sort_order: link.sort_order
+        };
+        localBookmarks.push(newLink);
+        copiedLinks.push(newLink);
+      });
+      writeLocalPrivateBookmarks(localBookmarks);
+    }
+
+    trackUsage(reqUser, `Batch copied ${copiedLinks.length} bookmarks to folder "${folderName || 'General'}"`, req);
+    res.json({ success: true, count: copiedLinks.length });
+  } catch (err) {
+    console.error('Copy batch error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// REST API: Clone a shared folder into a local private folder
+app.post('/api/folders/clone', async (req, res) => {
+  const { folderKey, targetFolderName } = req.body;
+  const reqUser = req.headers['x-user-name'] || 'Guest';
+
+  if (!folderKey || !targetFolderName) {
+    return res.status(400).json({ error: 'folderKey and targetFolderName are required' });
+  }
+
+  try {
+    let dbSuccess = false;
+    let copiedCount = 0;
+
+    try {
+      const { data: sourceLinks, error: selectError } = await supabase
+        .from('bookmarks')
+        .select('*')
+        .eq('folder_key', folderKey);
+
+      if (!selectError && sourceLinks && sourceLinks.length > 0) {
+        dbSuccess = true;
+        const insertObjects = sourceLinks.map(link => ({
+          title: link.title,
+          url: link.url,
+          category: link.category,
+          favicon: link.favicon,
+          domain: link.domain,
+          added_by: reqUser,
+          is_private: true,
+          owner_username: reqUser,
+          folder_name: targetFolderName,
+          sort_order: link.sort_order
+        }));
+
+        const { data: inserted, error: insertError } = await supabase
+          .from('bookmarks')
+          .insert(insertObjects)
+          .select();
+
+        if (!insertError && inserted) {
+          copiedCount = inserted.length;
+        } else {
+          dbSuccess = false;
+        }
+      }
+    } catch (e) {
+      dbSuccess = false;
+    }
+
+    if (!dbSuccess) {
+      const localBookmarks = readLocalPrivateBookmarks();
+      const sourceLinks = localBookmarks.filter(b => b.folder_key === folderKey);
+
+      sourceLinks.forEach(link => {
+        const newLink = {
+          id: uuidv4(),
+          title: link.title,
+          url: link.url,
+          category: link.category,
+          favicon: link.favicon,
+          domain: link.domain,
+          added_at: new Date().toISOString(),
+          added_by: reqUser,
+          owner_username: reqUser,
+          is_private: true,
+          folder_name: targetFolderName,
+          folder_key: null,
+          hidden_by_admin: false,
+          sort_order: link.sort_order
+        };
+        localBookmarks.push(newLink);
+        copiedCount++;
+      });
+      writeLocalPrivateBookmarks(localBookmarks);
+    }
+
+    trackUsage(reqUser, `Cloned shared folder key "${folderKey}" to private folder "${targetFolderName}"`, req);
+    res.json({ success: true, count: copiedCount });
+  } catch (err) {
+    console.error('Clone folder error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// REST API: Bulk delete/hide multiple bookmarks
+app.delete('/api/bookmarks/bulk', async (req, res) => {
+  const reqUser = req.headers['x-user-name'] || 'Guest';
+  const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
+  const { ids } = req.body;
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'No IDs provided' });
+  }
+
+  let deleted = 0;
+  let hidden = 0;
+  const reqUserLower = reqUser.toLowerCase();
+
+  for (const id of ids) {
+    try {
+      let bookmark = null;
+      let dbSuccess = false;
+
+      try {
+        const { data, error } = await supabase.from('bookmarks').select('*').eq('id', id).maybeSingle();
+        if (!error && data) { bookmark = data; dbSuccess = true; }
+      } catch (e) { dbSuccess = false; }
+
+      if (!dbSuccess || !bookmark) {
+        // Try local JSON
+        const localBookmarks = readLocalPrivateBookmarks();
+        const idx = localBookmarks.findIndex(b => b.id === id);
+        if (idx !== -1) {
+          const localB = localBookmarks[idx];
+          const owner = (localB.owner_username || localB.added_by || 'Owner').toLowerCase();
+          const isOwn = isOwnerRequest || owner === reqUserLower || owner === 'owner' || owner === 'guest';
+          if (isOwn) {
+            localB.is_deleted = true;
+            deleted++;
+          } else {
+            const hiddenList = readLocalHiddenItems();
+            const already = hiddenList.some(h => h.bookmark_id === id && (h.username || '').toLowerCase() === reqUserLower);
+            if (!already) hiddenList.push({ username: reqUser, bookmark_id: id, hidden_at: new Date().toISOString() });
+            writeLocalHiddenItems(hiddenList);
+            hidden++;
+          }
+          writeLocalPrivateBookmarks(localBookmarks);
+        }
+        continue;
+      }
+
+      const owner = (bookmark.owner_username || bookmark.added_by || 'Owner').toLowerCase();
+      const isOwn = isOwnerRequest || owner === reqUserLower || owner === 'owner' || owner === 'guest';
+
+      if (isOwn) {
+        let { error } = await supabase.from('bookmarks').update({ is_deleted: true }).eq('id', id);
+        if (error && error.message && error.message.includes('is_deleted')) {
+          await supabase.from('bookmarks').delete().eq('id', id);
+        }
+        deleted++;
+      } else {
+        const hiddenList = readLocalHiddenItems();
+        const already = hiddenList.some(h => h.bookmark_id === id && (h.username || '').toLowerCase() === reqUserLower);
+        if (!already) hiddenList.push({ username: reqUser, bookmark_id: id, hidden_at: new Date().toISOString() });
+        writeLocalHiddenItems(hiddenList);
+        hidden++;
+      }
+    } catch (err) {
+      console.error(`Bulk delete error for id ${id}:`, err.message);
+    }
+  }
+
+  trackUsage(reqUser, `Bulk removed ${deleted + hidden} bookmarks (${deleted} deleted, ${hidden} hidden)`, req);
+  res.json({ message: 'Bulk operation complete', deleted, hidden, total: deleted + hidden });
+});
+
+// REST API: Clear all unfiled (General) private bookmarks for a user
+
+app.delete('/api/bookmarks/clear-general', async (req, res) => {
+  const reqUser = req.headers['x-user-name'] || 'Guest';
+
+  try {
+    let count = 0;
+    let dbSuccess = false;
+
+    // Try Supabase first
+    try {
+      // Find all unfiled private bookmarks for this user
+      const { data: toDelete, error: findErr } = await supabase
+        .from('bookmarks')
+        .select('id')
+        .eq('is_private', true)
+        .ilike('owner_username', reqUser)
+        .is('folder_name', null)
+        .is('folder_key', null);
+
+      if (!findErr) {
+        if (toDelete && toDelete.length > 0) {
+          const ids = toDelete.map(b => b.id);
+          const { error: delErr } = await supabase
+            .from('bookmarks')
+            .update({ is_deleted: true })
+            .in('id', ids);
+
+          if (!delErr) {
+            count = ids.length;
+            dbSuccess = true;
+          } else if (delErr.message && delErr.message.includes('is_deleted')) {
+            // Hard delete fallback if is_deleted column doesn't exist
+            const { error: hardDelErr } = await supabase
+              .from('bookmarks')
+              .delete()
+              .in('id', ids);
+            if (!hardDelErr) {
+              count = ids.length;
+              dbSuccess = true;
+            }
+          }
+        } else {
+          dbSuccess = true; // Nothing to delete
+          count = 0;
+        }
+      }
+    } catch (e) {
+      dbSuccess = false;
+    }
+
+    // Local JSON fallback
+    if (!dbSuccess) {
+      const localBookmarks = readLocalPrivateBookmarks();
+      let deleted = 0;
+      const updated = localBookmarks.map(b => {
+        const isMatch = b.is_private === true &&
+          (b.owner_username || '').toLowerCase() === reqUser.toLowerCase() &&
+          !b.folder_name &&
+          !b.folder_key &&
+          !b.is_deleted;
+        if (isMatch) {
+          deleted++;
+          return { ...b, is_deleted: true };
+        }
+        return b;
+      });
+      count = deleted;
+      writeLocalPrivateBookmarks(updated);
+    }
+
+    trackUsage(reqUser, `Cleared ${count} general (unfiled) private bookmarks`, req);
+    res.json({ message: 'General bookmarks cleared', count });
+  } catch (err) {
+    console.error('Clear general bookmarks error:', err);
+    res.status(500).json({ error: 'Failed to clear general bookmarks' });
+  }
+});
+
+// REST API: Delete a folder and all its bookmarks
+app.delete('/api/folders', async (req, res) => {
+  const reqUser = req.headers['x-user-name'] || 'Guest';
+  const ownerSessionToken = process.env.OWNER_SESSION_TOKEN || ''; // we can read or use existing ownerSessionToken if initialized
+  const isOwnerRequest = req.headers['x-owner-token'] === ownerSessionToken;
+  const { folderName } = req.query;
+
+  if (!folderName) {
+    return res.status(400).json({ error: 'folderName is required' });
+  }
+
+  try {
+    let dbSuccess = false;
+    
+    // 1. Try deleting from Supabase
+    try {
+      // Find the folder key first if it exists
+      const { data: folderInfo, error: findErr } = await supabase
+        .from('bookmark_folders')
+        .select('link_key')
+        .eq('folder_name', folderName)
+        .ilike('owner_username', reqUser)
+        .maybeSingle();
+
+      const linkKey = (!findErr && folderInfo) ? folderInfo.link_key : null;
+
+      // Delete the folder key from bookmark_folders
+      await supabase
+        .from('bookmark_folders')
+        .delete()
+        .eq('folder_name', folderName)
+        .ilike('owner_username', reqUser);
+
+      // If it was shared, we also remove subscriptions to it
+      if (linkKey) {
+        await supabase
+          .from('user_saved_folders')
+          .delete()
+          .eq('link_key', linkKey);
+      }
+
+      // Delete all bookmarks in this folder belonging to this owner
+      const deleteQuery = supabase
+        .from('bookmarks')
+        .delete();
+        
+      if (linkKey) {
+        const { error: delErr } = await deleteQuery
+          .or(`and(folder_name.eq."${folderName}",owner_username.ilike."${reqUser}"),folder_key.eq."${linkKey}"`);
+        if (!delErr) dbSuccess = true;
+      } else {
+        const { error: delErr } = await deleteQuery
+          .eq('folder_name', folderName)
+          .ilike('owner_username', reqUser);
+        if (!delErr) dbSuccess = true;
+      }
+    } catch (e) {
+      dbSuccess = false;
+    }
+
+    // 2. Local fallback if DB failed
+    if (!dbSuccess) {
+      const localBookmarks = readLocalPrivateBookmarks();
+      const localFolders = readLocalFolders();
+      const localSavedFolders = readLocalUserSavedFolders();
+
+      // Find the folder key
+      const folderInfo = localFolders.find(f => 
+        f.folder_name === folderName && 
+        (f.owner_username || '').toLowerCase() === reqUser.toLowerCase()
+      );
+      const linkKey = folderInfo ? folderInfo.link_key : null;
+
+      // Filter out bookmarks in this folder
+      const updatedBookmarks = localBookmarks.filter(item => {
+        const isMatch = (item.folder_name === folderName && (item.owner_username || '').toLowerCase() === reqUser.toLowerCase()) ||
+                        (linkKey && item.folder_key === linkKey);
+        return !isMatch;
+      });
+      writeLocalPrivateBookmarks(updatedBookmarks);
+
+      // Remove from folders
+      const updatedFolders = localFolders.filter(f => 
+        !(f.folder_name === folderName && (f.owner_username || '').toLowerCase() === reqUser.toLowerCase())
+      );
+      writeLocalFolders(updatedFolders);
+
+      // Remove subscriptions
+      if (linkKey) {
+        const updatedSavedFolders = localSavedFolders.filter(s => s.link_key !== linkKey);
+        writeLocalUserSavedFolders(updatedSavedFolders);
+      }
+    }
+
+    trackUsage(reqUser, `Deleted folder: "${folderName}" and its bookmarks`, req);
+    res.json({ message: `Successfully deleted folder "${folderName}"` });
+  } catch (err) {
+    console.error('Delete folder error:', err);
+    res.status(500).json({ error: 'Failed to delete folder' });
+  }
+});
+
+
+// Periodic folder key reset/rotation
+async function resetFolderKeys() {
+  console.log('[Folder Keys] Starting periodic folder key reset...');
+  try {
+    let dbSuccess = false;
+    try {
+      const { data: dbFolders, error: getErr } = await supabase
+        .from('bookmark_folders')
+        .select('*');
+
+      if (!getErr && dbFolders && dbFolders.length > 0) {
+        dbSuccess = true;
+        for (const folder of dbFolders) {
+          const oldKey = folder.link_key;
+          const prefix = folder.folder_name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10).toLowerCase();
+          const newKey = `${prefix}-${Math.random().toString(36).substring(2, 7)}`;
+          
+          await supabase
+            .from('bookmark_folders')
+            .update({ link_key: newKey })
+            .eq('id', folder.id);
+
+          await supabase
+            .from('bookmarks')
+            .update({ folder_key: newKey })
+            .eq('folder_key', oldKey);
+
+          await supabase
+            .from('user_saved_folders')
+            .update({ link_key: newKey })
+            .eq('link_key', oldKey);
+        }
+      }
+    } catch (dbErr) {
+      dbSuccess = false;
+    }
+
+    // Local files key update
+    const localFolders = readLocalFolders();
+    if (localFolders.length > 0) {
+      const localBookmarks = readLocalPrivateBookmarks();
+      const localSavedFolders = readLocalUserSavedFolders();
+
+      localFolders.forEach(folder => {
+        const oldKey = folder.link_key;
+        const prefix = folder.folder_name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10).toLowerCase();
+        const newKey = `${prefix}-${Math.random().toString(36).substring(2, 7)}`;
+
+        folder.link_key = newKey;
+
+        localBookmarks.forEach(b => {
+          if (b.folder_key === oldKey) {
+            b.folder_key = newKey;
+          }
+        });
+
+        localSavedFolders.forEach(sf => {
+          if (sf.link_key === oldKey) {
+            sf.link_key = newKey;
+          }
+        });
+      });
+
+      writeLocalFolders(localFolders);
+      writeLocalPrivateBookmarks(localBookmarks);
+      writeLocalUserSavedFolders(localSavedFolders);
+    }
+    console.log('[Folder Keys] Folder keys successfully rotated.');
+  } catch (err) {
+    console.error('[Folder Keys] Failed to reset folder keys:', err);
+  }
+}
+
+// Rotate folder keys on startup, then every 30 minutes
+setTimeout(resetFolderKeys, 5000);
+setInterval(resetFolderKeys, 1000 * 60 * 30);
 
 // Toggle bookmark visibility (admin hide/unhide)
 app.patch('/api/links/:id/visibility', async (req, res) => {
@@ -950,9 +1904,29 @@ app.post('/api/auth/signup', async (req, res) => {
     const hashedRecoveryCode = hashPassword(rawRecoveryCode);
 
     // Insert new user with hashed password and hashed recovery code
-    const { error: insertError } = await supabase
-      .from('users')
-      .insert([{ username: cleanUsername, password: hashedPasswordStr, recovery_code: hashedRecoveryCode }]);
+    let insertError;
+    try {
+      const result = await supabase
+        .from('users')
+        .insert([{ 
+          username: cleanUsername, 
+          password: hashedPasswordStr, 
+          recovery_code: hashedRecoveryCode,
+          display_name: cleanUsername,
+          bio: ''
+        }]);
+      insertError = result.error;
+    } catch (err) {
+      insertError = err;
+    }
+
+    if (insertError && (insertError.message?.includes('column') || insertError.message?.includes('does not exist'))) {
+      console.warn('[Supabase] Display name / bio columns do not exist yet. Running fallback registration.');
+      const resultFallback = await supabase
+        .from('users')
+        .insert([{ username: cleanUsername, password: hashedPasswordStr, recovery_code: hashedRecoveryCode }]);
+      insertError = resultFallback.error;
+    }
 
     if (insertError) {
       console.error('Signup Insert Error:', insertError.message);
@@ -1025,10 +1999,27 @@ app.get('/api/auth/profile', async (req, res) => {
   }
 
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('username, created_at, brian_access')
-      .ilike('username', userName.trim());
+    let data, error;
+    try {
+      const result = await supabase
+        .from('users')
+        .select('username, created_at, brian_access, display_name, bio, avatar_data')
+        .ilike('username', userName.trim());
+      data = result.data;
+      error = result.error;
+    } catch (e) {
+      error = e;
+    }
+
+    if (error && (error.message?.includes('column') || error.message?.includes('does not exist'))) {
+      console.warn('[Supabase] Detailed profile columns (display_name, bio, avatar_data) do not exist. Please run profile_migration.sql. Falling back to basic columns.');
+      const fallbackResult = await supabase
+        .from('users')
+        .select('username, created_at, brian_access')
+        .ilike('username', userName.trim());
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
 
     if (error) {
       console.error('Fetch profile error:', error.message);
@@ -1466,6 +2457,103 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 });
 
+// REST API: Update Guest User Profile (Display Name, Bio, Avatar)
+app.post('/api/auth/profile/update', async (req, res) => {
+  const userName = req.headers['x-user-name'];
+  if (!userName || userName.toLowerCase() === 'guest') {
+    return res.status(401).json({ error: 'Not logged in' });
+  }
+
+  const { displayName, bio, avatarData } = req.body;
+  
+  try {
+    const updatePayload = {};
+    if (typeof displayName === 'string') updatePayload.display_name = displayName.trim();
+    if (typeof bio === 'string') updatePayload.bio = bio.trim();
+    if (typeof avatarData === 'string') updatePayload.avatar_data = avatarData;
+
+    if (Object.keys(updatePayload).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updatePayload)
+      .ilike('username', userName.trim())
+      .select();
+
+    if (error) {
+      console.error('Update profile error:', error.message);
+      if (error.message?.includes('column') || error.message?.includes('does not exist')) {
+        return res.status(400).json({ error: 'Database needs migration. Please ask Owner to run profile_migration.sql.' });
+      }
+      return res.status(500).json({ error: 'Failed to update profile settings' });
+    }
+
+    trackUsage(userName, 'Updated profile settings', req);
+    res.json({ success: true, message: 'Profile updated successfully', user: data[0] });
+  } catch (err) {
+    console.error('Update profile server error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// REST API: Change User Password
+app.post('/api/auth/profile/change-password', async (req, res) => {
+  const userName = req.headers['x-user-name'];
+  if (!userName || userName.toLowerCase() === 'guest') {
+    return res.status(401).json({ error: 'Not logged in' });
+  }
+
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Current password and new password are required' });
+  }
+
+  if (newPassword.trim().length < 4) {
+    return res.status(400).json({ error: 'New password must be at least 4 characters long' });
+  }
+
+  try {
+    // 1. Fetch user to verify current password
+    const { data, error } = await supabase
+      .from('users')
+      .select('username, password')
+      .ilike('username', userName.trim());
+
+    if (error || !data || data.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = data[0];
+    const hashedCurrent = hashPassword(currentPassword.trim());
+
+    // Allow comparison to hashed or legacy plaintext
+    const isValid = (user.password === hashedCurrent) || (user.password === currentPassword.trim());
+    if (!isValid) {
+      return res.status(401).json({ error: 'Incorrect current password' });
+    }
+
+    // 2. Hash new password and update
+    const hashedNew = hashPassword(newPassword.trim());
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ password: hashedNew })
+      .ilike('username', userName.trim());
+
+    if (updateError) {
+      console.error('Change password update error:', updateError.message);
+      return res.status(500).json({ error: 'Failed to update password' });
+    }
+
+    trackUsage(userName, 'Changed password', req);
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('Change password server error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.post('/api/admin/change-password', requireOwner, (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (currentPassword !== ownerPassword) {
@@ -1880,4 +2968,27 @@ app.get('/*splat', (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`blendd.com server running on http://localhost:${PORT}`);
+  
+  // Copy the site's blend_icon.png into the extension folder automatically
+  try {
+    const fs = require('fs');
+    fs.copyFileSync(
+      path.join(__dirname, 'public', 'blend_icon.png'),
+      path.join(__dirname, 'chrome-extension', 'blend_icon.png')
+    );
+  } catch (err) {
+    console.warn('[Extension Bundle] Failed to copy blend_icon.png to extension directory:', err.message);
+  }
+
+  // Auto-generate the downloadable extension zip on boot
+  const { exec } = require('child_process');
+  const zipPath = path.join(__dirname, 'public', 'extension.zip');
+  exec(`zip -r "${zipPath}" chrome-extension`, { cwd: __dirname }, (err) => {
+    if (err) {
+      console.warn('[Extension Bundle] "zip" command not available or failed. You can package chrome-extension/ manually.');
+    } else {
+      console.log('[Extension Bundle] Successfully auto-generated public/extension.zip');
+    }
+  });
 });
+
