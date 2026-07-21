@@ -104,25 +104,32 @@
 
       <!-- VIEW: DASHBOARD -->
       <section id="view-dashboard" class="content-view active">
-        
-        <!-- Welcome Banner -->
-        <div class="welcome-banner fade-in-up" id="dashboard-welcome-banner">
-          <div class="banner-overlay"></div>
-          <div class="banner-content">
-            <h1 id="welcome-title">Welcome back!</h1>
-            <p id="welcome-subtitle">Ready to download media, save bookmarks, or chill in the Arcade Zone?</p>
+
+        <!-- Welcome Header -->
+        <div class="welcome-header fade-in-up" id="dashboard-welcome-banner">
+          <div class="welcome-meta">
+            <span id="dashboard-date" class="meta-date">Sunday, July 5, 2026</span>
+            <span class="meta-separator">•</span>
+            <span id="dashboard-clock" class="meta-clock">12:00:00 PM</span>
+            <span class="meta-separator">•</span>
+            <span class="meta-status">
+              <span class="pulse-dot active"></span>
+              <span>System Online</span>
+            </span>
           </div>
+          <h1 id="welcome-title" class="welcome-title">Welcome back!</h1>
+          <p id="welcome-subtitle" class="welcome-subtitle">Ready to download media, save bookmarks, or chill in the Arcade Zone?</p>
         </div>
 
-        <div class="dashboard-grid fade-in-up delay-1">
+        <div class="dashboard-grid">
           <!-- Card: Tool Vault -->
           <div class="dash-card link-vault" id="dash-card-vault">
             <div class="dash-card-folder-preview">
               <div class="mini-app-grid">
+                <div class="mini-app-icon icon-dl"><i data-lucide="download-cloud"></i></div>
                 <div class="mini-app-icon icon-qr"><i data-lucide="qr-code"></i></div>
                 <div class="mini-app-icon icon-img"><i data-lucide="image"></i></div>
                 <div class="mini-app-icon icon-pw"><i data-lucide="key-round"></i></div>
-                <div class="mini-app-icon icon-dl"><i data-lucide="download-cloud"></i></div>
               </div>
             </div>
             <h3>Tool Vault</h3>
@@ -154,128 +161,18 @@
           </div>
         </div>
 
-        <!-- Dashboard Layout Row -->
-        <div class="dashboard-row-layout fade-in-up delay-2">
-          
-          <!-- Left Column: Main Contents -->
-          <div class="dashboard-main-col">
-            
-            <!-- Section: Recent Bookmarks preview -->
-            <div class="dashboard-section">
-              <div class="section-title-row">
-                <h2>Recently Bookmarked</h2>
-                <button class="btn-text" data-action="go-to-linksaver">View All</button>
-              </div>
-              <div class="recent-links-grid" id="dashboard-recent-links">
-                <div class="empty-state-simple">
-                  <p>No bookmarks saved yet. Go to Link Saver to add one!</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Section: blendd.com Brand Showcase -->
-            <div class="dashboard-section blendd-title-section">
-              <div class="blendd-glow-effect"></div>
-              <div class="blendd-title-container">
-                <div class="blendd-brand-badge">
-                  <span class="pulse-dot active"></span>
-                  <span class="badge-text">Interactive Hub</span>
-                </div>
-                <h1 class="blendd-large-title">blendd.com</h1>
-                <p class="blendd-large-subtitle">Your beautiful and unified workspace for media, links, and arcade gaming.</p>
-                <div class="blendd-features-row">
-                  <div class="blendd-feature-item">
-                    <i data-lucide="download-cloud"></i>
-                    <span>Media Downloader</span>
-                  </div>
-                  <div class="blendd-feature-item">
-                    <i data-lucide="folder-heart"></i>
-                    <span>Link Saver</span>
-                  </div>
-                  <div class="blendd-feature-item">
-                    <i data-lucide="gamepad-2"></i>
-                    <span>Arcade Zone</span>
-                  </div>
-                  <div class="blendd-feature-item">
-                    <i data-lucide="message-square"></i>
-                    <span>Brian AI</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Section: Quick Actions Panel -->
-            <div class="dashboard-section">
-              <div class="section-title-row">
-                <h2>Quick Actions</h2>
-              </div>
-              <div class="quick-actions-grid">
-                <!-- Card: Quick Save Link -->
-                <div class="quick-action-card">
-                  <h3><i data-lucide="plus-circle"></i> Quick-Save URL</h3>
-                  <div class="quick-action-form-row">
-                    <input type="url" id="quick-link-url" placeholder="https://example.com/link-to-save">
-                    <button id="btn-quick-save-link" class="btn-primary-sm">Save</button>
-                  </div>
-                </div>
-
-                <!-- Card: Quick Downloader -->
-                <div class="quick-action-card">
-                  <h3><i data-lucide="download-cloud"></i> Quick Media Downloader</h3>
-                  <div class="quick-action-form-row">
-                    <input type="url" id="quick-download-url" placeholder="Paste YouTube/Insta URL...">
-                    <button id="btn-quick-download" class="btn-primary-sm">Launch</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
+        <!-- Section: Recent Bookmarks preview -->
+        <div class="dashboard-section">
+          <div class="section-title-row">
+            <h2>Recently Bookmarked</h2>
+            <button class="btn-text" data-action="go-to-linksaver">View All</button>
           </div>
-
-          <!-- Right Column: Sidebar / Widgets -->
-          <div class="dashboard-side-col">
-            
-            <!-- Live Clock Widget -->
-            <div class="live-clock-card">
-              <div class="live-clock-time" id="dashboard-clock">12:00:00 PM</div>
-              <div class="live-clock-date" id="dashboard-date">Sunday, July 5, 2026</div>
-              <div class="system-status-indicator" style="margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                <span class="pulse-dot active"></span>
-                <span style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">System Online</span>
-              </div>
+          <div class="recent-links-list" id="dashboard-recent-links">
+            <div class="empty-state-simple">
+              <p>No bookmarks saved yet. Go to Link Saver to add one!</p>
             </div>
-
-            <!-- System Health Widget (Only visible in Owner mode) -->
-            <div class="dashboard-section hidden" id="dashboard-owner-stats">
-              <div class="section-title-row">
-                <h2>System Health</h2>
-              </div>
-              <div class="health-meters">
-                <div class="meter-group">
-                  <div class="meter-header">
-                    <span>Node Memory (RSS)</span>
-                    <span id="dash-meter-mem-val">- MB</span>
-                  </div>
-                  <div class="meter-bar">
-                    <div class="meter-fill" id="dash-meter-mem" style="width: 0%;"></div>
-                  </div>
-                </div>
-                <div class="meter-group">
-                  <div class="meter-header">
-                    <span>Server Uptime</span>
-                    <span id="dash-meter-uptime-val">-</span>
-                  </div>
-                  <div class="meter-bar">
-                    <div class="meter-fill active-green" id="dash-meter-uptime" style="width: 100%;"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
           </div>
-
         </div>
-
       </section>
 
       <!-- VIEW: DOWNLOADER -->
