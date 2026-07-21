@@ -9,7 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 const https = require('https');
 const url = require('url');
 const crypto = require('crypto');
-const supabase = require('./db');
+const supabase = require('./src/db');
 
 // Utility: Hash password using SHA-256
 function hashPassword(password) {
@@ -33,17 +33,17 @@ const io = socketIo(server, {
 });
 
 // Initialize CDBP Social Deduction Game
-const initCDbpGame = require('./game_manager');
+const initCDbpGame = require('./src/games/game_manager');
 initCDbpGame(io);
 initCDbpGame.bindIO(io);
 
 // Initialize Who's the Worst Social Voting Game
-const initWtwGame = require('./wtw_manager');
+const initWtwGame = require('./src/games/wtw_manager');
 initWtwGame(io);
 initWtwGame.bindIO(io);
 
 // Initialize Never Have I Ever Social Game
-const initNhieGame = require('./nhie_manager');
+const initNhieGame = require('./src/games/nhie_manager');
 initNhieGame(io);
 initNhieGame.bindIO(io);
 
@@ -200,7 +200,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Project Brian AI Router
-const brianRouter = require('./brian_router');
+const brianRouter = require('./src/brian/brian_router');
 
 // Middleware to restrict access to Brian AI (Bro Mode or Owner Only)
 async function requireBrianAccess(req, res, next) {

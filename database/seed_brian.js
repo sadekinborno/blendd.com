@@ -1,6 +1,6 @@
 require('dotenv').config();
-const supabase = require('./db');
-const { getEmbedding } = require('./brian_manager');
+const supabase = require('../src/db');
+const { getEmbedding } = require('../src/brian/brian_manager');
 
 const mockPeople = [
   {

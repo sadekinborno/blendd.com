@@ -11,7 +11,7 @@
 'use strict';
 
 const { v4: uuidv4 } = require('uuid');
-const supabase = require('./db');
+const supabase = require('../db');
 
 // ── In-memory state ──────────────────────────────────────────────────────────
 const rooms = new Map(); // roomId → room object

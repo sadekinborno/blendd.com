@@ -1,5 +1,5 @@
 require('dotenv').config();
-const supabase = require('./db');
+const supabase = require('../src/db');
 const crypto = require('crypto');
 
 function hashPassword(password) {

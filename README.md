@@ -95,17 +95,17 @@ SUPABASE_ANON_KEY=your_supabase_anon_key_here
 
 ## 💾 Database Schema Setup
 
-If using Supabase, you can set up the database by executing the following scripts in your Supabase SQL Editor:
+If using Supabase, you can set up the database by executing the following scripts in your Supabase SQL Editor (all files are located inside the `database/` folder):
 
-1. **`access_control.sql`**: Configures access permissions for Brian AI.
-2. **`analytics_schema.sql`**: Creates analytics tables for page view counts and usage logging.
-3. **`bookmarks_schema.sql`**: Configures tables for bookmarks/links storage and tag mappings.
-4. **`brian_schema.sql`**: Initializes memories, relationships, and conversation storage for Brian AI.
-5. **`nhie_schema.sql`** & **`wtw_schema.sql`**: Sets up custom question/prompt tables for games.
+1. **`database/access_control.sql`**: Configures access permissions for Brian AI.
+2. **`database/analytics_schema.sql`**: Creates analytics tables for page view counts and usage logging.
+3. **`database/bookmarks_schema.sql`**: Configures tables for bookmarks/links storage and tag mappings.
+4. **`database/brian_schema.sql`**: Initializes memories, relationships, and conversation storage for Brian AI.
+5. **`database/nhie_schema.sql`** & **`database/wtw_schema.sql`**: Sets up custom question/prompt tables for games.
 
 To seed Brian's core memories, run:
 ```bash
-node seed_brian.js
+node database/seed_brian.js
 ```
 
 ---

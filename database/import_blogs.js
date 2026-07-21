@@ -1,8 +1,8 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const supabase = require('./db');
-const { getEmbedding } = require('./brian_manager');
+const supabase = require('../src/db');
+const { getEmbedding } = require('../src/brian/brian_manager');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Initialize Gemini API

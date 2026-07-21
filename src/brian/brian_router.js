@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const supabase = require('./db');
+const supabase = require('../db');
 const { getBrianReply, getEmbedding } = require('./brian_manager');
 
 /**
